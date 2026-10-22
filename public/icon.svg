@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#0e7490"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+    <linearGradient id="fishGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background with squircle padding -->
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+  
+  <!-- Outer glow ring -->
+  <circle cx="256" cy="256" r="185" fill="none" stroke="#38bdf8" stroke-width="6" stroke-opacity="0.3"/>
+  
+  <!-- Stylized River waves at bottom -->
+  <path d="M 96 360 C 140 340, 180 380, 224 360 C 268 340, 308 380, 352 360 C 396 340, 436 370, 460 360" fill="none" stroke="#22d3ee" stroke-width="12" stroke-linecap="round"/>
+  <path d="M 110 395 C 150 380, 190 410, 230 395 C 270 380, 310 410, 350 395 C 390 380, 420 400, 440 395" fill="none" stroke="#0ea5e9" stroke-width="8" stroke-linecap="round" stroke-opacity="0.7"/>
+
+  <!-- Fish Icon Body -->
+  <g transform="translate(10, -10)">
+    <path d="M 150 250 C 200 170, 330 180, 370 240 C 350 220, 320 220, 290 230 C 270 200, 230 190, 190 210 Z" fill="url(#fishGrad)"/>
+    <path d="M 150 250 C 200 330, 330 320, 370 260 C 350 280, 320 280, 290 270 C 270 300, 230 310, 190 290 Z" fill="url(#fishGrad)"/>
+    
+    <!-- Tail Fin -->
+    <path d="M 150 250 L 100 205 C 115 235, 115 265, 100 295 Z" fill="url(#fishGrad)"/>
+    
+    <!-- Fish Eye -->
+    <circle cx="330" cy="250" r="10" fill="#0f172a"/>
+    <circle cx="333" cy="248" r="3.5" fill="#ffffff"/>
+    
+    <!-- Hook accent -->
+    <path d="M 360 250 C 375 250, 385 260, 385 275 C 385 290, 370 300, 355 295 L 358 285" fill="none" stroke="#f59e0b" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>

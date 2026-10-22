@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RiboPrognoza</string>
+    <string name="title_activity_main">RiboPrognoza</string>
+    <string name="package_name">hr.riboprognoza.dunav</string>
+    <string name="custom_url_scheme">hr.riboprognoza.dunav</string>
+</resources>

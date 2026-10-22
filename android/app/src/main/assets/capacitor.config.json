@@ -1,0 +1,8 @@
+{
+	"appId": "hr.riboprognoza.dunav",
+	"appName": "RiboPrognoza",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https"
+	}
+}

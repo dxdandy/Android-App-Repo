@@ -1,0 +1,6 @@
+{
+  "name": "RiboPrognoza",
+  "description": "Službeni vodostaji Dunava za Aljmaš i Bogojevo uživo, meteo podaci, barometar i dnevni solunarni rezultati za ribolov.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
