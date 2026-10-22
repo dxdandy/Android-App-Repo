@@ -18,12 +18,6 @@ allprojects {
         google()
         mavenCentral()
     }
-
-    afterEvaluate { project ->
-        project.tasks.matching { it.name.startsWith("check") && it.name.contains("AarMetadata") }.configureEach {
-            enabled = false
-        }
-    }
 }
 
 subprojects {
