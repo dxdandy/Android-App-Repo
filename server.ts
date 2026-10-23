@@ -230,8 +230,53 @@ async function startServer() {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   } else {
+    // Intercept Vite client in preview/cloud environment to provide a clean, silent HMR stub without WebSocket errors
+    app.get('/@vite/client', (_req, res) => {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(`
+export class ErrorOverlay extends HTMLElement {}
+if (typeof customElements !== 'undefined' && !customElements.get('vite-error-overlay')) {
+  customElements.define('vite-error-overlay', ErrorOverlay);
+}
+export function createHotContext() {
+  return {
+    accept() {},
+    acceptExports() {},
+    dispose() {},
+    prune() {},
+    decline() {},
+    invalidate() {},
+    on() {},
+    off() {},
+    send() {},
+    data: {}
+  };
+}
+export function updateStyle(id, content) {
+  let style = document.getElementById(id);
+  if (!style) {
+    style = document.createElement('style');
+    style.id = id;
+    document.head.appendChild(style);
+  }
+  style.textContent = content;
+}
+export function removeStyle(id) {
+  const style = document.getElementById(id);
+  if (style) style.remove();
+}
+export function injectQuery(url, queryToInject) {
+  return url.includes('?') ? url + '&' + queryToInject : url + '?' + queryToInject;
+}
+`);
+    });
+
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
