@@ -3,7 +3,6 @@ import {
   Waves, 
   Sparkles, 
   Scale, 
-  Smartphone, 
   RefreshCw, 
   CheckCircle2,
   Clock
@@ -33,44 +32,44 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="border-b border-cyan-900/15 bg-white/95 backdrop-blur-md sticky top-0 z-40 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-lg pt-[max(env(safe-area-inset-top,0px),1.75rem)] sm:pt-[max(env(safe-area-inset-top,0px),0.5rem)] w-full">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="h-16 flex items-center justify-between gap-3">
           
           {/* Brand */}
           <div 
             onClick={() => onSelectTab('sve')}
-            className="flex items-center space-x-3 shrink-0 cursor-pointer"
+            className="flex items-center space-x-2.5 sm:space-x-3 shrink-0 cursor-pointer"
           >
             <img 
               src="/pwa-192x192.png" 
               alt="RiboPrognoza ikona" 
-              className="h-10 w-10 rounded-xl object-cover shadow-sm ring-2 ring-cyan-500/20 shrink-0" 
+              className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl object-cover shadow-sm ring-2 ring-cyan-500/30 shrink-0" 
               referrerPolicy="no-referrer" 
             />
             <div>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <h1 className="font-black text-slate-900 text-base sm:text-lg leading-tight tracking-tight">
+                <h1 className="font-black text-white text-base sm:text-lg leading-tight tracking-tight">
                   RiboPrognoza
                 </h1>
-                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 border border-cyan-200">
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-500/40">
                   Uživo
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-[11px] text-slate-400 hidden sm:block">
                 Aljmaš (mvodostaji.voda.hr) • Bogojevo (hidmet.gov.rs) • Solunar
               </p>
             </div>
           </div>
 
-          {/* Navigacijski tabovi za brzi pregled */}
-          <nav className="hidden md:flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+          {/* Navigacijski tabovi za veće ekrane (desktop / tablet) */}
+          <nav className="hidden md:flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs font-bold">
             <button
               onClick={() => onSelectTab('sve')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 activeTab === 'sve'
-                  ? 'bg-white text-cyan-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-slate-800 text-cyan-300 shadow-xs border border-cyan-500/30'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               Kompletan pregled
@@ -79,8 +78,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onSelectTab('aljmas')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 activeTab === 'aljmas'
-                  ? 'bg-teal-700 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-teal-900/70 text-teal-200 shadow-xs border border-teal-500/40'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               🌊 Aljmaš (mvodostaji)
@@ -89,8 +88,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onSelectTab('bogojevo')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 activeTab === 'bogojevo'
-                  ? 'bg-cyan-700 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-cyan-900/70 text-cyan-200 shadow-xs border border-cyan-500/40'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               🌊 Bogojevo (hidmet)
@@ -99,8 +98,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onSelectTab('solunar')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 activeTab === 'solunar'
-                  ? 'bg-indigo-700 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-indigo-900/70 text-indigo-200 shadow-xs border border-indigo-500/40'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               🌙 Dnevni Solunar
@@ -109,20 +108,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onSelectTab('usporedba')}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 activeTab === 'usporedba'
-                  ? 'bg-slate-800 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-purple-900/70 text-purple-200 shadow-xs border border-purple-500/40'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               ⚖️ Usporedba
             </button>
           </nav>
 
-          {/* Desna strana: Jedini gumb za osvježavanje podataka */}
+          {/* Desna strana: Glavni gumb za osvježavanje podataka */}
           <div className="flex items-center space-x-2 shrink-0">
             <button
               onClick={onRefresh}
               disabled={isLoading}
-              className="flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-800 transition-all shadow-xs cursor-pointer active:scale-95"
+              className="flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-600 transition-all shadow-md border border-cyan-500/40 cursor-pointer active:scale-95"
               title="Ažuriraj sve hidrometeo i solunarne podatke"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
