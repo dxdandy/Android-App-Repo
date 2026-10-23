@@ -38,9 +38,12 @@ export const AndroidInstallModal: React.FC<AndroidInstallModalProps> = ({ isOpen
 
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-slate-800 pb-4 mb-5">
-          <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-            <Smartphone className="w-6 h-6" />
-          </div>
+          <img 
+            src="/pwa-192x192.png" 
+            alt="RiboPrognoza ikona" 
+            className="w-12 h-12 rounded-2xl object-cover border border-cyan-500/30 shadow-md shrink-0" 
+            referrerPolicy="no-referrer" 
+          />
           <div>
             <h3 className="text-xl font-black text-white">
               Vodič: Preuzimanje i instalacija na Android

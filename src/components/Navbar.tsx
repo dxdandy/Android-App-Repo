@@ -44,9 +44,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => onSelectTab('sve')}
             className="flex items-center space-x-3 shrink-0 cursor-pointer"
           >
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-cyan-700 via-teal-600 to-indigo-700 flex items-center justify-center text-white shadow-sm ring-2 ring-cyan-500/20">
-              <Waves className="w-5 h-5" />
-            </div>
+            <img 
+              src="/pwa-192x192.png" 
+              alt="RiboPrognoza ikona" 
+              className="h-10 w-10 rounded-xl object-cover shadow-sm ring-2 ring-cyan-500/20 shrink-0" 
+              referrerPolicy="no-referrer" 
+            />
             <div>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h1 className="font-black text-slate-900 text-base sm:text-lg leading-tight tracking-tight">
