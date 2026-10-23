@@ -17,8 +17,8 @@ export default defineConfig(() => {
           name: 'RiboPrognoza - Dunav (Aljmaš & Bogojevo)',
           short_name: 'RiboPrognoza',
           description: 'Službeni vodostaji Dunava za Aljmaš i Bogojevo uživo, meteo podaci, barometar i dnevni solunarni rezultati za ribolov.',
-          theme_color: '#0e7490',
-          background_color: '#0f172a',
+          theme_color: '#020617',
+          background_color: '#020617',
           display: 'standalone',
           orientation: 'portrait',
           start_url: '/',
@@ -76,8 +76,8 @@ export default defineConfig(() => {
       },
     },
     server: {
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      hmr: false,
+      watch: null,
     },
   };
 });

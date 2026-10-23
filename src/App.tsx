@@ -350,14 +350,12 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-900/60 py-6 mt-10 text-center text-xs text-slate-400 w-full max-w-full overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-          <div className="flex items-center space-x-2 flex-wrap justify-center sm:justify-start">
-            <span className="font-bold text-slate-200">RiboPrognoza</span>
-            <span>•</span>
-            <span>Službeni podaci: mvodostaji.voda.hr (Aljmaš) & hidmet.gov.rs (Bogojevo)</span>
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+          <div className="text-slate-300 font-semibold tracking-wide">
+            RiboPrognoza created by Daniel Čizmar
           </div>
-          <div className="text-slate-500">
-            <span>Meteo: Vinkovci & Bogojevo uživo</span>
+          <div className="text-slate-500 font-medium">
+            All rights reserved
           </div>
         </div>
       </footer>
