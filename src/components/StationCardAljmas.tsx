@@ -53,7 +53,7 @@ export const StationCardAljmas: React.FC<StationCardAljmasProps> = ({ data, isLo
   };
 
   return (
-    <article className="bg-slate-900 text-white rounded-3xl p-5 sm:p-7 shadow-xl border border-teal-500/30 relative overflow-hidden">
+    <article className="bg-slate-900 text-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-7 shadow-xl border border-teal-500/30 relative overflow-hidden w-full max-w-full">
       
       {/* Pozadinski svjetlosni efekt */}
       <div className="absolute -right-20 -top-20 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />

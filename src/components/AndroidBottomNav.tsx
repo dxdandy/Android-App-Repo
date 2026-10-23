@@ -3,27 +3,24 @@ import {
   Waves, 
   Sparkles, 
   Scale, 
-  Smartphone, 
   LayoutDashboard
 } from 'lucide-react';
 
 interface AndroidBottomNavProps {
   activeTab: 'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba';
   onSelectTab: (tab: 'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba') => void;
-  onOpenAndroidGuide: () => void;
 }
 
 export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
   activeTab,
-  onSelectTab,
-  onOpenAndroidGuide
+  onSelectTab
 }) => {
   return (
     <nav 
       aria-label="Mobilna navigacija"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 text-white shadow-xl px-1 py-1.5 pb-safe"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 text-white shadow-xl px-1 py-1.5 pb-safe w-full max-w-full overflow-hidden"
     >
-      <div className="grid grid-cols-5 items-center text-center">
+      <div className="grid grid-cols-5 items-center text-center w-full">
         
         {/* Pregled svega */}
         <button
@@ -33,7 +30,7 @@ export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
           }`}
         >
           <LayoutDashboard className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Sve</span>
+          <span className="text-[10px] leading-tight">Sve</span>
         </button>
 
         {/* Aljmaš */}
@@ -44,7 +41,7 @@ export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
           }`}
         >
           <Waves className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Aljmaš</span>
+          <span className="text-[10px] leading-tight">Aljmaš</span>
         </button>
 
         {/* Bogojevo */}
@@ -55,7 +52,7 @@ export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
           }`}
         >
           <Waves className="w-5 h-5 mb-0.5 text-cyan-300" />
-          <span className="text-[10px]">Bogojevo</span>
+          <span className="text-[10px] leading-tight">Bogojevo</span>
         </button>
 
         {/* Solunar */}
@@ -66,16 +63,18 @@ export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
           }`}
         >
           <Sparkles className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Solunar</span>
+          <span className="text-[10px] leading-tight">Solunar</span>
         </button>
 
-        {/* Android Upute */}
+        {/* Usporedba */}
         <button
-          onClick={onOpenAndroidGuide}
-          className="flex flex-col items-center justify-center py-1 text-emerald-400 hover:text-emerald-300 transition-all cursor-pointer"
+          onClick={() => onSelectTab('usporedba')}
+          className={`flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
+            activeTab === 'usporedba' ? 'text-purple-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
         >
-          <Smartphone className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Android</span>
+          <Scale className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Usporedi</span>
         </button>
 
       </div>

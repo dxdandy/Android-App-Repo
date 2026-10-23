@@ -12,7 +12,7 @@ export const StationsComparisonCard: React.FC<StationsComparisonCardProps> = ({
   bogojevo
 }) => {
   return (
-    <section className="bg-slate-900 text-white rounded-3xl p-5 sm:p-7 shadow-xl border border-indigo-500/30 relative overflow-hidden">
+    <section className="bg-slate-900 text-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-7 shadow-xl border border-indigo-500/30 relative overflow-hidden w-full max-w-full">
       
       {/* Zaglavlje usporedbe */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4 mb-6">

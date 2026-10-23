@@ -3,15 +3,11 @@ import {
   Waves, 
   Sparkles, 
   Scale, 
-  Smartphone, 
   RefreshCw, 
   CheckCircle2, 
   MapPin, 
   Clock, 
-  Calendar,
-  ExternalLink,
-  ShieldCheck,
-  AlertCircle
+  Calendar
 } from 'lucide-react';
 import { StationWaterData, SolunarDayData } from './types/fishing';
 import { 
@@ -26,9 +22,6 @@ import { StationCardAljmas } from './components/StationCardAljmas';
 import { StationCardBogojevo } from './components/StationCardBogojevo';
 import { SolunarDailyDashboard } from './components/SolunarDailyDashboard';
 import { StationsComparisonCard } from './components/StationsComparisonCard';
-import { PersistentRefreshButton } from './components/PersistentRefreshButton';
-import { AndroidInstallModal } from './components/AndroidInstallModal';
-import { AndroidInstallBanner } from './components/AndroidInstallBanner';
 import { AndroidBottomNav } from './components/AndroidBottomNav';
 import { OfflineIndicator } from './components/OfflineIndicator';
 
@@ -44,8 +37,6 @@ export default function App() {
     } catch {}
     return new Date();
   });
-
-  const [isAndroidGuideOpen, setIsAndroidGuideOpen] = useState<boolean>(false);
 
   // Početno stanje za Aljmaš (mvodostaji.voda.hr)
   const [aljmasData, setAljmasData] = useState<StationWaterData>({
@@ -164,29 +155,25 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-28 md:pb-12 selection:bg-cyan-500 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-20 md:pb-10 selection:bg-cyan-500 selection:text-white w-full max-w-full overflow-x-hidden">
       
-      {/* Android PWA Install Banner */}
-      <AndroidInstallBanner />
-
       {/* Offline Status Badge */}
       <OfflineIndicator />
 
-      {/* Navbar with quick links and update status */}
+      {/* Navbar with single refresh button at the very top */}
       <Navbar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         onRefresh={handleRefreshAll}
         isLoading={isLoading}
         lastUpdated={lastUpdated}
-        onOpenAndroidGuide={() => setIsAndroidGuideOpen(true)}
       />
 
       {/* Hero Header sa sažetkom stanja na Dunavu */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80 px-4 sm:px-6 lg:px-8 py-6">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80 px-3 sm:px-6 lg:px-8 py-5 sm:py-6 w-full max-w-full overflow-hidden">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
           
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap text-xs text-cyan-400 font-bold mb-1.5">
               <span className="flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" /> Dunav (Aljmaš & Bogojevo)
@@ -197,57 +184,57 @@ export default function App() {
               </span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
+            <h1 className="text-xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight break-words">
               Hidrometeo & Solunarni Centar Dunava
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
+            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
               Službeni podaci vodostaja preuzeti sa stranica <strong>mvodostaji.voda.hr</strong> (Aljmaš) i <strong>hidmet.gov.rs</strong> (Bogojevo) s dnevnim solunarnim rezultatima za ribolov.
             </p>
           </div>
 
-          {/* Brzi sažetak kote u headeru */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="bg-slate-900/90 border border-teal-500/40 rounded-2xl p-3 flex items-center gap-3 shadow-md">
-              <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold text-xs">
+          {/* Brzi sažetak kote u headeru - potpuno responzivan za sve mobitele */}
+          <div className="grid grid-cols-3 gap-2 w-full lg:w-auto shrink-0">
+            <div className="bg-slate-900/90 border border-teal-500/40 rounded-2xl p-2 sm:p-3 flex flex-col sm:flex-row items-center text-center sm:text-left gap-1.5 sm:gap-3 shadow-md min-w-0">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold text-xs shrink-0">
                 ALJ
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 block font-semibold">Aljmaš (vodostaj)</span>
-                <span className="text-lg font-black text-white font-mono leading-none">
+              <div className="min-w-0">
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block font-semibold truncate">Aljmaš</span>
+                <span className="text-base sm:text-lg font-black text-white font-mono leading-none block">
                   {aljmasData.waterLevelCm} cm
                 </span>
-                <span className="text-[10px] text-teal-300 block capitalize">
+                <span className="text-[9px] sm:text-[10px] text-teal-300 block capitalize truncate">
                   {aljmasData.waterLevelTrend}
                 </span>
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-cyan-500/40 rounded-2xl p-3 flex items-center gap-3 shadow-md">
-              <div className="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center font-bold text-xs">
+            <div className="bg-slate-900/90 border border-cyan-500/40 rounded-2xl p-2 sm:p-3 flex flex-col sm:flex-row items-center text-center sm:text-left gap-1.5 sm:gap-3 shadow-md min-w-0">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center font-bold text-xs shrink-0">
                 BOG
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 block font-semibold">Bogojevo (vodostaj)</span>
-                <span className="text-lg font-black text-white font-mono leading-none">
+              <div className="min-w-0">
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block font-semibold truncate">Bogojevo</span>
+                <span className="text-base sm:text-lg font-black text-white font-mono leading-none block">
                   {bogojevoData.waterLevelCm} cm
                 </span>
-                <span className="text-[10px] text-cyan-300 block capitalize">
+                <span className="text-[9px] sm:text-[10px] text-cyan-300 block capitalize truncate">
                   {bogojevoData.waterLevelTrend}
                 </span>
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-indigo-500/40 rounded-2xl p-3 flex items-center gap-3 shadow-md">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-xs">
+            <div className="bg-slate-900/90 border border-indigo-500/40 rounded-2xl p-2 sm:p-3 flex flex-col sm:flex-row items-center text-center sm:text-left gap-1.5 sm:gap-3 shadow-md min-w-0">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-xs shrink-0">
                 SOL
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 block font-semibold">Solunarni griz</span>
-                <span className="text-lg font-black text-amber-400 leading-none">
-                  {solunarData.overallScore}/5 ★
+              <div className="min-w-0">
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block font-semibold truncate">Solunar</span>
+                <span className="text-base sm:text-lg font-black text-amber-400 leading-none block">
+                  {solunarData.overallScore}/5★
                 </span>
-                <span className="text-[10px] text-indigo-300 block">
-                  {solunarData.activityPercentage}% aktivnost
+                <span className="text-[9px] sm:text-[10px] text-indigo-300 block truncate">
+                  {solunarData.activityPercentage}%
                 </span>
               </div>
             </div>
@@ -257,14 +244,14 @@ export default function App() {
       </div>
 
       {/* Glavni sadržaj */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8 flex-1 w-full">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 sm:space-y-8 flex-1 w-full max-w-full overflow-hidden">
         
         {/* Odabir prikaza lokacija (tabovi) na vrhu sadržaja */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
-          <div className="flex items-center gap-2 overflow-x-auto py-1 max-w-full">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2 w-full">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-1 max-w-full">
             <button
               onClick={() => setActiveTab('sve')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'sve'
                   ? 'bg-cyan-600 text-white shadow-md'
                   : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
@@ -274,7 +261,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('solunar')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'solunar'
                   ? 'bg-indigo-600 text-white shadow-md'
                   : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
@@ -284,7 +271,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('aljmas')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'aljmas'
                   ? 'bg-teal-600 text-white shadow-md'
                   : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
@@ -294,7 +281,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('bogojevo')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'bogojevo'
                   ? 'bg-cyan-600 text-white shadow-md'
                   : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
@@ -304,7 +291,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('usporedba')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'usporedba'
                   ? 'bg-purple-600 text-white shadow-md'
                   : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
@@ -315,9 +302,9 @@ export default function App() {
           </div>
 
           {/* Indikator statusa zadnjeg ažuriranja */}
-          <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Zadnje ažuriranje u <strong>{formatHoursShort(lastUpdated)}</strong> sati</span>
+          <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium ml-auto">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="whitespace-nowrap">Ažurirano: <strong>{formatHoursShort(lastUpdated)}</strong> h</span>
           </div>
         </div>
 
@@ -355,47 +342,25 @@ export default function App() {
 
       </main>
 
-      {/* Always visible and accessible refresh button */}
-      <PersistentRefreshButton
-        onRefresh={handleRefreshAll}
-        isLoading={isLoading}
-        lastUpdated={lastUpdated}
-      />
-
-      {/* Android Native Bottom Navigation Bar for Mobile */}
+      {/* Android Native Bottom Navigation Bar for Mobile with direct 5 tabs */}
       <AndroidBottomNav
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        onOpenAndroidGuide={() => setIsAndroidGuideOpen(true)}
       />
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-900/60 py-6 mt-12 text-center text-xs text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center space-x-2">
+      <footer className="border-t border-slate-800/80 bg-slate-900/60 py-6 mt-10 text-center text-xs text-slate-400 w-full max-w-full overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+          <div className="flex items-center space-x-2 flex-wrap justify-center sm:justify-start">
             <span className="font-bold text-slate-200">RiboPrognoza</span>
             <span>•</span>
             <span>Službeni podaci: mvodostaji.voda.hr (Aljmaš) & hidmet.gov.rs (Bogojevo)</span>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsAndroidGuideOpen(true)}
-              className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer"
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>Instalacija na Android</span>
-            </button>
-            <span>•</span>
-            <span className="text-slate-500">Meteo: Vinkovci & Bogojevo</span>
+          <div className="text-slate-500">
+            <span>Meteo: Vinkovci & Bogojevo uživo</span>
           </div>
         </div>
       </footer>
-
-      {/* Modal: Upute za Android i preuzimanje na PC */}
-      <AndroidInstallModal
-        isOpen={isAndroidGuideOpen}
-        onClose={() => setIsAndroidGuideOpen(false)}
-      />
 
     </div>
   );

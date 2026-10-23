@@ -68,7 +68,7 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
   };
 
   return (
-    <section className="bg-slate-900 text-white rounded-3xl p-5 sm:p-7 shadow-xl border border-indigo-500/30 relative overflow-hidden">
+    <section className="bg-slate-900 text-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-7 shadow-xl border border-indigo-500/30 relative overflow-hidden w-full max-w-full">
       
       {/* Pozadinski svjetlosni efekt */}
       <div className="absolute -left-20 -top-20 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />

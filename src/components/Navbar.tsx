@@ -15,7 +15,6 @@ interface NavbarProps {
   onRefresh: () => void;
   isLoading: boolean;
   lastUpdated: Date | null;
-  onOpenAndroidGuide: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -23,8 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectTab,
   onRefresh,
   isLoading,
-  lastUpdated,
-  onOpenAndroidGuide
+  lastUpdated
 }) => {
   const formatTime = (date: Date | null) => {
     if (!date) return '--:--';
@@ -119,10 +117,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Desna strana: Gumb za osvježavanje & Android upute */}
+          {/* Desna strana: Jedini gumb za osvježavanje podataka */}
           <div className="flex items-center space-x-2 shrink-0">
-            
-            {/* Gumb "Ažuriraj podatke" s prikazom zadnjeg ažuriranja */}
             <button
               onClick={onRefresh}
               disabled={isLoading}
@@ -139,17 +135,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
               </div>
             </button>
-
-            {/* Android Upute */}
-            <button
-              onClick={onOpenAndroidGuide}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 rounded-xl transition-colors cursor-pointer"
-              title="Kako instalirati na Android ili preuzeti na računalo"
-            >
-              <Smartphone className="w-4 h-4 text-emerald-600" />
-              <span className="hidden sm:inline">Android upute</span>
-            </button>
-
           </div>
 
         </div>
