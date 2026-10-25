@@ -24,10 +24,16 @@ import { SolunarDailyDashboard } from './components/SolunarDailyDashboard';
 import { StationsComparisonCard } from './components/StationsComparisonCard';
 import { AndroidBottomNav } from './components/AndroidBottomNav';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { ActivationLockScreen } from './components/ActivationLockScreen';
+import { AdminKeyGeneratorModal } from './components/AdminKeyGeneratorModal';
+import { isAppActivated } from './services/licenseService';
 
 const STORAGE_KEY_LAST_UPDATE = 'dunav_info_zadnje_azuriranje';
 
 export default function App() {
+  const [isActivated, setIsActivated] = useState<boolean>(() => isAppActivated());
+  const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
+
   const [activeTab, setActiveTab] = useState<'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba'>('sve');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(() => {
@@ -154,6 +160,22 @@ export default function App() {
     });
   };
 
+  if (!isActivated) {
+    return (
+      <>
+        <ActivationLockScreen
+          onActivated={() => setIsActivated(true)}
+          onOpenAdminGenerator={() => setShowAdminModal(true)}
+        />
+        <AdminKeyGeneratorModal
+          isOpen={showAdminModal}
+          onClose={() => setShowAdminModal(false)}
+          onSelfActivated={() => setIsActivated(true)}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-20 md:pb-10 selection:bg-cyan-500 selection:text-white w-full max-w-full overflow-x-hidden pt-[calc(4rem+max(env(safe-area-inset-top,0px),1.75rem))] sm:pt-[calc(4rem+max(env(safe-area-inset-top,0px),0.5rem))]">
       
@@ -194,46 +216,46 @@ export default function App() {
 
           {/* Brzi sažetak kote u headeru - potpuno responzivan za sve mobitele */}
           <div className="grid grid-cols-3 gap-2 w-full lg:w-auto shrink-0">
-            <div className="bg-slate-900/90 border border-teal-500/40 rounded-2xl p-2 sm:p-3 flex flex-col sm:flex-row items-center text-center sm:text-left gap-1.5 sm:gap-3 shadow-md min-w-0">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold text-xs shrink-0">
-                ALJ
-              </div>
-              <div className="min-w-0">
-                <span className="text-[9px] sm:text-[10px] text-slate-400 block font-semibold truncate">Aljmaš</span>
+            {/* ALJMAŠ */}
+            <div className="bg-slate-900/90 border border-teal-500/40 rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0">
+              <span className="w-full text-center sm:text-left font-black text-teal-300 text-xs sm:text-sm tracking-wider uppercase truncate">
+                ALJMAŠ
+              </span>
+              <div className="mt-1 w-full">
                 <span className="text-base sm:text-lg font-black text-white font-mono leading-none block">
                   {aljmasData.waterLevelCm} cm
                 </span>
-                <span className="text-[9px] sm:text-[10px] text-teal-300 block capitalize truncate">
+                <span className="text-[10px] sm:text-xs text-teal-300 block capitalize truncate font-medium mt-0.5">
                   {aljmasData.waterLevelTrend}
                 </span>
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-cyan-500/40 rounded-2xl p-2 sm:p-3 flex flex-col sm:flex-row items-center text-center sm:text-left gap-1.5 sm:gap-3 shadow-md min-w-0">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center font-bold text-xs shrink-0">
-                BOG
-              </div>
-              <div className="min-w-0">
-                <span className="text-[9px] sm:text-[10px] text-slate-400 block font-semibold truncate">Bogojevo</span>
+            {/* BOGOJEVO */}
+            <div className="bg-slate-900/90 border border-cyan-500/40 rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0">
+              <span className="w-full text-center sm:text-left font-black text-cyan-300 text-xs sm:text-sm tracking-wider uppercase truncate">
+                BOGOJEVO
+              </span>
+              <div className="mt-1 w-full">
                 <span className="text-base sm:text-lg font-black text-white font-mono leading-none block">
                   {bogojevoData.waterLevelCm} cm
                 </span>
-                <span className="text-[9px] sm:text-[10px] text-cyan-300 block capitalize truncate">
+                <span className="text-[10px] sm:text-xs text-cyan-300 block capitalize truncate font-medium mt-0.5">
                   {bogojevoData.waterLevelTrend}
                 </span>
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-indigo-500/40 rounded-2xl p-2 sm:p-3 flex flex-col sm:flex-row items-center text-center sm:text-left gap-1.5 sm:gap-3 shadow-md min-w-0">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-xs shrink-0">
-                SOL
-              </div>
-              <div className="min-w-0">
-                <span className="text-[9px] sm:text-[10px] text-slate-400 block font-semibold truncate">Solunar</span>
+            {/* SOLUNAR */}
+            <div className="bg-slate-900/90 border border-indigo-500/40 rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0">
+              <span className="w-full text-center sm:text-left font-black text-indigo-300 text-xs sm:text-sm tracking-wider uppercase truncate">
+                SOLUNAR
+              </span>
+              <div className="mt-1 w-full">
                 <span className="text-base sm:text-lg font-black text-amber-400 leading-none block">
                   {solunarData.overallScore}/5★
                 </span>
-                <span className="text-[9px] sm:text-[10px] text-indigo-300 block truncate">
+                <span className="text-[10px] sm:text-xs text-indigo-300 block truncate font-medium mt-0.5">
                   {solunarData.activityPercentage}%
                 </span>
               </div>
@@ -351,14 +373,25 @@ export default function App() {
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-900/60 py-6 mt-10 text-center text-xs text-slate-400 w-full max-w-full overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
-          <div className="text-slate-300 font-semibold tracking-wide">
+          <button 
+            type="button"
+            onClick={() => setShowAdminModal(true)} 
+            className="text-slate-300 hover:text-amber-400 transition-colors font-semibold tracking-wide cursor-pointer text-left"
+            title="Generator ključeva (Daniel Čizmar)"
+          >
             RiboPrognoza created by Daniel Čizmar
-          </div>
+          </button>
           <div className="text-slate-500 font-medium">
             All rights reserved
           </div>
         </div>
       </footer>
+
+      {/* Admin modal kada je aplikacija već otključana */}
+      <AdminKeyGeneratorModal
+        isOpen={showAdminModal}
+        onClose={() => setShowAdminModal(false)}
+      />
 
     </div>
   );

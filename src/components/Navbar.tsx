@@ -56,9 +56,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   Uživo
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">
-                Aljmaš (mvodostaji.voda.hr) • Bogojevo (hidmet.gov.rs) • Solunar
-              </p>
             </div>
           </div>
 

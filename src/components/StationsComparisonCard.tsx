@@ -1,5 +1,5 @@
 import React from 'react';
-import { Scale, ArrowRight, Waves, Thermometer, Gauge, Wind, ExternalLink } from 'lucide-react';
+import { Scale, ArrowRight, Waves, Thermometer, Gauge, Wind } from 'lucide-react';
 import { StationWaterData } from '../types/fishing';
 
 interface StationsComparisonCardProps {
@@ -151,39 +151,6 @@ export const StationsComparisonCard: React.FC<StationsComparisonCardProps> = ({
                 Umjeren vjetar stvara lagani val na Dunavu što razbija svjetlost i olakšava lov varalicom.
               </td>
             </tr>
-
-            {/* Službeni web izvor */}
-            <tr>
-              <td className="py-3 px-4 font-sans font-semibold text-slate-300">
-                Službeni izvor:
-              </td>
-              <td className="py-3 px-4 font-sans bg-teal-950/20">
-                <a 
-                  href={aljmas.sourceUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-teal-300 hover:text-white underline inline-flex items-center gap-1"
-                >
-                  <span>mvodostaji.voda.hr</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </td>
-              <td className="py-3 px-4 font-sans bg-cyan-950/20">
-                <a 
-                  href={bogojevo.sourceUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-cyan-300 hover:text-white underline inline-flex items-center gap-1"
-                >
-                  <span>hidmet.gov.rs</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </td>
-              <td className="py-3 px-4 font-sans text-slate-400">
-                Službene državne hidrološke službe RH i RS.
-              </td>
-            </tr>
-
           </tbody>
         </table>
       </div>
