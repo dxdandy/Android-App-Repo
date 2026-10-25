@@ -4,7 +4,6 @@ import {
   TrendingUp, 
   TrendingDown, 
   Minus, 
-  ExternalLink, 
   Clock, 
   MapPin, 
   Wind, 
@@ -78,17 +77,6 @@ export const StationCardBogojevo: React.FC<StationCardBogojevoProps> = ({ data, 
             Most Bogojevo • Kameni špornjevi • Tok prema Apatinu i Dalju
           </p>
         </div>
-
-        {/* Gumb na službeni izvor hidmet.gov.rs */}
-        <a
-          href={data.sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-cyan-200 bg-cyan-950/70 hover:bg-cyan-900 border border-cyan-600/50 transition-all self-start sm:self-auto cursor-pointer shadow-sm hover:scale-[1.02]"
-        >
-          <span>hidmet.gov.rs (prognoza)</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
       </div>
 
       {/* Glavni podaci o vodostaju i protoku */}

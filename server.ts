@@ -229,15 +229,14 @@ app.get('/api/scrape', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.0.0',
+    version: '1.0.1',
     name: 'RiboPrognoza',
     releaseDate: '2026-10-25',
     apkUrl: 'https://github.com/dani4galaxy/riboprognoza/releases/latest/download/app-release.apk',
     changelog: [
-      'Službeni vodostaji Dunava (Aljmaš i Bogojevo) u realnom vremenu',
-      'Dnevni solunarni ribolovni kalendar i satni barometar',
-      'Hardverski zaštićen sustav licenci s offline aktivacijom',
-      'Automatska provjera i obavještavanje o novim nadogradnjama'
+      'Učinjene su blage promjene u dizajnu aplikacije',
+      'Uređeno zaglavlje i solunarni rezultati',
+      'Poboljšana preglednost i stabilnost rada'
     ],
     isCritical: false
   });

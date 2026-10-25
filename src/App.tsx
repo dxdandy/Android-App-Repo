@@ -262,8 +262,8 @@ export default function App() {
             <h1 className="text-xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight break-words">
               Hidrometeo & Solunarni Centar Dunava
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Službeni podaci vodostaja preuzeti sa stranica <strong>mvodostaji.voda.hr</strong> (Aljmaš) i <strong>hidmet.gov.rs</strong> (Bogojevo) s dnevnim solunarnim rezultatima za ribolov.
+            <p className="text-[11px] sm:text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed animate-pulse">
+              Aplikacija je potpuno besplatna. Rad autora možete podržati neobaveznim donacijama za čevape i Colu
             </p>
           </div>
 

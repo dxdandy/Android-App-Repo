@@ -132,15 +132,12 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
       {/* 4 Ključna Solunarna Razdoblja (Major 1, Major 2, Minor 1, Minor 2) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-6">
         
-        {/* Major 1 */}
+        {/* Glavno razdoblje 1 */}
         <div className="bg-gradient-to-b from-indigo-900/40 to-slate-800/80 rounded-2xl p-4 border border-indigo-500/40 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1">
-                <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                GLAVNO 1 (Major 1)
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+              <span className="text-xs font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
                 Maksimalni griz
               </span>
             </div>
@@ -156,15 +153,12 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
           </div>
         </div>
 
-        {/* Major 2 */}
+        {/* Glavno razdoblje 2 */}
         <div className="bg-gradient-to-b from-indigo-900/40 to-slate-800/80 rounded-2xl p-4 border border-indigo-500/40 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1">
-                <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                GLAVNO 2 (Major 2)
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+              <span className="text-xs font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
                 Noćni vrhunac
               </span>
             </div>
@@ -180,15 +174,12 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
           </div>
         </div>
 
-        {/* Minor 1 */}
+        {/* Sporedno razdoblje 1 */}
         <div className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/70 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-teal-400" />
-                SPOREDNO 1 (Minor 1)
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 font-semibold border border-teal-500/30">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-300 flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-teal-400" />
                 Jutarnji impuls
               </span>
             </div>
@@ -204,15 +195,12 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
           </div>
         </div>
 
-        {/* Minor 2 */}
+        {/* Sporedno razdoblje 2 */}
         <div className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/70 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-teal-400" />
-                SPOREDNO 2 (Minor 2)
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 font-semibold border border-teal-500/30">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-300 flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-teal-400" />
                 Večernji impuls
               </span>
             </div>

@@ -4,7 +4,6 @@ import {
   TrendingUp, 
   TrendingDown, 
   Minus, 
-  ExternalLink, 
   Clock, 
   MapPin, 
   Wind, 
@@ -78,17 +77,6 @@ export const StationCardAljmas: React.FC<StationCardAljmasProps> = ({ data, isLo
             Ušće Drave u Dunav • Aljmaški kameni šporanj
           </p>
         </div>
-
-        {/* Gumb na službeni izvor mvodostaji.voda.hr */}
-        <a
-          href={data.sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-teal-200 bg-teal-950/70 hover:bg-teal-900 border border-teal-600/50 transition-all self-start sm:self-auto cursor-pointer shadow-sm hover:scale-[1.02]"
-        >
-          <span>mvodostaji.voda.hr</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
       </div>
 
       {/* Glavni podaci o vodostaju */}
