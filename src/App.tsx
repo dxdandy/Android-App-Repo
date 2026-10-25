@@ -26,13 +26,25 @@ import { AndroidBottomNav } from './components/AndroidBottomNav';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { ActivationLockScreen } from './components/ActivationLockScreen';
 import { AdminKeyGeneratorModal } from './components/AdminKeyGeneratorModal';
+import { AppUpdateModal } from './components/AppUpdateModal';
 import { isAppActivated } from './services/licenseService';
+import { 
+  checkForAppUpdate, 
+  AppVersionInfo, 
+  CURRENT_APP_VERSION 
+} from './services/updateService';
 
 const STORAGE_KEY_LAST_UPDATE = 'dunav_info_zadnje_azuriranje';
 
 export default function App() {
   const [isActivated, setIsActivated] = useState<boolean>(() => isAppActivated());
   const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
+
+  // Stanja za automatska ažuriranja
+  const [availableUpdate, setAvailableUpdate] = useState<AppVersionInfo | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
+  const [manualUpdateToast, setManualUpdateToast] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba'>('sve');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -147,10 +159,46 @@ export default function App() {
     }
   }, []);
 
-  // Automatsko početno učitavanje
+  // Automatsko početno učitavanje podataka
   useEffect(() => {
     handleRefreshAll();
   }, [handleRefreshAll]);
+
+  // Automatska tiha provjera nadogradnje pri pokretanju (nakon 1.5 sekundi)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        const update = await checkForAppUpdate(false);
+        if (update) {
+          setAvailableUpdate(update);
+          setShowUpdateModal(true);
+        }
+      } catch {}
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Ručna provjera nadogradnji (iz footera ili postavki)
+  const handleManualCheckUpdate = async () => {
+    setIsCheckingUpdate(true);
+    setManualUpdateToast(null);
+    try {
+      const update = await checkForAppUpdate(true);
+      if (update) {
+        setAvailableUpdate(update);
+        setShowUpdateModal(true);
+      } else {
+        setManualUpdateToast(`Imate najnoviju verziju (v${CURRENT_APP_VERSION})`);
+        setTimeout(() => setManualUpdateToast(null), 3500);
+      }
+    } catch {
+      setManualUpdateToast('Nije moguće provjeriti nadogradnju (provjerite internet)');
+      setTimeout(() => setManualUpdateToast(null), 3500);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   const formatHoursShort = (date: Date | null) => {
     if (!date) return '--:--';
@@ -171,6 +219,11 @@ export default function App() {
           isOpen={showAdminModal}
           onClose={() => setShowAdminModal(false)}
           onSelfActivated={() => setIsActivated(true)}
+        />
+        <AppUpdateModal
+          updateInfo={availableUpdate}
+          isOpen={showUpdateModal}
+          onClose={() => setShowUpdateModal(false)}
         />
       </>
     );
@@ -372,7 +425,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-900/60 py-6 mt-10 text-center text-xs text-slate-400 w-full max-w-full overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <button 
             type="button"
             onClick={() => setShowAdminModal(true)} 
@@ -381,6 +434,25 @@ export default function App() {
           >
             RiboPrognoza created by Daniel Čizmar
           </button>
+
+          {/* Gumb za provjeru nadogradnje i verzija */}
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            <button
+              onClick={handleManualCheckUpdate}
+              disabled={isCheckingUpdate}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-300 hover:text-cyan-300 font-mono text-[11px] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Provjeri postoji li novija verzija"
+            >
+              <RefreshCw className={`w-3 h-3 ${isCheckingUpdate ? 'animate-spin text-cyan-400' : ''}`} />
+              <span>v{CURRENT_APP_VERSION} • Provjeri ažuriranje</span>
+            </button>
+            {manualUpdateToast && (
+              <span className="text-[11px] text-teal-400 font-medium">
+                {manualUpdateToast}
+              </span>
+            )}
+          </div>
+
           <div className="text-slate-500 font-medium">
             All rights reserved
           </div>
@@ -391,6 +463,13 @@ export default function App() {
       <AdminKeyGeneratorModal
         isOpen={showAdminModal}
         onClose={() => setShowAdminModal(false)}
+      />
+
+      {/* Modal za obavijest o novoj verziji */}
+      <AppUpdateModal
+        updateInfo={availableUpdate}
+        isOpen={showUpdateModal}
+        onClose={() => setShowUpdateModal(false)}
       />
 
     </div>
