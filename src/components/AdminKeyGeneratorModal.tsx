@@ -25,7 +25,7 @@ import {
 import { 
   runUpdateDiagnostic, 
   CURRENT_APP_VERSION, 
-  PRIMARY_CLOUD_API_URL,
+  setSavedGithubRepo,
   AppVersionInfo 
 } from '../services/updateService';
 
@@ -55,6 +55,14 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
   const [selfActivatedMsg, setSelfActivatedMsg] = useState(false);
 
   // Stanja za ažuriranja
+  const [githubRepoInput, setGithubRepoInput] = useState(() => {
+    try {
+      return localStorage.getItem('ribo_github_repo') || 'dxdandy/Android-App-Repo';
+    } catch {
+      return 'dxdandy/Android-App-Repo';
+    }
+  });
+  const [repoSavedMsg, setRepoSavedMsg] = useState(false);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
 
@@ -307,15 +315,40 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
               <div className="space-y-4">
                 <div className="bg-slate-950 border border-cyan-500/30 rounded-2xl p-3.5 space-y-2 text-xs">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Instalirana verzija u APK-u:</span>
+                    <span className="text-slate-400">Instalirana verzija na mobitelu:</span>
                     <span className="font-mono font-bold text-cyan-300">v{CURRENT_APP_VERSION}</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Internet poslužitelj:</span>
-                    <span className="text-slate-300 font-mono text-[10px] truncate max-w-[170px]" title={PRIMARY_CLOUD_API_URL}>
-                      Cloud Run (Uživo)
-                    </span>
+                </div>
+
+                {/* Postavka GitHub repozitorija */}
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-300">
+                    GitHub repozitorij (Korisnik / Repozitorij):
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={githubRepoInput}
+                      onChange={(e) => setGithubRepoInput(e.target.value)}
+                      placeholder="dxdandy/Android-App-Repo"
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:border-cyan-400 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSavedGithubRepo(githubRepoInput);
+                        setRepoSavedMsg(true);
+                        setTimeout(() => setRepoSavedMsg(false), 2000);
+                        handleRunDiagnostic();
+                      }}
+                      className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-white font-bold text-xs cursor-pointer shrink-0"
+                    >
+                      {repoSavedMsg ? '✓ Spremljeno!' : 'Spremi'}
+                    </button>
                   </div>
+                  <p className="text-[10px] text-slate-400">
+                    S ovog repozitorija mobitel preuzima <code>version.json</code> i novi APK.
+                  </p>
                 </div>
 
                 {/* Gumb za test dijagnostike */}
@@ -340,7 +373,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                       {diagnosticResult.success ? (
                         <>
                           <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-                          <span>Veza s poslužiteljem uspješna!</span>
+                          <span>Povezano s poslužiteljem!</span>
                         </>
                       ) : (
                         <>
@@ -352,13 +385,13 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
 
                     {diagnosticResult.success ? (
                       <div className="space-y-1 text-[11px] pt-1">
-                        <div>• Server verzija: <strong>v{diagnosticResult.serverVersion}</strong></div>
-                        <div>• Mobitel verzija: <strong>v{diagnosticResult.currentVersion}</strong></div>
+                        <div>• Najnovija verzija na serveru: <strong>v{diagnosticResult.serverVersion}</strong></div>
+                        <div>• Verzija na ovom mobitelu: <strong>v{diagnosticResult.currentVersion}</strong></div>
                         <div>
                           • Status: {diagnosticResult.hasUpdate ? (
-                            <span className="text-amber-400 font-bold">🚀 Pronađeno novije ažuriranje!</span>
+                            <span className="text-amber-400 font-bold">🚀 Dostupna je nova verzija!</span>
                           ) : (
-                            <span className="text-teal-400">✓ Mobitel već ima najnoviju verziju.</span>
+                            <span className="text-teal-400 font-bold">✓ Imate najnoviju verziju.</span>
                           )}
                         </div>
                       </div>
@@ -366,6 +399,18 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                       <p className="text-[11px] text-rose-300">
                         {diagnosticResult.error}
                       </p>
+                    )}
+
+                    {/* Detalji svih provjerenih adresa */}
+                    {diagnosticResult.details && diagnosticResult.details.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-slate-800 text-[10px] font-mono text-slate-300 space-y-1">
+                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-sans">
+                          Pregled adresa:
+                        </span>
+                        {diagnosticResult.details.map((d: string, idx: number) => (
+                          <div key={idx} className="break-all">{d}</div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}

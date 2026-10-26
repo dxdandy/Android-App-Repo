@@ -232,7 +232,7 @@ app.get('/api/version', (_req, res) => {
     version: '1.1.0',
     name: 'RiboPrognoza',
     releaseDate: '2026-10-26',
-    apkUrl: 'https://github.com/dani4galaxy/riboprognoza/releases/latest/download/app-release.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
       'Dodane su nove opcije u aplikaciji',
       'Dodana mogućnost donacije za podršku autoru',

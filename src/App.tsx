@@ -170,9 +170,9 @@ export default function App() {
   useEffect(() => {
     const timer = setTimeout(async () => {
       try {
-        const update = await checkForAppUpdate(false);
-        if (update) {
-          setAvailableUpdate(update);
+        const res = await checkForAppUpdate(false);
+        if (res.status === 'update_available' && res.updateInfo) {
+          setAvailableUpdate(res.updateInfo);
           setShowUpdateModal(true);
         }
       } catch {}
@@ -186,17 +186,20 @@ export default function App() {
     setIsCheckingUpdate(true);
     setManualUpdateToast(null);
     try {
-      const update = await checkForAppUpdate(true);
-      if (update) {
-        setAvailableUpdate(update);
+      const res = await checkForAppUpdate(true);
+      if (res.status === 'update_available' && res.updateInfo) {
+        setAvailableUpdate(res.updateInfo);
         setShowUpdateModal(true);
-      } else {
-        setManualUpdateToast(`Imate najnoviju verziju (v${CURRENT_APP_VERSION})`);
+      } else if (res.status === 'up_to_date') {
+        setManualUpdateToast(`✓ Imate najnoviju verziju (v${CURRENT_APP_VERSION})`);
         setTimeout(() => setManualUpdateToast(null), 3500);
+      } else {
+        setManualUpdateToast(`⚠️ ${res.errorMessage || 'Greška pri provjeri poslužitelja'}`);
+        setTimeout(() => setManualUpdateToast(null), 4500);
       }
     } catch {
-      setManualUpdateToast('Nije moguće provjeriti nadogradnju (provjerite internet)');
-      setTimeout(() => setManualUpdateToast(null), 3500);
+      setManualUpdateToast('⚠️ Nije moguće provjeriti nadogradnju (provjerite internet)');
+      setTimeout(() => setManualUpdateToast(null), 4000);
     } finally {
       setIsCheckingUpdate(false);
     }
