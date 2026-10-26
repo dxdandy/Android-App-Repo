@@ -133,6 +133,10 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
               <span>Podsjeti me sutra</span>
             </button>
           )}
+
+          <p className="text-[10px] text-slate-400 text-center leading-snug pt-1">
+            ℹ️ Nakon preuzimanja dodirnite preuzetu datoteku. Ako Android ponudi opciju, odaberite <em>"Dozvoli iz ovog izvora"</em> i <em>"Ipak instaliraj"</em>.
+          </p>
         </div>
 
       </div>
