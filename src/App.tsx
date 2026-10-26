@@ -27,6 +27,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { ActivationLockScreen } from './components/ActivationLockScreen';
 import { AdminKeyGeneratorModal } from './components/AdminKeyGeneratorModal';
 import { AppUpdateModal } from './components/AppUpdateModal';
+import { DonationModal } from './components/DonationModal';
 import { isAppActivated } from './services/licenseService';
 import { 
   checkForAppUpdate, 
@@ -39,6 +40,7 @@ const STORAGE_KEY_LAST_UPDATE = 'dunav_info_zadnje_azuriranje';
 export default function App() {
   const [isActivated, setIsActivated] = useState<boolean>(() => isAppActivated());
   const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
+  const [showDonationModal, setShowDonationModal] = useState<boolean>(false);
 
   // Stanja za automatska ažuriranja
   const [availableUpdate, setAvailableUpdate] = useState<AppVersionInfo | null>(null);
@@ -266,9 +268,19 @@ export default function App() {
             <h1 className="text-xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight break-words">
               Hidrometeo & Solunarni Centar Dunava
             </h1>
-            <p className="text-[11px] sm:text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed animate-pulse">
-              Aplikacija je potpuno besplatna. Rad autora možete podržati neobaveznim donacijama za čevape i Colu
-            </p>
+            <div className="flex items-center gap-2 flex-wrap mt-1.5 max-w-2xl animate-pulse">
+              <span className="text-[11px] sm:text-xs text-slate-400 leading-relaxed">
+                Aplikacija je potpuno besplatna. Rad autora možete podržati neobaveznim donacijama za čevape i Colu
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowDonationModal(true)}
+                className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-[10px] sm:text-[11px] tracking-wider uppercase cursor-pointer shadow-sm hover:scale-105 active:scale-95 transition-all shrink-0 inline-flex items-center gap-1 border border-amber-300/80"
+                title="Donacija za podršku autoru"
+              >
+                <span>DONACIJA</span>
+              </button>
+            </div>
           </div>
 
           {/* Brzi sažetak kote u headeru - potpuno responzivan za sve mobitele */}
@@ -478,6 +490,12 @@ export default function App() {
         updateInfo={availableUpdate}
         isOpen={showUpdateModal}
         onClose={() => setShowUpdateModal(false)}
+      />
+
+      {/* Modal za donaciju */}
+      <DonationModal
+        isOpen={showDonationModal}
+        onClose={() => setShowDonationModal(false)}
       />
 
     </div>

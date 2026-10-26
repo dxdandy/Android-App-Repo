@@ -3,7 +3,7 @@
  * Autor: Daniel Čizmar
  */
 
-export const CURRENT_APP_VERSION = '1.0.1';
+export const CURRENT_APP_VERSION = '1.1.0';
 
 // Glavni online poslužitelj aplikacije u oblaku (Cloud Run)
 // Čak i kada se aplikacija vrti na mobitelu unutar Android APK-a (gdje je lokalna domena http://localhost),
