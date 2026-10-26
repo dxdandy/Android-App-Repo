@@ -4,7 +4,7 @@
  * GitHub: dxdandy/Android-App-Repo
  */
 
-export const CURRENT_APP_VERSION = '1.1.0';
+export const CURRENT_APP_VERSION = '1.1.1';
 
 export interface AppVersionInfo {
   version: string;

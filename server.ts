@@ -229,14 +229,13 @@ app.get('/api/scrape', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.1.0',
+    version: '1.1.1',
     name: 'RiboPrognoza',
     releaseDate: '2026-10-26',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Dodane su nove opcije u aplikaciji',
-      'Dodana mogućnost donacije za podršku autoru',
-      'Poboljšana provjera i automatska nadogradnja'
+      'Prilagođen i smanjen prikaz zaglavlja i gumba Donacija za mobilne ekrane',
+      'Poboljšana automatska provjera i preuzimanje novih verzija'
     ],
     isCritical: false
   });
