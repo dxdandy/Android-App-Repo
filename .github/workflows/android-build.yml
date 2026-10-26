@@ -7,6 +7,9 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build Debug APK
@@ -46,9 +49,26 @@ jobs:
         working-directory: ./android
         run: ./gradlew assembleDebug -x test -x lint --no-daemon --stacktrace
 
+      - name: Prepare APK for Release
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk RiboPrognoza.apk
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: RiboPrognoza-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: RiboPrognoza.apk
           if-no-files-found: error
+
+      - name: Publish GitHub Release with APK
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: latest
+          name: RiboPrognoza Najnovija Verzija (APK)
+          body: |
+            Nova verzija aplikacije RiboPrognoza.
+            Preuzmite `RiboPrognoza.apk` na svoj Android telefon i instalirajte nadogradnju.
+          files: RiboPrognoza.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

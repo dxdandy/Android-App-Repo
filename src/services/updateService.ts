@@ -5,6 +5,11 @@
 
 export const CURRENT_APP_VERSION = '1.0.1';
 
+// Glavni online poslužitelj aplikacije u oblaku (Cloud Run)
+// Čak i kada se aplikacija vrti na mobitelu unutar Android APK-a (gdje je lokalna domena http://localhost),
+// aplikacija se spaja na ovaj stvarni internet poslužitelj kako bi provjerila najnoviju verziju.
+export const PRIMARY_CLOUD_API_URL = 'https://ais-dev-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
+
 export interface AppVersionInfo {
   version: string;
   name: string;
@@ -35,19 +40,41 @@ export function isNewerVersion(remoteVer: string, currentVer: string): boolean {
 }
 
 const DISMISS_KEY_PREFIX = 'ribo_dismissed_update_';
+const CUSTOM_SERVER_KEY = 'ribo_custom_update_server';
 
 /**
- * Provjerava postoji li novija verzija aplikacije na serveru/GitHubu
+ * Vraća listu svih online adresa koje aplikacija redom provjerava za novu verziju
+ */
+export function getUpdateEndpoints(): string[] {
+  const endpoints: string[] = [];
+  const custom = typeof window !== 'undefined' ? localStorage.getItem(CUSTOM_SERVER_KEY) : null;
+
+  if (custom && custom.trim()) {
+    const cleanCustom = custom.trim().replace(/\/$/, '');
+    endpoints.push(`${cleanCustom}/api/version?t=${Date.now()}`);
+    endpoints.push(`${cleanCustom}/version.json?t=${Date.now()}`);
+  }
+
+  // 1. Primarni Cloud Run poslužitelj
+  endpoints.push(`${PRIMARY_CLOUD_API_URL}/api/version?t=${Date.now()}`);
+  endpoints.push(`${PRIMARY_CLOUD_API_URL}/version.json?t=${Date.now()}`);
+
+  // 2. Ako se otvara u web pregledniku na samom serveru (ne u APK localhostu)
+  if (typeof window !== 'undefined' && !window.location.origin.includes('localhost') && !window.location.protocol.startsWith('capacitor')) {
+    endpoints.push(`/api/version?t=${Date.now()}`);
+    endpoints.push(`/version.json?t=${Date.now()}`);
+  }
+
+  return endpoints;
+}
+
+/**
+ * Provjerava postoji li novija verzija aplikacije na internet poslužitelju
  * @param force Ako je true, ignorira prethodno odabrano "Podsjeti me kasnije"
  */
 export async function checkForAppUpdate(force: boolean = false): Promise<AppVersionInfo | null> {
   try {
-    // 1. Pokušaj dohvata sa statičkog /version.json ili /api/version
-    const endpoints = [
-      `/version.json?t=${Date.now()}`,
-      `/api/version?t=${Date.now()}`
-    ];
-
+    const endpoints = getUpdateEndpoints();
     let data: AppVersionInfo | null = null;
 
     for (const url of endpoints) {
@@ -57,15 +84,18 @@ export async function checkForAppUpdate(force: boolean = false): Promise<AppVers
           headers: {
             'Accept': 'application/json'
           },
-          signal: AbortSignal.timeout(5000)
+          signal: AbortSignal.timeout(6000)
         });
 
         if (response.ok) {
-          data = await response.json();
-          if (data && data.version) break;
+          const json = await response.json();
+          if (json && json.version) {
+            data = json;
+            break;
+          }
         }
-      } catch {
-        // Probaj sljedeći endpoint
+      } catch (e) {
+        // Pokušaj sljedeći online endpoint
       }
     }
 
@@ -73,13 +103,13 @@ export async function checkForAppUpdate(force: boolean = false): Promise<AppVers
       return null;
     }
 
-    // Provjeri je li verzija novija od instalirane
+    // Provjeri je li verzija na internet poslužitelju novija od instalirane na mobitelu
     const hasUpdate = isNewerVersion(data.version, CURRENT_APP_VERSION);
     if (!hasUpdate) {
       return null;
     }
 
-    // Ako nije forsirana provjera, provjeri je li korisnik odabrao "Podsjeti me kasnije" u zadnjih 24 sata
+    // Ako nije forsirana provjera, provjeri je li korisnik odabrao "Podsjeti me kasnije" unutar zadnjih 24 sata
     if (!force) {
       const dismissedTime = localStorage.getItem(`${DISMISS_KEY_PREFIX}${data.version}`);
       if (dismissedTime) {
@@ -98,6 +128,60 @@ export async function checkForAppUpdate(force: boolean = false): Promise<AppVers
 }
 
 /**
+ * Detaljna dijagnostika veze sa serverom za ažuriranja (za administratorski panel)
+ */
+export async function runUpdateDiagnostic(): Promise<{
+  success: boolean;
+  endpointChecked?: string;
+  serverVersion?: string;
+  currentVersion: string;
+  hasUpdate: boolean;
+  error?: string;
+  rawResponse?: any;
+}> {
+  const endpoints = getUpdateEndpoints();
+  let lastError = 'Nije moguće uspostaviti vezu';
+
+  for (const url of endpoints) {
+    try {
+      const start = Date.now();
+      const response = await fetch(url, {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(7000)
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        const duration = Date.now() - start;
+        if (json && json.version) {
+          const hasUpdate = isNewerVersion(json.version, CURRENT_APP_VERSION);
+          return {
+            success: true,
+            endpointChecked: `${url.split('?')[0]} (${duration}ms)`,
+            serverVersion: json.version,
+            currentVersion: CURRENT_APP_VERSION,
+            hasUpdate,
+            rawResponse: json
+          };
+        }
+      } else {
+        lastError = `Poslužitelj ${url.split('?')[0]} vratio status: ${response.status}`;
+      }
+    } catch (err: any) {
+      lastError = err?.message || 'Greška u mreži';
+    }
+  }
+
+  return {
+    success: false,
+    currentVersion: CURRENT_APP_VERSION,
+    hasUpdate: false,
+    error: lastError
+  };
+}
+
+/**
  * Sprema odgodu za prikaz obavijesti za određenu verziju na 24 sata
  */
 export function dismissUpdateFor24h(version: string): void {
@@ -112,14 +196,9 @@ export function dismissUpdateFor24h(version: string): void {
 export function startApkDownload(apkUrl: string): void {
   if (!apkUrl) return;
 
-  // Otvara izravno preuzimanje APK datoteke.
+  // Izravno preuzimanje APK datoteke
   // Na Androidu, preuzimanje APK-a automatski pokreće Package Installer za nadogradnju.
-  const link = document.createElement('a');
-  link.href = apkUrl;
-  link.setAttribute('download', 'RiboPrognoza.apk');
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  if (typeof window !== 'undefined') {
+    window.open(apkUrl, '_blank');
+  }
 }

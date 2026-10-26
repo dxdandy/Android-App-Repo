@@ -219,6 +219,10 @@ export default function App() {
           isOpen={showAdminModal}
           onClose={() => setShowAdminModal(false)}
           onSelfActivated={() => setIsActivated(true)}
+          onTestUpdatePopup={(fakeInfo) => {
+            setAvailableUpdate(fakeInfo);
+            setShowUpdateModal(true);
+          }}
         />
         <AppUpdateModal
           updateInfo={availableUpdate}
@@ -463,6 +467,10 @@ export default function App() {
       <AdminKeyGeneratorModal
         isOpen={showAdminModal}
         onClose={() => setShowAdminModal(false)}
+        onTestUpdatePopup={(fakeInfo) => {
+          setAvailableUpdate(fakeInfo);
+          setShowUpdateModal(true);
+        }}
       />
 
       {/* Modal za obavijest o novoj verziji */}
