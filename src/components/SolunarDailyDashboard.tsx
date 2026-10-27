@@ -15,6 +15,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { SolunarDayData } from '../types/fishing';
+import { ScrollToTopButton } from './ScrollToTopButton';
 
 interface SolunarDailyDashboardProps {
   solunar: SolunarDayData;
@@ -87,9 +88,12 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
             </span>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-black text-white mt-1 tracking-tight flex items-center gap-2">
-            <span>🌙 Solunarni Rezultati & Aktivnost Riba</span>
-          </h2>
+          <div className="flex items-center justify-between gap-3 mt-1 flex-wrap sm:flex-nowrap">
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
+              <span>🌙 Solunarni Rezultati & Aktivnost Riba</span>
+            </h2>
+            <ScrollToTopButton theme="indigo" />
+          </div>
           <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
             Astronomski izračun mjesečevih i sunčevih ciklusa za ribolov na rijeci Dunav
           </p>

@@ -15,6 +15,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { StationWaterData } from '../types/fishing';
+import { ScrollToTopButton } from './ScrollToTopButton';
 
 interface StationCardBogojevoProps {
   data: StationWaterData;
@@ -70,9 +71,12 @@ export const StationCardBogojevo: React.FC<StationCardBogojevoProps> = ({ data, 
             </span>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-black text-white mt-1 tracking-tight flex items-center gap-2">
-            <span>🌊 Dunav - Bogojevo</span>
-          </h2>
+          <div className="flex items-center justify-between gap-3 mt-1">
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
+              <span>🌊 Dunav - Bogojevo</span>
+            </h2>
+            <ScrollToTopButton theme="cyan" />
+          </div>
           <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
             Most Bogojevo • Kameni špornjevi • Tok prema Apatinu i Dalju
           </p>

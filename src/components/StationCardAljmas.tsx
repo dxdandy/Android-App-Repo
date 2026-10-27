@@ -15,6 +15,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { StationWaterData } from '../types/fishing';
+import { ScrollToTopButton } from './ScrollToTopButton';
 
 interface StationCardAljmasProps {
   data: StationWaterData;
@@ -70,9 +71,12 @@ export const StationCardAljmas: React.FC<StationCardAljmasProps> = ({ data, isLo
             </span>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-black text-white mt-1 tracking-tight flex items-center gap-2">
-            <span>🌊 Dunav - Aljmaš</span>
-          </h2>
+          <div className="flex items-center justify-between gap-3 mt-1">
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
+              <span>🌊 Dunav - Aljmaš</span>
+            </h2>
+            <ScrollToTopButton theme="teal" />
+          </div>
           <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
             Ušće Drave u Dunav • Aljmaški kameni šporanj
           </p>
