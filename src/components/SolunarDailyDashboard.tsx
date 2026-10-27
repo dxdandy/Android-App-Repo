@@ -137,12 +137,17 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-6">
         
         {/* Glavno razdoblje 1 */}
-        <div className="bg-gradient-to-b from-indigo-900/40 to-slate-800/80 rounded-2xl p-4 border border-indigo-500/40 flex flex-col justify-between">
+        <div className="bg-gradient-to-b from-indigo-900/40 to-slate-800/80 rounded-2xl p-4 border border-indigo-500/40 flex flex-col justify-between shadow-md relative overflow-hidden">
+          {solunar.major1.isPeakOfDay && (
+            <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-amber-600 text-slate-950 font-black text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-bl-lg shadow-xs">
+              ★ Najbolji griz
+            </div>
+          )}
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
                 <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
-                Maksimalni griz
+                {solunar.major1.title || 'Glavni vrhunac'}
               </span>
             </div>
             <div className="text-2xl font-black text-white font-mono my-2">
@@ -152,18 +157,24 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
               {solunar.major1.description}
             </p>
           </div>
-          <div className="mt-3 pt-2 border-t border-slate-700/60 text-[10px] text-indigo-300 font-medium">
-            Vrhunac: oko <strong>{solunar.major1.peak} h</strong>
+          <div className="mt-3 pt-2 border-t border-slate-700/60 text-[10px] text-indigo-300 font-medium flex items-center justify-between">
+            <span>Glavni solunar (2h)</span>
+            <span>Vrhunac: <strong>{solunar.major1.peak} h</strong></span>
           </div>
         </div>
 
         {/* Glavno razdoblje 2 */}
-        <div className="bg-gradient-to-b from-indigo-900/40 to-slate-800/80 rounded-2xl p-4 border border-indigo-500/40 flex flex-col justify-between">
+        <div className="bg-gradient-to-b from-indigo-900/40 to-slate-800/80 rounded-2xl p-4 border border-indigo-500/40 flex flex-col justify-between shadow-md relative overflow-hidden">
+          {solunar.major2.isPeakOfDay && (
+            <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-amber-600 text-slate-950 font-black text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-bl-lg shadow-xs">
+              ★ Najbolji griz
+            </div>
+          )}
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
                 <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
-                Noćni vrhunac
+                {solunar.major2.title || 'Glavni vrhunac'}
               </span>
             </div>
             <div className="text-2xl font-black text-white font-mono my-2">
@@ -173,18 +184,19 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
               {solunar.major2.description}
             </p>
           </div>
-          <div className="mt-3 pt-2 border-t border-slate-700/60 text-[10px] text-indigo-300 font-medium">
-            Vrhunac: oko <strong>{solunar.major2.peak} h</strong>
+          <div className="mt-3 pt-2 border-t border-slate-700/60 text-[10px] text-indigo-300 font-medium flex items-center justify-between">
+            <span>Glavni solunar (2h)</span>
+            <span>Vrhunac: <strong>{solunar.major2.peak} h</strong></span>
           </div>
         </div>
 
         {/* Sporedno razdoblje 1 */}
-        <div className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/70 flex flex-col justify-between">
+        <div className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/70 flex flex-col justify-between shadow-md">
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-teal-300 flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-teal-400" />
-                Jutarnji impuls
+                {solunar.minor1.title || 'Sporedni impuls'}
               </span>
             </div>
             <div className="text-2xl font-black text-white font-mono my-2">
@@ -194,18 +206,19 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
               {solunar.minor1.description}
             </p>
           </div>
-          <div className="mt-3 pt-2 border-t border-slate-700/60 text-[10px] text-slate-400">
-            Trajanje: ~1 sat
+          <div className="mt-3 pt-2 border-t border-slate-700/60 text-[10px] text-slate-400 flex items-center justify-between">
+            <span>Sporedni solunar (1h)</span>
+            <span>Aktivnost: umjerena</span>
           </div>
         </div>
 
         {/* Sporedno razdoblje 2 */}
-        <div className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/70 flex flex-col justify-between">
+        <div className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/70 flex flex-col justify-between shadow-md">
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-teal-300 flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-teal-400" />
-                Večernji impuls
+                {solunar.minor2.title || 'Sporedni impuls'}
               </span>
             </div>
             <div className="text-2xl font-black text-white font-mono my-2">
@@ -215,8 +228,9 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
               {solunar.minor2.description}
             </p>
           </div>
-          <div className="mt-3 pt-2 border-t border-slate-700/60 text-[10px] text-slate-400">
-            Trajanje: ~1 sat
+          <div className="mt-3 pt-2 border-t border-slate-700/60 text-[10px] text-slate-400 flex items-center justify-between">
+            <span>Sporedni solunar (1h)</span>
+            <span>Aktivnost: umjerena</span>
           </div>
         </div>
 

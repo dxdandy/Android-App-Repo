@@ -229,13 +229,14 @@ app.get('/api/scrape', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.1.3',
+    version: '1.1.4',
     name: 'RiboPrognoza',
     releaseDate: '2026-10-27',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Uklonjena oznaka UŽIVO pokraj naziva aplikacije',
-      'Kartice Aljmaš, Bogojevo i Solunar pretvorene u interaktivne gumbe koji glatko vode izravno na odgovarajuća poglavlja'
+      'Urađene su vizualne promjene aplikacije i nova poboljšanja',
+      'Ispravljene i precizno usklađene solunarne satnice i nazivi (Dnevni vrhunac, Noćni vrhunac, Jutarnji i Večernji impuls)',
+      'Dodani gumbi za povratak na vrh stranice s izborom stila u Admin panelu'
     ],
     isCritical: false
   });

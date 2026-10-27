@@ -19,10 +19,13 @@ export type MoonPhase =
   | 'opadajuci_srp';
 
 export interface SolunarPeriod {
+  title?: string;
+  badge?: string;
   start: string;
   end: string;
   peak?: string;
   description: string;
+  isPeakOfDay?: boolean;
 }
 
 export interface HourlySolunarItem {

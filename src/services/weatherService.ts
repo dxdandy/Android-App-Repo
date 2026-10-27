@@ -96,6 +96,24 @@ function formatHoursMinutes(hoursFloat: number): string {
 }
 
 /**
+ * Određuje točan i prirodan naziv perioda prema stvarnom satu u danu
+ */
+function getDynamicPeriodTitle(hoursFloat: number, type: 'major' | 'minor'): string {
+  const norm = ((hoursFloat % 24) + 24) % 24;
+  if (type === 'major') {
+    if (norm >= 4.5 && norm < 11.5) return 'Jutarnji vrhunac';
+    if (norm >= 11.5 && norm < 17) return 'Dnevni vrhunac';
+    if (norm >= 17 && norm < 22) return 'Večernji vrhunac';
+    return 'Noćni vrhunac';
+  } else {
+    if (norm >= 4.5 && norm < 11.5) return 'Jutarnji impuls';
+    if (norm >= 11.5 && norm < 17) return 'Popodnevni impuls';
+    if (norm >= 17 && norm < 22) return 'Večernji impuls';
+    return 'Noćni impuls';
+  }
+}
+
+/**
  * Generiranje cjelokupnih solunarnih rezultata za današnji dan na Dunavu
  */
 export function getSolunarDataForDate(
@@ -224,6 +242,21 @@ export function getSolunarDataForDate(
     }
   ];
 
+  // Određivanje najboljeg trenutka dana (Maksimalni griz)
+  const distMajor1Sun = Math.min(
+    Math.abs(moonTransitHour - sunriseHour),
+    Math.abs(moonTransitHour - sunsetHour),
+    Math.abs(moonTransitHour - 24),
+    Math.abs(moonTransitHour - 0)
+  );
+  const distMajor2Sun = Math.min(
+    Math.abs(moonUnderfootHour - sunriseHour),
+    Math.abs(moonUnderfootHour - sunsetHour),
+    Math.abs(moonUnderfootHour - 24),
+    Math.abs(moonUnderfootHour - 0)
+  );
+  const isMajor1Best = distMajor1Sun <= distMajor2Sun;
+
   return {
     date: dateStr,
     formattedDate: croatianDayName.charAt(0).toUpperCase() + croatianDayName.slice(1),
@@ -231,26 +264,38 @@ export function getSolunarDataForDate(
     moonPhaseName: phaseName,
     illuminationPct,
     major1: {
+      title: getDynamicPeriodTitle(moonTransitHour, 'major'),
+      badge: 'Glavno razdoblje (Major)',
       start: formatHoursMinutes(major1Start),
       end: formatHoursMinutes(major1End),
       peak: formatHoursMinutes(moonTransitHour),
-      description: 'Mjesec u zenitu (Glavno dnevno hranjenje na Dunavu)'
+      description: 'Mjesec u zenitu (Gornja kulminacija) • Glavni solunar, jak gravitacijski utjecaj',
+      isPeakOfDay: isMajor1Best
     },
     major2: {
+      title: getDynamicPeriodTitle(moonUnderfootHour, 'major'),
+      badge: 'Glavno razdoblje (Major)',
       start: formatHoursMinutes(major2Start),
       end: formatHoursMinutes(major2End),
       peak: formatHoursMinutes(moonUnderfootHour),
-      description: 'Mjesec u nadiru (Glavno noćno hranjenje - idealno za smuđa i soma)'
+      description: 'Mjesec u nadiru (Donja kulminacija) • Glavni solunar, intenzivno hranjenje riba',
+      isPeakOfDay: !isMajor1Best
     },
     minor1: {
+      title: getDynamicPeriodTitle(minor1Start + 0.5, 'minor'),
+      badge: 'Sporedno razdoblje (Minor)',
       start: formatHoursMinutes(minor1Start),
       end: formatHoursMinutes(minor1End),
-      description: 'Izlazak Mjeseca (Jutarnji impuls aktivnosti)'
+      description: 'Izlazak Mjeseca • Sporedni solunar, poticaj na kretanje i hranjenje',
+      isPeakOfDay: false
     },
     minor2: {
+      title: getDynamicPeriodTitle(minor2Start + 0.5, 'minor'),
+      badge: 'Sporedno razdoblje (Minor)',
       start: formatHoursMinutes(minor2Start),
       end: formatHoursMinutes(minor2End),
-      description: 'Zalazak Mjeseca (Poslijepodnevni impuls aktivnosti)'
+      description: 'Zalazak Mjeseca • Sporedni solunar, kratak period pojačane aktivnosti',
+      isPeakOfDay: false
     },
     sunrise: formatHoursMinutes(sunriseHour),
     sunset: formatHoursMinutes(sunsetHour),
