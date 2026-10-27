@@ -48,14 +48,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               referrerPolicy="no-referrer" 
             />
             <div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h1 className="font-black text-white text-base sm:text-lg leading-tight tracking-tight">
-                  RiboPrognoza
-                </h1>
-                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-500/40">
-                  Uživo
-                </span>
-              </div>
+              <h1 className="font-black text-white text-base sm:text-lg leading-tight tracking-tight">
+                RiboPrognoza
+              </h1>
             </div>
           </div>
 
@@ -79,7 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              🌊 Aljmaš (mvodostaji)
+              🌊 Aljmaš
             </button>
             <button
               onClick={() => onSelectTab('bogojevo')}
@@ -89,7 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              🌊 Bogojevo (hidmet)
+              🌊 Bogojevo
             </button>
             <button
               onClick={() => onSelectTab('solunar')}

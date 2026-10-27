@@ -4,8 +4,6 @@ import {
   Sparkles, 
   Scale, 
   RefreshCw, 
-  CheckCircle2, 
-  MapPin, 
   Clock, 
   Calendar
 } from 'lucide-react';
@@ -205,12 +203,21 @@ export default function App() {
     }
   };
 
-  const formatHoursShort = (date: Date | null) => {
-    if (!date) return '--:--';
-    return date.toLocaleTimeString('hr-HR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const handleScrollToChapter = (chapterId: string) => {
+    if (activeTab !== 'sve') {
+      setActiveTab('sve');
+    }
+    setTimeout(() => {
+      const el = document.getElementById(chapterId);
+      if (el) {
+        const navbarOffset = 76;
+        const elementPosition = el.getBoundingClientRect().top + window.pageYOffset;
+        window.scrollTo({
+          top: Math.max(0, elementPosition - navbarOffset),
+          behavior: 'smooth'
+        });
+      }
+    }, 60);
   };
 
   if (!isActivated) {
@@ -259,12 +266,8 @@ export default function App() {
           
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap text-xs text-cyan-400 font-bold mb-1.5">
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5" /> Dunav (Aljmaš & Bogojevo)
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-1 font-mono text-slate-300">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" /> {solunarData.formattedDate}
+              <span className="flex items-center gap-1.5 font-mono text-slate-300">
+                <Calendar className="w-3.5 h-3.5 text-cyan-400" /> {solunarData.formattedDate}
               </span>
             </div>
 
@@ -284,11 +287,16 @@ export default function App() {
             </p>
           </div>
 
-          {/* Brzi sažetak kote u headeru - potpuno responzivan za sve mobitele */}
+          {/* Brzi sažetak kote u headeru - interaktivni gumbovi za skok na poglavlja */}
           <div className="grid grid-cols-3 gap-2 w-full lg:w-auto shrink-0">
-            {/* ALJMAŠ */}
-            <div className="bg-slate-900/90 border border-teal-500/40 rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0">
-              <span className="w-full text-center sm:text-left font-black text-teal-300 text-xs sm:text-sm tracking-wider uppercase truncate">
+            {/* ALJMAŠ GUMB */}
+            <button
+              type="button"
+              onClick={() => handleScrollToChapter('sekcija-aljmas')}
+              className="bg-slate-900/90 hover:bg-slate-850 border border-teal-500/40 hover:border-teal-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group"
+              title="Klikni za skok na poglavlje DUNAV - Aljmaš"
+            >
+              <span className="w-full text-center sm:text-left font-black text-teal-300 group-hover:text-teal-200 text-xs sm:text-sm tracking-wider uppercase truncate">
                 ALJMAŠ
               </span>
               <div className="mt-1 w-full">
@@ -299,11 +307,16 @@ export default function App() {
                   {aljmasData.waterLevelTrend}
                 </span>
               </div>
-            </div>
+            </button>
 
-            {/* BOGOJEVO */}
-            <div className="bg-slate-900/90 border border-cyan-500/40 rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0">
-              <span className="w-full text-center sm:text-left font-black text-cyan-300 text-xs sm:text-sm tracking-wider uppercase truncate">
+            {/* BOGOJEVO GUMB */}
+            <button
+              type="button"
+              onClick={() => handleScrollToChapter('sekcija-bogojevo')}
+              className="bg-slate-900/90 hover:bg-slate-850 border border-cyan-500/40 hover:border-cyan-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group"
+              title="Klikni za skok na poglavlje DUNAV - Bogojevo"
+            >
+              <span className="w-full text-center sm:text-left font-black text-cyan-300 group-hover:text-cyan-200 text-xs sm:text-sm tracking-wider uppercase truncate">
                 BOGOJEVO
               </span>
               <div className="mt-1 w-full">
@@ -314,11 +327,16 @@ export default function App() {
                   {bogojevoData.waterLevelTrend}
                 </span>
               </div>
-            </div>
+            </button>
 
-            {/* SOLUNAR */}
-            <div className="bg-slate-900/90 border border-indigo-500/40 rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0">
-              <span className="w-full text-center sm:text-left font-black text-indigo-300 text-xs sm:text-sm tracking-wider uppercase truncate">
+            {/* SOLUNAR GUMB */}
+            <button
+              type="button"
+              onClick={() => handleScrollToChapter('sekcija-solunar')}
+              className="bg-slate-900/90 hover:bg-slate-850 border border-indigo-500/40 hover:border-indigo-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group"
+              title="Klikni za skok na poglavlje Solunarni rezultati"
+            >
+              <span className="w-full text-center sm:text-left font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm tracking-wider uppercase truncate">
                 SOLUNAR
               </span>
               <div className="mt-1 w-full">
@@ -329,7 +347,7 @@ export default function App() {
                   {solunarData.activityPercentage}%
                 </span>
               </div>
-            </div>
+            </button>
           </div>
 
         </div>
@@ -339,7 +357,7 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 sm:space-y-8 flex-1 w-full max-w-full overflow-hidden">
         
         {/* Odabir prikaza lokacija (tabovi) na vrhu sadržaja */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2 w-full">
+        <div className="border-b border-slate-800 pb-3 w-full">
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-1 max-w-full">
             <button
               onClick={() => setActiveTab('sve')}
@@ -369,7 +387,7 @@ export default function App() {
                   : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
               }`}
             >
-              🌊 Aljmaš (mvodostaji)
+              🌊 Aljmaš
             </button>
             <button
               onClick={() => setActiveTab('bogojevo')}
@@ -379,7 +397,7 @@ export default function App() {
                   : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
               }`}
             >
-              🌊 Bogojevo (hidmet)
+              🌊 Bogojevo
             </button>
             <button
               onClick={() => setActiveTab('usporedba')}
@@ -392,36 +410,36 @@ export default function App() {
               ⚖️ Usporedba
             </button>
           </div>
-
-          {/* Indikator statusa zadnjeg ažuriranja */}
-          <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium ml-auto">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="whitespace-nowrap">Ažurirano: <strong>{formatHoursShort(lastUpdated)}</strong> h</span>
-          </div>
         </div>
 
         {/* 1. Solunarni rezultati za taj dan */}
         {(activeTab === 'sve' || activeTab === 'solunar') && (
-          <SolunarDailyDashboard 
-            solunar={solunarData} 
-            isLoading={isLoading} 
-          />
+          <div id="sekcija-solunar" className="scroll-mt-20">
+            <SolunarDailyDashboard 
+              solunar={solunarData} 
+              isLoading={isLoading} 
+            />
+          </div>
         )}
 
-        {/* 2. Dunav - Aljmaš (mvodostaji.voda.hr) */}
+        {/* 2. Dunav - Aljmaš */}
         {(activeTab === 'sve' || activeTab === 'aljmas') && (
-          <StationCardAljmas 
-            data={aljmasData} 
-            isLoading={isLoading} 
-          />
+          <div id="sekcija-aljmas" className="scroll-mt-20">
+            <StationCardAljmas 
+              data={aljmasData} 
+              isLoading={isLoading} 
+            />
+          </div>
         )}
 
-        {/* 3. Dunav - Bogojevo (hidmet.gov.rs) */}
+        {/* 3. Dunav - Bogojevo */}
         {(activeTab === 'sve' || activeTab === 'bogojevo') && (
-          <StationCardBogojevo 
-            data={bogojevoData} 
-            isLoading={isLoading} 
-          />
+          <div id="sekcija-bogojevo" className="scroll-mt-20">
+            <StationCardBogojevo 
+              data={bogojevoData} 
+              isLoading={isLoading} 
+            />
+          </div>
         )}
 
         {/* 4. Usporedba Aljmaš vs Bogojevo */}
