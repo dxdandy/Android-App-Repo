@@ -29,12 +29,6 @@ import {
   setSavedGithubRepo,
   AppVersionInfo 
 } from '../services/updateService';
-import {
-  getScrollButtonVariant,
-  setScrollButtonVariant,
-  ScrollButtonVariant,
-  ScrollToTopButton
-} from './ScrollToTopButton';
 
 interface AdminKeyGeneratorModalProps {
   isOpen: boolean;
@@ -53,8 +47,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinError, setPinError] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'licence' | 'azuriranja' | 'izgled'>('licence');
-  const [currentScrollVariant, setCurrentScrollVariant] = useState<ScrollButtonVariant>(getScrollButtonVariant());
+  const [activeTab, setActiveTab] = useState<'licence' | 'azuriranja'>('licence');
 
   // Stanja za licence
   const [targetDeviceId, setTargetDeviceId] = useState('');
@@ -223,7 +216,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
           <div className="space-y-4">
             
             {/* Tabovi */}
-            <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs font-bold">
+            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs font-bold">
               <button
                 onClick={() => setActiveTab('licence')}
                 className={`py-2 rounded-lg transition-all cursor-pointer ${
@@ -232,7 +225,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Licence
+                Licence & Kodovi
               </button>
               <button
                 onClick={() => setActiveTab('azuriranja')}
@@ -244,17 +237,6 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Ažuriranja</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('izgled')}
-                className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  activeTab === 'izgled' 
-                    ? 'bg-indigo-600 text-white shadow-sm' 
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <ArrowUp className="w-3.5 h-3.5" />
-                <span>"Na vrh"</span>
               </button>
             </div>
 
@@ -329,7 +311,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                   </div>
                 )}
               </div>
-            ) : activeTab === 'azuriranja' ? (
+            ) : (
               /* TAB 2: AŽURIRANJA I DIJAGNOSTIKA */
               <div className="space-y-4">
                 <div className="bg-slate-950 border border-cyan-500/30 rounded-2xl p-3.5 space-y-2 text-xs">
@@ -449,76 +431,6 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                   </p>
                 </div>
 
-              </div>
-            ) : (
-              /* TAB 3: IZBOR VARIJANTE GUMBA "NA VRH" */
-              <div className="space-y-4">
-                <div className="bg-slate-950 border border-indigo-500/30 rounded-2xl p-3.5 space-y-1 text-xs">
-                  <span className="font-bold text-indigo-300 block">Izbor stila za gumb "Na vrh":</span>
-                  <p className="text-[11px] text-slate-400">
-                    Ovdje možete isprobati obje varijante i odabrati onu koja vam više odgovara. Izbor se odmah primjenjuje na sva tri poglavlja u aplikaciji.
-                  </p>
-                </div>
-
-                {/* Varijanta 1 */}
-                <div 
-                  onClick={() => {
-                    setScrollButtonVariant('text');
-                    setCurrentScrollVariant('text');
-                  }}
-                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                    currentScrollVariant === 'text'
-                      ? 'bg-indigo-950/40 border-indigo-500 shadow-md ring-1 ring-indigo-500/50'
-                      : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-white text-xs">Varijanta 1: Strelica + Tekst</span>
-                      {currentScrollVariant === 'text' && (
-                        <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-1.5 py-0.5 rounded-md font-bold">
-                          ✓ Aktivno
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      Uokvirena strelica s jasnim sitnim tekstom "NA VRH".
-                    </p>
-                  </div>
-                  <ScrollToTopButton theme="indigo" variant="text" />
-                </div>
-
-                {/* Varijanta 2 */}
-                <div 
-                  onClick={() => {
-                    setScrollButtonVariant('icon');
-                    setCurrentScrollVariant('icon');
-                  }}
-                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                    currentScrollVariant === 'icon'
-                      ? 'bg-indigo-950/40 border-indigo-500 shadow-md ring-1 ring-indigo-500/50'
-                      : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-white text-xs">Varijanta 2: Samo Ikona (Bez teksta)</span>
-                      {currentScrollVariant === 'icon' && (
-                        <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-1.5 py-0.5 rounded-md font-bold">
-                          ✓ Aktivno
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      Kompaktni kvadrat sa strelicom, štedi vodoravni prostor na mobitelu.
-                    </p>
-                  </div>
-                  <ScrollToTopButton theme="indigo" variant="icon" />
-                </div>
-
-                <p className="text-[10px] text-slate-500 text-center pt-1">
-                  Dodirnite željenu varijantu da biste je odmah postavili.
-                </p>
               </div>
             )}
 

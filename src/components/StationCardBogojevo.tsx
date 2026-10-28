@@ -59,24 +59,26 @@ export const StationCardBogojevo: React.FC<StationCardBogojevoProps> = ({ data, 
       <div className="absolute -right-20 -top-20 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Zaglavlje postaje */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold tracking-wide uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-              Službena RHMZ postaja #42020
-            </span>
-            <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
-              <MapPin className="w-3.5 h-3.5 text-cyan-400" />
-              Dunav {data.riverKm} • Most Bogojevo - Erdut
-            </span>
-          </div>
+      <div className="border-b border-slate-800 pb-5">
+        <div className="w-full">
+          {/* Prvi red poglavlja: oznake lijevo, strelica za vrh na kraju desno */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold tracking-wide uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                Službena RHMZ postaja #42020
+              </span>
+              <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
+                <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                Dunav {data.riverKm} • Most Bogojevo - Erdut
+              </span>
+            </div>
 
-          <div className="flex items-center justify-between gap-3 mt-1">
-            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-              <span>🌊 Dunav - Bogojevo</span>
-            </h2>
             <ScrollToTopButton theme="cyan" />
           </div>
+
+          <h2 className="text-2xl sm:text-3xl font-black text-white mt-1.5 tracking-tight flex items-center gap-2">
+            <span>🌊 Dunav - Bogojevo</span>
+          </h2>
           <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
             Most Bogojevo • Kameni špornjevi • Tok prema Apatinu i Dalju
           </p>

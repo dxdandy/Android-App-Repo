@@ -1,6 +1,7 @@
 import React from 'react';
 import { Scale, ArrowRight, Waves, Thermometer, Gauge, Wind } from 'lucide-react';
 import { StationWaterData } from '../types/fishing';
+import { ScrollToTopButton } from './ScrollToTopButton';
 
 interface StationsComparisonCardProps {
   aljmas: StationWaterData;
@@ -16,14 +17,19 @@ export const StationsComparisonCard: React.FC<StationsComparisonCardProps> = ({
       
       {/* Zaglavlje usporedbe */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4 mb-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              <Scale className="w-4 h-4" />
-            </span>
-            <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Usporedba Dunava: Aljmaš vs Bogojevo
-            </h3>
+        <div className="flex-1 min-w-0">
+          {/* Prvi red poglavlja: naslov lijevo, strelica za vrh na kraju desno */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+                <Scale className="w-4 h-4" />
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate">
+                Usporedba Dunava: Aljmaš vs Bogojevo
+              </h3>
+            </div>
+
+            <ScrollToTopButton theme="indigo" />
           </div>
           <p className="text-xs text-slate-300 mt-1">
             Usporedni profil rijeke Dunav između rkm 1380,300 (Aljmaš) i rkm 1367,000 (Bogojevo)

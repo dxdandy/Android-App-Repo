@@ -76,25 +76,36 @@ export const SolunarDailyDashboard: React.FC<SolunarDailyDashboardProps> = ({ so
 
       {/* Zaglavlje Solunarnog centra */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold tracking-wide uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              Solunar za današnji dan
-            </span>
-            <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
-              <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-              {solunar.formattedDate}
-            </span>
-          </div>
+        <div className="flex-1 min-w-0">
+          {/* Prvi red poglavlja: bedževi lijevo, strelica za vrh na kraju desno */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold tracking-wide uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                Solunar za današnji dan
+              </span>
+              <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
+                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                {solunar.formattedDate}
+              </span>
+            </div>
 
-          <div className="flex items-center justify-between gap-3 mt-1 flex-wrap sm:flex-nowrap">
-            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-              <span>🌙 Solunarni Rezultati & Aktivnost Riba</span>
-            </h2>
             <ScrollToTopButton theme="indigo" />
           </div>
-          <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
+
+          {/* Naslov poglavlja: Slovo S točno iznad slova A u istoj ravnini */}
+          <div className="mt-2.5 flex items-start gap-2.5">
+            <span className="text-2xl sm:text-3xl leading-none select-none shrink-0 mt-0.5">🌙</span>
+            <div className="flex flex-col">
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
+                Solunarni Rezultati
+              </h2>
+              <span className="text-lg sm:text-2xl font-black text-indigo-300 tracking-tight leading-snug">
+                Aktivnost Riba
+              </span>
+            </div>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-300 mt-1">
             Astronomski izračun mjesečevih i sunčevih ciklusa za ribolov na rijeci Dunav
           </p>
         </div>

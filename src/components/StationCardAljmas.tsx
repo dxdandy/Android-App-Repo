@@ -59,24 +59,26 @@ export const StationCardAljmas: React.FC<StationCardAljmasProps> = ({ data, isLo
       <div className="absolute -right-20 -top-20 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Zaglavlje postaje */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold tracking-wide uppercase bg-teal-500/20 text-teal-300 border border-teal-500/40">
-              Službena hidro postaja #148
-            </span>
-            <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
-              <MapPin className="w-3.5 h-3.5 text-teal-400" />
-              Dunav {data.riverKm} • Sektor 2
-            </span>
-          </div>
+      <div className="border-b border-slate-800 pb-5">
+        <div className="w-full">
+          {/* Prvi red poglavlja: oznake lijevo, strelica za vrh na kraju desno */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold tracking-wide uppercase bg-teal-500/20 text-teal-300 border border-teal-500/40">
+                Službena hidro postaja #148
+              </span>
+              <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
+                <MapPin className="w-3.5 h-3.5 text-teal-400" />
+                Dunav {data.riverKm} • Sektor 2
+              </span>
+            </div>
 
-          <div className="flex items-center justify-between gap-3 mt-1">
-            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-              <span>🌊 Dunav - Aljmaš</span>
-            </h2>
             <ScrollToTopButton theme="teal" />
           </div>
+
+          <h2 className="text-2xl sm:text-3xl font-black text-white mt-1.5 tracking-tight flex items-center gap-2">
+            <span>🌊 Dunav - Aljmaš</span>
+          </h2>
           <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
             Ušće Drave u Dunav • Aljmaški kameni šporanj
           </p>

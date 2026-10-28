@@ -444,10 +444,12 @@ export default function App() {
 
         {/* 4. Usporedba Aljmaš vs Bogojevo */}
         {(activeTab === 'sve' || activeTab === 'usporedba') && (
-          <StationsComparisonCard 
-            aljmas={aljmasData} 
-            bogojevo={bogojevoData} 
-          />
+          <div id="sekcija-usporedba" className="scroll-mt-20">
+            <StationsComparisonCard 
+              aljmas={aljmasData} 
+              bogojevo={bogojevoData} 
+            />
+          </div>
         )}
 
       </main>
