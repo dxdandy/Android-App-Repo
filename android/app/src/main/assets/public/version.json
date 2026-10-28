@@ -1,12 +1,13 @@
 {
-  "version": "1.1.5",
+  "version": "1.1.8",
   "name": "RiboPrognoza",
   "releaseDate": "2026-10-28",
   "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk",
   "changelog": [
-    "Usvojena minimalistička uokvirena strelica (Varijanta 2) na kraju prvog reda svakog poglavlja",
-    "Dodana strelica za povratak na vrh i u poglavlje Usporedba Dunava: Aljmaš vs Bogojevo",
-    "Poravnat tekst Aktivnost Riba u istoj ravnini sa Solunarni Rezultati (slovo S točno iznad slova A)"
+    "Optimiziran Osnovni mod: gumbovi ALJMAŠ, BOGOJEVO i SOLUNAR suženi lijevo s hidrometeo podacima s desne strane",
+    "Sva tri gumba s kompletnim podacima (vodostaj, temp. vode/zraka, tlak, vjetar, Sunce) stanu na početni ekran",
+    "Ekspertni Ribolovni Mod postavljen u nastavku ispod osnovnih kartica",
+    "Uvijek točan dohvat temperature Dunava: Bogojevo (hm_id=42015) i Aljmaš (hr.seatemperature.net Danas)"
   ],
   "isCritical": false
 }

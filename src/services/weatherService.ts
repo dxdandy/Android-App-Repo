@@ -384,6 +384,7 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
   let maxLevelCm = 820;
   let maxLevelDate = '25.06.1965.';
   let prepLevelCm = 400;
+  let waterTempC = 12.9;
   let isLive = false;
   let history: WaterLevelHistoryItem[] = [
     { date: dateOfMeasurement, time: '12:00', level: -96, trendChange: 0 },
@@ -407,6 +408,9 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
         maxLevelCm = data.maxLevelCm || 820;
         maxLevelDate = data.maxLevelDate || maxLevelDate;
         prepLevelCm = data.prepLevelCm || 400;
+        if (data.waterTempC !== undefined) {
+          waterTempC = data.waterTempC;
+        }
         isLive = Boolean(data.isLive);
         if (Array.isArray(data.recentHours) && data.recentHours.length > 0) {
           history = data.recentHours.map((r: any) => ({
@@ -440,14 +444,14 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
     airPressureHpa: meteo.airPressureHpa,
     airPressureTrend: meteo.airPressureTrend,
     airTempC: meteo.airTempC,
-    waterTempC: 16.5,
+    waterTempC,
     windSpeedKmh: meteo.windSpeedKmh,
     windDirection: meteo.windDirection,
     weatherCondition: meteo.weatherCondition,
     sourceUrl: MVODOSTAJI_ALJMAS_URL,
     sourceName: 'mvodostaji.voda.hr (postaja 148)',
     isLive,
-    notes: 'Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu.'
+    notes: 'Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Temperatura vode s hr.seatemperature.net (Danas).'
   };
 }
 
@@ -464,7 +468,7 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
   let forecastDays: number[] = [-92, -86, -90, -96];
   let regularDefenseCm = 600;
   let emergencyDefenseCm = 700;
-  let waterTempC = 17.5;
+  let waterTempC = 12.4;
   let isLive = false;
   let timeOfMeasurement = '07:00';
   let dateOfMeasurement = new Date().toLocaleDateString('hr-HR');
@@ -481,7 +485,7 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
         forecastDays = data.forecastDays || forecastDays;
         regularDefenseCm = data.regularDefenseCm || 600;
         emergencyDefenseCm = data.emergencyDefenseCm || 700;
-        waterTempC = data.waterTempC || 17.5;
+        waterTempC = data.waterTempC !== undefined ? data.waterTempC : 12.4;
         isLive = Boolean(data.isLive);
       }
     }

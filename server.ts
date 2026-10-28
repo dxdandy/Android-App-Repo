@@ -12,7 +12,65 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json());
 
 export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=0&postajaID=148';
+export const SEATEMP_ALJMAS_VUKOVAR_URL = 'https://hr.seatemperature.net/current/croatia/water-temp-in-vukovar-in-danube';
 export const HIDMET_BOGOJEVO_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42020';
+export const HIDMET_BOGOJEVO_TEMP_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42015';
+
+/**
+ * Dohvat temperature vode Dunava za Aljmaš (s hr.seatemperature.net, skroz lijeva temperatura s oznakom Danas)
+ */
+async function fetchAljmasWaterTemp(): Promise<number> {
+  try {
+    const res = await fetch(SEATEMP_ALJMAS_VUKOVAR_URL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'hr,en-US;q=0.7,en;q=0.3'
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) throw new Error('seatemperature status ' + res.status);
+    const html = await res.text();
+    // Skroz lijeva temperatura s oznakom "Danas":
+    // <div class="temp-block cold"><div class="temp-value">12.9<span>°C</span></div><div class="temp-label">Danas</div></div>
+    const danasBlockMatch = html.match(/<div class="temp-value">\s*([+-]?\d+[.,]?\d*)\s*<span>°C<\/span><\/div>\s*<div class="temp-label">\s*Danas\s*<\/div>/i)
+      || html.match(/<div class="temp-block[^"]*">\s*<div class="temp-value">\s*([+-]?\d+[.,]?\d*)/i)
+      || html.match(/danas je\s*([+-]?\d+[.,]?\d*)\s*°C/i);
+    if (danasBlockMatch && danasBlockMatch[1]) {
+      const val = parseFloat(danasBlockMatch[1].replace(',', '.'));
+      if (!isNaN(val)) return val;
+    }
+  } catch (err) {
+    console.warn('Greška pri dohvatu temperature Dunava u Aljmašu (seatemperature.net):', err);
+  }
+  return 12.9;
+}
+
+/**
+ * Dohvat temperature vode Dunava za Bogojevo (s hidmet.gov.rs hm_id=42015)
+ */
+async function fetchBogojevoWaterTemp(): Promise<number> {
+  try {
+    const res = await fetch(HIDMET_BOGOJEVO_TEMP_URL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) throw new Error('hidmet hm_id=42015 status ' + res.status);
+    const html = await res.text();
+    // <img src="../../../repository/ikonice/interf/temp.gif" width="14" height="44" alt="Temperatura vode u profilu" />&nbsp;12.4
+    const tempMatch = html.match(/temp\.gif[^>]*\/>(?:&nbsp;|\s)*([+-]?\d+[.,]?\d*)/i);
+    if (tempMatch && tempMatch[1]) {
+      const val = parseFloat(tempMatch[1].replace(',', '.'));
+      if (!isNaN(val)) return val;
+    }
+  } catch (err) {
+    console.warn('Greška pri dohvatu temperature Dunava u Bogojevu (hm_id=42015):', err);
+  }
+  return 12.4;
+}
 
 /**
  * API: Službeni vodostaj Dunava - Aljmaš (mvodostaji.voda.hr)
@@ -75,6 +133,8 @@ app.get('/api/water/aljmas', async (_req, res) => {
       trend = 'opada';
     }
 
+    const waterTemp = await fetchAljmasWaterTemp();
+
     res.json({
       success: true,
       stationName: 'Dunav - Aljmaš (Ušće Drave)',
@@ -84,11 +144,13 @@ app.get('/api/water/aljmas', async (_req, res) => {
       waterLevelChangeCm: latest.trendChange,
       timeOfMeasurement: latest.time,
       dateOfMeasurement: latest.date,
+      waterTempC: waterTemp,
       maxLevelCm: maxMatch ? parseInt(maxMatch[1], 10) : 820,
       maxLevelDate: maxMatch && maxMatch[2] ? maxMatch[2].trim() : '25.06.1965.',
       prepLevelCm: prepMatch ? parseInt(prepMatch[1], 10) : 400,
       recentHours: rows.slice(0, 10),
       sourceUrl: MVODOSTAJI_ALJMAS_URL,
+      waterTempSourceUrl: SEATEMP_ALJMAS_VUKOVAR_URL,
       isLive: true
     });
   } catch (error) {
@@ -100,11 +162,13 @@ app.get('/api/water/aljmas', async (_req, res) => {
       waterLevelCm: -96,
       waterLevelTrend: 'stagnira',
       waterLevelChangeCm: 0,
+      waterTempC: 12.9,
       timeOfMeasurement: '12:00',
-      dateOfMeasurement: '20.10.2026.',
+      dateOfMeasurement: '28.10.2026.',
       maxLevelCm: 820,
       prepLevelCm: 400,
       sourceUrl: MVODOSTAJI_ALJMAS_URL,
+      waterTempSourceUrl: SEATEMP_ALJMAS_VUKOVAR_URL,
       isLive: false,
       message: 'Učitani zadnji važeći podaci mjerne stanice Aljmaš.'
     });
@@ -133,16 +197,15 @@ app.get('/api/water/bogojevo', async (_req, res) => {
     const levelMatch = html.match(/nivo\.gif[^>]*\/>(?:&nbsp;|\s)*([+-]?\d+)/i);
     const changeMatch = html.match(/promena\.gif[^>]*\/>(?:&nbsp;|\s)*([+-]?\d+)/i);
     const flowMatch = html.match(/([+-]?\d+)<img src="[^"]*protok\.gif/i) || html.match(/([+-]?\d+)\s*<img src=[^>]*protok/i);
-    const tempMatch = html.match(/temp\.gif[^>]*\/>(?:&nbsp;|\s)*([+-]?\d+[.,]?\d*)/i);
     const trendMatch = html.match(/ikonice\/interf\/(rast|pad|stagn|opad)/i);
     const forecastMatch = html.match(/Vodostaj&nbsp;\(cm\):\s*<\/td>(.*?)(?:<\/tr>|Dijagrami)/s);
 
     const parsedLevel = levelMatch ? parseInt(levelMatch[1], 10) : -106;
     const parsedChange = changeMatch ? parseInt(changeMatch[1], 10) : 10;
     const parsedFlow = flowMatch ? parseInt(flowMatch[1], 10) : 880;
-    const parsedTemp = tempMatch && !isNaN(parseFloat(tempMatch[1].replace(',', '.')))
-      ? parseFloat(tempMatch[1].replace(',', '.'))
-      : 17.5;
+
+    // Temperatura vode za Bogojevo uvijek s https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42015
+    const waterTemp = await fetchBogojevoWaterTemp();
 
     let parsedTrend: 'u_porastu' | 'opada' | 'stagnira' = 'stagnira';
     if (trendMatch) {
@@ -170,12 +233,13 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       waterLevelCm: parsedLevel,
       waterLevelChangeCm: parsedChange,
       waterLevelTrend: parsedTrend,
-      waterTempC: parsedTemp,
+      waterTempC: waterTemp,
       flowM3s: parsedFlow,
       forecastDays: forecastDays.length > 0 ? forecastDays : [-92, -86, -90, -96],
       regularDefenseCm: 600,
       emergencyDefenseCm: 700,
       sourceUrl: HIDMET_BOGOJEVO_URL,
+      waterTempSourceUrl: HIDMET_BOGOJEVO_TEMP_URL,
       isLive: true
     });
   } catch (error) {
@@ -187,12 +251,13 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       waterLevelCm: -106,
       waterLevelChangeCm: 10,
       waterLevelTrend: 'u_porastu',
-      waterTempC: 17.5,
+      waterTempC: 12.4,
       flowM3s: 880,
       forecastDays: [-92, -86, -90, -96],
       regularDefenseCm: 600,
       emergencyDefenseCm: 700,
       sourceUrl: HIDMET_BOGOJEVO_URL,
+      waterTempSourceUrl: HIDMET_BOGOJEVO_TEMP_URL,
       isLive: false,
       message: 'Učitani zadnji važeći podaci mjerne stanice Bogojevo.'
     });
@@ -229,14 +294,15 @@ app.get('/api/scrape', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.1.5',
+    version: '1.1.8',
     name: 'RiboPrognoza',
     releaseDate: '2026-10-28',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Usvojena minimalistička uokvirena strelica (Varijanta 2) na kraju prvog reda svakog poglavlja',
-      'Dodana strelica za povratak na vrh i u poglavlje Usporedba Dunava: Aljmaš vs Bogojevo',
-      'Poravnat tekst Aktivnost Riba u istoj ravnini sa Solunarni Rezultati (slovo S točno iznad slova A)'
+      'Optimiziran Osnovni mod: gumbovi ALJMAŠ, BOGOJEVO i SOLUNAR suženi lijevo s hidrometeo podacima s desne strane',
+      'Sva tri gumba s kompletnim podacima (vodostaj, temp. vode/zraka, tlak, vjetar, Sunce) stanu na početni ekran',
+      'Ekspertni Ribolovni Mod postavljen u nastavku ispod osnovnih kartica',
+      'Uvijek točan dohvat temperature Dunava: Bogojevo (hm_id=42015) i Aljmaš (hr.seatemperature.net Danas)'
     ],
     isCritical: false
   });

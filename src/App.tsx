@@ -20,6 +20,7 @@ import { StationCardAljmas } from './components/StationCardAljmas';
 import { StationCardBogojevo } from './components/StationCardBogojevo';
 import { SolunarDailyDashboard } from './components/SolunarDailyDashboard';
 import { StationsComparisonCard } from './components/StationsComparisonCard';
+import { BasicOverviewView } from './components/BasicOverviewView';
 import { AndroidBottomNav } from './components/AndroidBottomNav';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { ActivationLockScreen } from './components/ActivationLockScreen';
@@ -47,6 +48,13 @@ export default function App() {
   const [manualUpdateToast, setManualUpdateToast] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba'>('sve');
+  const [viewMode, setViewMode] = useState<'basic' | 'expert'>(() => {
+    try {
+      const saved = localStorage.getItem('ribo_app_view_mode');
+      if (saved === 'expert' || saved === 'basic') return saved;
+    } catch {}
+    return 'basic'; // Zadani način pri pokretanju je pojednostavljena verzija
+  });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(() => {
     try {
@@ -81,7 +89,7 @@ export default function App() {
     airPressureHpa: 1017,
     airPressureTrend: 'stabilan',
     airTempC: 21.0,
-    waterTempC: 16.5,
+    waterTempC: 12.9,
     windSpeedKmh: 12,
     windDirection: 'SZ',
     weatherCondition: 'djelomicno_oblacno',
@@ -113,7 +121,7 @@ export default function App() {
     airPressureHpa: 1016,
     airPressureTrend: 'stabilan',
     airTempC: 22.0,
-    waterTempC: 17.5,
+    waterTempC: 12.4,
     windSpeedKmh: 10,
     windDirection: 'SZ',
     weatherCondition: 'djelomicno_oblacno',
@@ -204,6 +212,10 @@ export default function App() {
   };
 
   const handleScrollToChapter = (chapterId: string) => {
+    if (viewMode !== 'expert') {
+      setViewMode('expert');
+      localStorage.setItem('ribo_app_view_mode', 'expert');
+    }
     if (activeTab !== 'sve') {
       setActiveTab('sve');
     }
@@ -217,7 +229,17 @@ export default function App() {
           behavior: 'smooth'
         });
       }
-    }, 60);
+    }, 80);
+  };
+
+  const handleOpenExpertSection = (sectionId?: string) => {
+    setViewMode('expert');
+    localStorage.setItem('ribo_app_view_mode', 'expert');
+    if (sectionId) {
+      handleScrollToChapter(sectionId);
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   if (!isActivated) {
@@ -261,8 +283,8 @@ export default function App() {
       />
 
       {/* Hero Header sa sažetkom stanja na Dunavu */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80 px-3 sm:px-6 lg:px-8 py-5 sm:py-6 w-full max-w-full overflow-hidden">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
+      <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80 px-3 sm:px-6 lg:px-8 py-3 sm:py-4.5 w-full max-w-full overflow-hidden">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4 w-full">
           
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap text-xs text-cyan-400 font-bold mb-1.5">
@@ -285,170 +307,239 @@ export default function App() {
                 DONACIJA
               </button>
             </p>
+
+            {/* Odabir načina prikaza: Osnovni mod vs Ekspertni mod */}
+            <div className="mt-3.5 flex items-center gap-2.5 flex-wrap">
+              <div className="inline-flex p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('basic');
+                    localStorage.setItem('ribo_app_view_mode', 'basic');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    viewMode === 'basic'
+                      ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 shadow-md font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>⚡ Osnovni mod</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('expert');
+                    localStorage.setItem('ribo_app_view_mode', 'expert');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    viewMode === 'expert'
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>🎯 Ekspertni mod (Pro)</span>
+                </button>
+              </div>
+
+              <span className="text-[11px] text-slate-400 hidden sm:inline-block">
+                {viewMode === 'basic' ? 'Pojednostavljeni brzi pregled za vodu' : 'Puni ribolovni centar s grafikonima i savjetima'}
+              </span>
+            </div>
           </div>
 
-          {/* Brzi sažetak kote u headeru - interaktivni gumbovi za skok na poglavlja */}
-          <div className="grid grid-cols-3 gap-2 w-full lg:w-auto shrink-0">
-            {/* ALJMAŠ GUMB */}
-            <button
-              type="button"
-              onClick={() => handleScrollToChapter('sekcija-aljmas')}
-              className="bg-slate-900/90 hover:bg-slate-850 border border-teal-500/40 hover:border-teal-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group"
-              title="Klikni za skok na poglavlje DUNAV - Aljmaš"
-            >
-              <span className="w-full text-center sm:text-left font-black text-teal-300 group-hover:text-teal-200 text-xs sm:text-sm tracking-wider uppercase truncate">
-                ALJMAŠ
-              </span>
-              <div className="mt-1 w-full">
-                <span className="text-base sm:text-lg font-black text-white font-mono leading-none block">
-                  {aljmasData.waterLevelCm} cm
+          {/* Brzi sažetak kote u headeru - interaktivni gumbovi za skok na poglavlja (u Ekspertnom modu) */}
+          {viewMode === 'expert' && (
+            <div className="grid grid-cols-3 gap-2 w-full lg:w-auto shrink-0 animate-fadeIn">
+              {/* ALJMAŠ GUMB */}
+              <button
+                type="button"
+                onClick={() => handleScrollToChapter('sekcija-aljmas')}
+                className="bg-slate-900/90 hover:bg-slate-850 border border-teal-500/40 hover:border-teal-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group"
+                title="Klikni za skok na poglavlje DUNAV - Aljmaš"
+              >
+                <span className="w-full text-center sm:text-left font-black text-teal-300 group-hover:text-teal-200 text-xs sm:text-sm tracking-wider uppercase truncate">
+                  ALJMAŠ
                 </span>
-                <span className="text-[10px] sm:text-xs text-teal-300 block capitalize truncate font-medium mt-0.5">
-                  {aljmasData.waterLevelTrend}
-                </span>
-              </div>
-            </button>
+                <div className="mt-1 w-full">
+                  <span className="text-base sm:text-lg font-black text-white font-mono leading-none block">
+                    {aljmasData.waterLevelCm} cm
+                  </span>
+                  <span className="text-[10px] sm:text-xs text-teal-300 block capitalize truncate font-medium mt-0.5">
+                    {aljmasData.waterLevelTrend}
+                  </span>
+                </div>
+              </button>
 
-            {/* BOGOJEVO GUMB */}
-            <button
-              type="button"
-              onClick={() => handleScrollToChapter('sekcija-bogojevo')}
-              className="bg-slate-900/90 hover:bg-slate-850 border border-cyan-500/40 hover:border-cyan-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group"
-              title="Klikni za skok na poglavlje DUNAV - Bogojevo"
-            >
-              <span className="w-full text-center sm:text-left font-black text-cyan-300 group-hover:text-cyan-200 text-xs sm:text-sm tracking-wider uppercase truncate">
-                BOGOJEVO
-              </span>
-              <div className="mt-1 w-full">
-                <span className="text-base sm:text-lg font-black text-white font-mono leading-none block">
-                  {bogojevoData.waterLevelCm} cm
+              {/* BOGOJEVO GUMB */}
+              <button
+                type="button"
+                onClick={() => handleScrollToChapter('sekcija-bogojevo')}
+                className="bg-slate-900/90 hover:bg-slate-850 border border-cyan-500/40 hover:border-cyan-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group"
+                title="Klikni za skok na poglavlje DUNAV - Bogojevo"
+              >
+                <span className="w-full text-center sm:text-left font-black text-cyan-300 group-hover:text-cyan-200 text-xs sm:text-sm tracking-wider uppercase truncate">
+                  BOGOJEVO
                 </span>
-                <span className="text-[10px] sm:text-xs text-cyan-300 block capitalize truncate font-medium mt-0.5">
-                  {bogojevoData.waterLevelTrend}
-                </span>
-              </div>
-            </button>
+                <div className="mt-1 w-full">
+                  <span className="text-base sm:text-lg font-black text-white font-mono leading-none block">
+                    {bogojevoData.waterLevelCm} cm
+                  </span>
+                  <span className="text-[10px] sm:text-xs text-cyan-300 block capitalize truncate font-medium mt-0.5">
+                    {bogojevoData.waterLevelTrend}
+                  </span>
+                </div>
+              </button>
 
-            {/* SOLUNAR GUMB */}
-            <button
-              type="button"
-              onClick={() => handleScrollToChapter('sekcija-solunar')}
-              className="bg-slate-900/90 hover:bg-slate-850 border border-indigo-500/40 hover:border-indigo-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group"
-              title="Klikni za skok na poglavlje Solunarni rezultati"
-            >
-              <span className="w-full text-center sm:text-left font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm tracking-wider uppercase truncate">
-                SOLUNAR
-              </span>
-              <div className="mt-1 w-full">
-                <span className="text-base sm:text-lg font-black text-amber-400 leading-none block">
-                  {solunarData.overallScore}/5★
+              {/* SOLUNAR GUMB */}
+              <button
+                type="button"
+                onClick={() => handleScrollToChapter('sekcija-solunar')}
+                className="bg-slate-900/90 hover:bg-slate-850 border border-indigo-500/40 hover:border-indigo-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group"
+                title="Klikni za skok na poglavlje Solunarni rezultati"
+              >
+                <span className="w-full text-center sm:text-left font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm tracking-wider uppercase truncate">
+                  SOLUNAR
                 </span>
-                <span className="text-[10px] sm:text-xs text-indigo-300 block truncate font-medium mt-0.5">
-                  {solunarData.activityPercentage}%
-                </span>
-              </div>
-            </button>
-          </div>
+                <div className="mt-1 w-full">
+                  <span className="text-base sm:text-lg font-black text-amber-400 leading-none block">
+                    {solunarData.overallScore}/5★
+                  </span>
+                  <span className="text-[10px] sm:text-xs text-indigo-300 block truncate font-medium mt-0.5">
+                    {solunarData.activityPercentage}%
+                  </span>
+                </div>
+              </button>
+            </div>
+          )}
 
         </div>
       </div>
 
       {/* Glavni sadržaj */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 sm:space-y-8 flex-1 w-full max-w-full overflow-hidden">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 flex-1 w-full max-w-full overflow-hidden">
         
-        {/* Odabir prikaza lokacija (tabovi) na vrhu sadržaja */}
-        <div className="border-b border-slate-800 pb-3 w-full">
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-1 max-w-full">
-            <button
-              onClick={() => setActiveTab('sve')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'sve'
-                  ? 'bg-cyan-600 text-white shadow-md'
-                  : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-            >
-              Kompletan prikaz
-            </button>
-            <button
-              onClick={() => setActiveTab('solunar')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'solunar'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-            >
-              🌙 Dnevni Solunar
-            </button>
-            <button
-              onClick={() => setActiveTab('aljmas')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'aljmas'
-                  ? 'bg-teal-600 text-white shadow-md'
-                  : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-            >
-              🌊 Aljmaš
-            </button>
-            <button
-              onClick={() => setActiveTab('bogojevo')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'bogojevo'
-                  ? 'bg-cyan-600 text-white shadow-md'
-                  : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-            >
-              🌊 Bogojevo
-            </button>
-            <button
-              onClick={() => setActiveTab('usporedba')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'usporedba'
-                  ? 'bg-purple-600 text-white shadow-md'
-                  : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-            >
-              ⚖️ Usporedba
-            </button>
-          </div>
-        </div>
+        {viewMode === 'basic' ? (
+          /* POJEDNOSTAVLJENI OSNOVNI PRIKAZ NA POKRETANJU */
+          <BasicOverviewView 
+            aljmas={aljmasData} 
+            bogojevo={bogojevoData} 
+            solunar={solunarData} 
+            isLoading={isLoading} 
+            onOpenExpertSection={handleOpenExpertSection}
+          />
+        ) : (
+          /* DUBINSKI EKSPERTNI RIBOLOVNI MOD */
+          <div className="space-y-6 sm:space-y-8 animate-fadeIn">
+            {/* Odabir prikaza lokacija (tabovi) na vrhu sadržaja */}
+            <div className="border-b border-slate-800 pb-3 w-full">
+              <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-1 max-w-full">
+                <button
+                  onClick={() => setActiveTab('sve')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'sve'
+                      ? 'bg-cyan-600 text-white shadow-md'
+                      : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  Kompletan prikaz
+                </button>
+                <button
+                  onClick={() => setActiveTab('solunar')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'solunar'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  🌙 Dnevni Solunar
+                </button>
+                <button
+                  onClick={() => setActiveTab('aljmas')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'aljmas'
+                      ? 'bg-teal-600 text-white shadow-md'
+                      : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  🌊 Aljmaš
+                </button>
+                <button
+                  onClick={() => setActiveTab('bogojevo')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'bogojevo'
+                      ? 'bg-cyan-600 text-white shadow-md'
+                      : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  🌊 Bogojevo
+                </button>
+                <button
+                  onClick={() => setActiveTab('usporedba')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'usporedba'
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  ⚖️ Usporedba
+                </button>
+              </div>
+            </div>
 
-        {/* 1. Solunarni rezultati za taj dan */}
-        {(activeTab === 'sve' || activeTab === 'solunar') && (
-          <div id="sekcija-solunar" className="scroll-mt-20">
-            <SolunarDailyDashboard 
-              solunar={solunarData} 
-              isLoading={isLoading} 
-            />
-          </div>
-        )}
+            {/* 1. Solunarni rezultati za taj dan */}
+            {(activeTab === 'sve' || activeTab === 'solunar') && (
+              <div id="sekcija-solunar" className="scroll-mt-20">
+                <SolunarDailyDashboard 
+                  solunar={solunarData} 
+                  isLoading={isLoading} 
+                />
+              </div>
+            )}
 
-        {/* 2. Dunav - Aljmaš */}
-        {(activeTab === 'sve' || activeTab === 'aljmas') && (
-          <div id="sekcija-aljmas" className="scroll-mt-20">
-            <StationCardAljmas 
-              data={aljmasData} 
-              isLoading={isLoading} 
-            />
-          </div>
-        )}
+            {/* 2. Dunav - Aljmaš */}
+            {(activeTab === 'sve' || activeTab === 'aljmas') && (
+              <div id="sekcija-aljmas" className="scroll-mt-20">
+                <StationCardAljmas 
+                  data={aljmasData} 
+                  isLoading={isLoading} 
+                />
+              </div>
+            )}
 
-        {/* 3. Dunav - Bogojevo */}
-        {(activeTab === 'sve' || activeTab === 'bogojevo') && (
-          <div id="sekcija-bogojevo" className="scroll-mt-20">
-            <StationCardBogojevo 
-              data={bogojevoData} 
-              isLoading={isLoading} 
-            />
-          </div>
-        )}
+            {/* 3. Dunav - Bogojevo */}
+            {(activeTab === 'sve' || activeTab === 'bogojevo') && (
+              <div id="sekcija-bogojevo" className="scroll-mt-20">
+                <StationCardBogojevo 
+                  data={bogojevoData} 
+                  isLoading={isLoading} 
+                />
+              </div>
+            )}
 
-        {/* 4. Usporedba Aljmaš vs Bogojevo */}
-        {(activeTab === 'sve' || activeTab === 'usporedba') && (
-          <div id="sekcija-usporedba" className="scroll-mt-20">
-            <StationsComparisonCard 
-              aljmas={aljmasData} 
-              bogojevo={bogojevoData} 
-            />
+            {/* 4. Usporedba Aljmaš vs Bogojevo */}
+            {(activeTab === 'sve' || activeTab === 'usporedba') && (
+              <div id="sekcija-usporedba" className="scroll-mt-20">
+                <StationsComparisonCard 
+                  aljmas={aljmasData} 
+                  bogojevo={bogojevoData} 
+                />
+              </div>
+            )}
+
+            {/* Podnožje ekspertnog moda: Gumb za brzi povratak na osnovni mod */}
+            <div className="pt-4 pb-2 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('basic');
+                  localStorage.setItem('ribo_app_view_mode', 'basic');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-slate-900 hover:bg-slate-850 text-teal-300 hover:text-white border border-teal-500/40 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-lg"
+              >
+                <span>⚡ Povratak na Osnovni mod (Brzi pregled)</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -457,7 +548,13 @@ export default function App() {
       {/* Android Native Bottom Navigation Bar for Mobile with direct 5 tabs */}
       <AndroidBottomNav
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={(tab) => {
+          setActiveTab(tab);
+          if (viewMode === 'basic') {
+            setViewMode('expert');
+            localStorage.setItem('ribo_app_view_mode', 'expert');
+          }
+        }}
       />
 
       {/* Footer */}
