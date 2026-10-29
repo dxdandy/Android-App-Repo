@@ -1,13 +1,13 @@
 {
-  "version": "1.1.9",
+  "version": "1.2.1",
   "name": "RiboPrognoza",
-  "releaseDate": "2026-10-28",
+  "releaseDate": "2026-10-29",
   "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk",
   "changelog": [
-    "Uklonjene oznake #148 i RHMZ s gumbova ALJMAŠ i BOGOJEVO te prilagođen font za puni prikaz naziva",
-    "Prilagođena veličina fonta satnice Sunca (izlazak - zalazak) kod Aljmaša i Bogojeva za prikaz bez rezanja",
-    "Optimizirane veličine fonta za sve rubrike Solunara (vrhunaci, impulsi, mijene, hod Mjeseca)",
-    "Osnovni mod s prikazom Aljmaša, Bogojeva i Solunara na početnom ekranu te Ekspertnim modom u nastavku"
+    "Aljmaš: osigurano uzimanje najgornjeg (najnovijeg) retka mjerenja s mvodostaji.voda.hr (postaja 148)",
+    "Bogojevo: vodostaj se očitava s hidmet.gov.rs (hm_id=42020), a temperatura vode Dunava s hidmet.gov.rs (hm_id=42015)",
+    "Automatsko brisanje instalacijskih APK datoteka s uređaja nakon nadogradnje",
+    "Brzina vjetra u m/s na svim karticama"
   ],
   "isCritical": false
 }

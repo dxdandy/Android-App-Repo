@@ -148,10 +148,10 @@ export const StationsComparisonCard: React.FC<StationsComparisonCardProps> = ({
                 Brzina i smjer vjetra:
               </td>
               <td className="py-3 px-4 text-slate-300 bg-teal-950/20">
-                {aljmas.windSpeedKmh} km/h ({aljmas.windDirection})
+                {aljmas.windSpeedMs ?? (aljmas.windSpeedKmh / 3.6).toFixed(1)} m/s ({aljmas.windDirection})
               </td>
               <td className="py-3 px-4 text-slate-300 bg-cyan-950/20">
-                {bogojevo.windSpeedKmh} km/h ({bogojevo.windDirection})
+                {bogojevo.windSpeedMs ?? (bogojevo.windSpeedKmh / 3.6).toFixed(1)} m/s ({bogojevo.windDirection})
               </td>
               <td className="py-3 px-4 font-sans text-slate-300">
                 Umjeren vjetar stvara lagani val na Dunavu što razbija svjetlost i olakšava lov varalicom.

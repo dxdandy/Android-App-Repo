@@ -152,7 +152,7 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
             <div className="min-w-0 flex-1">
               <span className="text-[8.5px] sm:text-[9.5px] text-slate-400 block uppercase font-semibold leading-tight truncate">Vjetar</span>
               <span className="text-[10px] sm:text-xs md:text-sm font-bold text-blue-300 block truncate leading-tight whitespace-nowrap">
-                {aljmas.windSpeedKmh} km/h {aljmas.windDirection}
+                {aljmas.windSpeedMs ?? (aljmas.windSpeedKmh / 3.6).toFixed(1)} m/s {aljmas.windDirection}
               </span>
             </div>
           </div>
@@ -269,7 +269,7 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
             <div className="min-w-0 flex-1">
               <span className="text-[8.5px] sm:text-[9.5px] text-slate-400 block uppercase font-semibold leading-tight truncate">Vjetar</span>
               <span className="text-[10px] sm:text-xs md:text-sm font-bold text-blue-300 block truncate leading-tight whitespace-nowrap">
-                {bogojevo.windSpeedKmh} km/h {bogojevo.windDirection}
+                {bogojevo.windSpeedMs ?? (bogojevo.windSpeedKmh / 3.6).toFixed(1)} m/s {bogojevo.windDirection}
               </span>
             </div>
           </div>

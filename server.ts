@@ -91,10 +91,8 @@ app.get('/api/water/aljmas', async (_req, res) => {
 
     const html = await response.text();
 
-    // 1. Ekstrakcija zadnjeg retka mjerenja
-    // Primjer: <td>20.10.26.</td><td>12:00</td><td><span class="minMax">-96</span></td><td><div class="blue"><span class="">0</span></div></td>
-    const rowRegex = /<tr>\s*<td><div class="[^"]*"><\/div><\/td>\s*<td>\s*(\d{2}\.\d{2}\.\d{2}\.)\s*<\/td>\s*<td>\s*(\d{2}:\d{2})\s*<\/td>\s*<td>\s*<span class="[^"]*">\s*([+-]?\d+)\s*<\/span>\s*<\/td>\s*<td>\s*<div class="([^"]*)">\s*<span class="[^"]*">\s*([+-]?\d+)\s*<\/span>/gi;
-    
+    // 1. Robusno parsiranje redaka mjerne tablice - uvijek uzimamo najgornji (najnoviji) redak (rows[0])
+    const trMatches = html.match(/<tr[\s\S]*?<\/tr>/gi) || [];
     const rows: Array<{
       date: string;
       time: string;
@@ -103,25 +101,50 @@ app.get('/api/water/aljmas', async (_req, res) => {
       trendChange: number;
     }> = [];
 
-    let match;
-    while ((match = rowRegex.exec(html)) !== null && rows.length < 24) {
-      rows.push({
-        date: match[1],
-        time: match[2],
-        level: parseInt(match[3], 10),
-        trendClass: match[4],
-        trendChange: parseInt(match[5], 10)
-      });
+    for (const tr of trMatches) {
+      if (tr.includes('<th') || tr.includes('headline_postaja') || tr.includes('Maksimum:')) continue;
+      const tds = tr.match(/<td[\s\S]*?<\/td>/gi);
+      if (tds && tds.length >= 4) {
+        const cleanTexts = tds.map(td => td.replace(/<[^>]+>/g, '').trim());
+        let dateVal = '';
+        let timeVal = '';
+        let levelVal: number | null = null;
+        let changeVal = 0;
+
+        for (const txt of cleanTexts) {
+          if (!dateVal && /^\d{2}\.\d{2}\.\d{2}\.?$/.test(txt)) {
+            dateVal = txt;
+          } else if (!timeVal && /^\d{2}:\d{2}$/.test(txt)) {
+            timeVal = txt;
+          } else if (levelVal === null && /^[+-]?\d+$/.test(txt)) {
+            levelVal = parseInt(txt, 10);
+          } else if (levelVal !== null && /^[+-]?\d+$/.test(txt)) {
+            changeVal = parseInt(txt, 10);
+          }
+        }
+
+        if (dateVal && timeVal && levelVal !== null) {
+          rows.push({
+            date: dateVal,
+            time: timeVal,
+            level: levelVal,
+            trendClass: tr.includes('red') ? 'red' : tr.includes('green') ? 'green' : 'blue',
+            trendChange: changeVal
+          });
+          if (rows.length >= 24) break;
+        }
+      }
     }
 
     // 2. Maksimum i pripremno stanje
     const maxMatch = html.match(/Maksimum:\s*([+-]?\d+)\s*cm(?:,\s*([^.<]+))?/i);
     const prepMatch = html.match(/Pripremno stanje\s*:\s*([+-]?\d+)/i);
 
+    // Najgornji podatak s mvodostaji.voda.hr
     const latest = rows[0] || {
       date: new Date().toLocaleDateString('hr-HR'),
-      time: '12:00',
-      level: -96,
+      time: '09:00',
+      level: -76,
       trendClass: 'blue',
       trendChange: 0
     };
@@ -200,14 +223,14 @@ app.get('/api/water/bogojevo', async (_req, res) => {
     const trendMatch = html.match(/ikonice\/interf\/(rast|pad|stagn|opad)/i);
     const forecastMatch = html.match(/Vodostaj&nbsp;\(cm\):\s*<\/td>(.*?)(?:<\/tr>|Dijagrami)/s);
 
-    const parsedLevel = levelMatch ? parseInt(levelMatch[1], 10) : -106;
-    const parsedChange = changeMatch ? parseInt(changeMatch[1], 10) : 10;
+    const parsedLevel = levelMatch ? parseInt(levelMatch[1], 10) : -83;
+    const parsedChange = changeMatch ? parseInt(changeMatch[1], 10) : -1;
     const parsedFlow = flowMatch ? parseInt(flowMatch[1], 10) : 880;
 
     // Temperatura vode za Bogojevo uvijek s https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42015
     const waterTemp = await fetchBogojevoWaterTemp();
 
-    let parsedTrend: 'u_porastu' | 'opada' | 'stagnira' = 'stagnira';
+    let parsedTrend: 'u_porastu' | 'opada' | 'stagnira' = 'opada';
     if (trendMatch) {
       const t = trendMatch[1].toLowerCase();
       if (t.includes('rast')) parsedTrend = 'u_porastu';
@@ -248,10 +271,10 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       success: false,
       stationName: 'RHMZ Dunav - Bogojevo',
       waterBody: 'Dunav',
-      waterLevelCm: -106,
-      waterLevelChangeCm: 10,
-      waterLevelTrend: 'u_porastu',
-      waterTempC: 12.4,
+      waterLevelCm: -83,
+      waterLevelChangeCm: -1,
+      waterLevelTrend: 'opada',
+      waterTempC: 12.6,
       flowM3s: 880,
       forecastDays: [-92, -86, -90, -96],
       regularDefenseCm: 600,
@@ -294,15 +317,15 @@ app.get('/api/scrape', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.1.9',
+    version: '1.2.1',
     name: 'RiboPrognoza',
-    releaseDate: '2026-10-28',
+    releaseDate: '2026-10-29',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Uklonjene oznake #148 i RHMZ s gumbova ALJMAŠ i BOGOJEVO te prilagođen font za puni prikaz naziva',
-      'Prilagođena veličina fonta satnice Sunca (izlazak - zalazak) kod Aljmaša i Bogojeva za prikaz bez rezanja',
-      'Optimizirane veličine fonta za sve rubrike Solunara (vrhunaci, impulsi, mijene, hod Mjeseca)',
-      'Osnovni mod s prikazom Aljmaša, Bogojeva i Solunara na početnom ekranu te Ekspertnim modom u nastavku'
+      'Aljmaš: osigurano uzimanje najgornjeg (najnovijeg) retka mjerenja s mvodostaji.voda.hr (postaja 148)',
+      'Bogojevo: vodostaj se očitava s hidmet.gov.rs (hm_id=42020), a temperatura vode Dunava s hidmet.gov.rs (hm_id=42015)',
+      'Automatsko brisanje instalacijskih APK datoteka s uređaja nakon nadogradnje',
+      'Brzina vjetra u m/s na svim karticama'
     ],
     isCritical: false
   });

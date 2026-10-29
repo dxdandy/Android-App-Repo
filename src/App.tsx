@@ -31,7 +31,8 @@ import { isAppActivated } from './services/licenseService';
 import { 
   checkForAppUpdate, 
   AppVersionInfo, 
-  CURRENT_APP_VERSION 
+  CURRENT_APP_VERSION,
+  cleanupInstallationFiles
 } from './services/updateService';
 
 const STORAGE_KEY_LAST_UPDATE = 'dunav_info_zadnje_azuriranje';
@@ -71,26 +72,27 @@ export default function App() {
     river: 'Dunav',
     sectorName: 'Sektor 2 / Ušće Drave u Dunav (Šporanj)',
     riverKm: 'rkm 1380,300',
-    waterLevelCm: -96,
+    waterLevelCm: -76,
     waterLevelTrend: 'stagnira',
     waterLevelChangeCm: 0,
-    timeOfMeasurement: '12:00',
+    timeOfMeasurement: '09:00',
     dateOfMeasurement: new Date().toLocaleDateString('hr-HR'),
     maxLevelCm: 820,
     maxLevelDate: '25.06.1965.',
     prepLevelCm: 400,
     recentHistory: [
-      { date: new Date().toLocaleDateString('hr-HR'), time: '12:00', level: -96, trendChange: 0 },
-      { date: new Date().toLocaleDateString('hr-HR'), time: '11:00', level: -96, trendChange: 0 },
-      { date: new Date().toLocaleDateString('hr-HR'), time: '10:00', level: -96, trendChange: 0 },
-      { date: new Date().toLocaleDateString('hr-HR'), time: '09:00', level: -95, trendChange: -1 },
-      { date: new Date().toLocaleDateString('hr-HR'), time: '08:00', level: -95, trendChange: 0 }
+      { date: new Date().toLocaleDateString('hr-HR'), time: '09:00', level: -76, trendChange: 0 },
+      { date: new Date().toLocaleDateString('hr-HR'), time: '08:00', level: -76, trendChange: 0 },
+      { date: new Date().toLocaleDateString('hr-HR'), time: '07:00', level: -76, trendChange: 0 },
+      { date: new Date().toLocaleDateString('hr-HR'), time: '06:00', level: -76, trendChange: 0 },
+      { date: new Date().toLocaleDateString('hr-HR'), time: '05:00', level: -76, trendChange: 0 }
     ],
     airPressureHpa: 1017,
     airPressureTrend: 'stabilan',
     airTempC: 21.0,
     waterTempC: 12.9,
     windSpeedKmh: 12,
+    windSpeedMs: 3.3,
     windDirection: 'SZ',
     weatherCondition: 'djelomicno_oblacno',
     sourceUrl: MVODOSTAJI_ALJMAS_URL,
@@ -105,9 +107,9 @@ export default function App() {
     river: 'Dunav',
     sectorName: 'Most Bogojevo - Erdut / Kameni špornjevi',
     riverKm: 'rkm 1367,000',
-    waterLevelCm: -106,
-    waterLevelTrend: 'u_porastu',
-    waterLevelChangeCm: 10,
+    waterLevelCm: -83,
+    waterLevelTrend: 'opada',
+    waterLevelChangeCm: -1,
     flowM3s: 880,
     forecastDays: [-92, -86, -90, -96],
     regularDefenseCm: 600,
@@ -115,14 +117,15 @@ export default function App() {
     timeOfMeasurement: '07:00',
     dateOfMeasurement: new Date().toLocaleDateString('hr-HR'),
     recentHistory: [
-      { date: new Date().toLocaleDateString('hr-HR'), time: '07:00', level: -106, trendChange: 10 },
-      { date: 'Jučer', time: '07:00', level: -116, trendChange: 4 }
+      { date: new Date().toLocaleDateString('hr-HR'), time: '07:00', level: -83, trendChange: -1 },
+      { date: 'Jučer', time: '07:00', level: -82, trendChange: 4 }
     ],
     airPressureHpa: 1016,
     airPressureTrend: 'stabilan',
     airTempC: 22.0,
-    waterTempC: 12.4,
+    waterTempC: 12.6,
     windSpeedKmh: 10,
+    windSpeedMs: 2.8,
     windDirection: 'SZ',
     weatherCondition: 'djelomicno_oblacno',
     sourceUrl: HIDMET_BOGOJEVO_URL,
@@ -172,8 +175,11 @@ export default function App() {
     handleRefreshAll();
   }, [handleRefreshAll]);
 
-  // Automatska tiha provjera nadogradnje pri pokretanju (nakon 1.5 sekundi)
+  // Automatska tiha provjera nadogradnje i čišćenje starih instalacijskih datoteka pri pokretanju
   useEffect(() => {
+    // Odmah pokreni automatsko čišćenje privremenih APK instalacijskih datoteka s uređaja
+    cleanupInstallationFiles().catch(() => {});
+
     const timer = setTimeout(async () => {
       try {
         const res = await checkForAppUpdate(false);

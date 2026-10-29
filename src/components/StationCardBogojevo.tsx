@@ -166,7 +166,7 @@ export const StationCardBogojevo: React.FC<StationCardBogojevoProps> = ({ data, 
               <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
                 <span className="text-slate-400 block text-[11px]">Vjetar Bogojevo:</span>
                 <span className="text-lg font-bold text-white mt-0.5 block">
-                  {data.windSpeedKmh} km/h
+                  {data.windSpeedMs ?? (data.windSpeedKmh / 3.6).toFixed(1)} m/s
                 </span>
                 <span className="text-[10px] text-cyan-300 font-medium">
                   Smjer: {data.windDirection}

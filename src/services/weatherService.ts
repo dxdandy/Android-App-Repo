@@ -328,12 +328,13 @@ export async function fetchMeteoForCoords(lat: number, lon: number): Promise<{
   airPressureTrend: PressureTrend;
   airTempC: number;
   windSpeedKmh: number;
+  windSpeedMs: number;
   windDirection: string;
   weatherCondition: WeatherCondition;
 }> {
   try {
     const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,weather_code,wind_speed_10m,wind_direction_10m&timezone=Europe%2FZagreb`,
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,weather_code,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=Europe%2FZagreb`,
       { signal: AbortSignal.timeout(4500) }
     );
     if (!res.ok) throw new Error('Meteo status ' + res.status);
@@ -342,7 +343,8 @@ export async function fetchMeteoForCoords(lat: number, lon: number): Promise<{
 
     const pressure = curr.surface_pressure ? Math.round(curr.surface_pressure) : 1017;
     const temp = curr.temperature_2m !== undefined ? Math.round(curr.temperature_2m * 10) / 10 : 21.0;
-    const windSpeed = curr.wind_speed_10m ? Math.round(curr.wind_speed_10m) : 11;
+    const windSpeedMs = curr.wind_speed_10m !== undefined ? Math.round(curr.wind_speed_10m * 10) / 10 : 3.3;
+    const windSpeedKmh = Math.round(windSpeedMs * 3.6);
     const windDir = getWindDirectionLabel(curr.wind_direction_10m);
     const cond = mapWmoToCondition(curr.weather_code);
 
@@ -354,7 +356,8 @@ export async function fetchMeteoForCoords(lat: number, lon: number): Promise<{
       airPressureHpa: pressure,
       airPressureTrend: trend,
       airTempC: temp,
-      windSpeedKmh: windSpeed,
+      windSpeedKmh: windSpeedKmh,
+      windSpeedMs: windSpeedMs,
       windDirection: windDir,
       weatherCondition: cond
     };
@@ -364,6 +367,7 @@ export async function fetchMeteoForCoords(lat: number, lon: number): Promise<{
       airPressureTrend: 'stabilan',
       airTempC: 21.0,
       windSpeedKmh: 12,
+      windSpeedMs: 3.3,
       windDirection: 'SZ',
       weatherCondition: 'djelomicno_oblacno'
     };
@@ -376,10 +380,10 @@ export async function fetchMeteoForCoords(lat: number, lon: number): Promise<{
 export async function fetchAljmasStationData(): Promise<StationWaterData> {
   const meteo = await fetchMeteoForCoords(45.5269, 18.9489); // Aljmaš / Vinkovci
 
-  let waterLevelCm = -96;
+  let waterLevelCm = -76;
   let waterLevelTrend: WaterTrend = 'stagnira';
   let waterLevelChangeCm = 0;
-  let timeOfMeasurement = '12:00';
+  let timeOfMeasurement = '09:00';
   let dateOfMeasurement = new Date().toLocaleDateString('hr-HR');
   let maxLevelCm = 820;
   let maxLevelDate = '25.06.1965.';
@@ -387,12 +391,12 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
   let waterTempC = 12.9;
   let isLive = false;
   let history: WaterLevelHistoryItem[] = [
-    { date: dateOfMeasurement, time: '12:00', level: -96, trendChange: 0 },
-    { date: dateOfMeasurement, time: '11:00', level: -96, trendChange: 0 },
-    { date: dateOfMeasurement, time: '10:00', level: -96, trendChange: 0 },
-    { date: dateOfMeasurement, time: '09:00', level: -95, trendChange: -1 },
-    { date: dateOfMeasurement, time: '08:00', level: -95, trendChange: 0 },
-    { date: dateOfMeasurement, time: '07:00', level: -95, trendChange: 0 }
+    { date: dateOfMeasurement, time: '09:00', level: -76, trendChange: 0 },
+    { date: dateOfMeasurement, time: '08:00', level: -76, trendChange: 0 },
+    { date: dateOfMeasurement, time: '07:00', level: -76, trendChange: 0 },
+    { date: dateOfMeasurement, time: '06:00', level: -76, trendChange: 0 },
+    { date: dateOfMeasurement, time: '05:00', level: -76, trendChange: 0 },
+    { date: dateOfMeasurement, time: '04:00', level: -76, trendChange: 0 }
   ];
 
   try {
@@ -446,6 +450,7 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
     airTempC: meteo.airTempC,
     waterTempC,
     windSpeedKmh: meteo.windSpeedKmh,
+    windSpeedMs: meteo.windSpeedMs,
     windDirection: meteo.windDirection,
     weatherCondition: meteo.weatherCondition,
     sourceUrl: MVODOSTAJI_ALJMAS_URL,
@@ -461,14 +466,14 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
 export async function fetchBogojevoStationData(): Promise<StationWaterData> {
   const meteo = await fetchMeteoForCoords(45.5342, 19.1231); // Bogojevo
 
-  let waterLevelCm = -106;
-  let waterLevelTrend: WaterTrend = 'u_porastu';
-  let waterLevelChangeCm = 10;
+  let waterLevelCm = -83;
+  let waterLevelTrend: WaterTrend = 'opada';
+  let waterLevelChangeCm = -1;
   let flowM3s = 880;
   let forecastDays: number[] = [-92, -86, -90, -96];
   let regularDefenseCm = 600;
   let emergencyDefenseCm = 700;
-  let waterTempC = 12.4;
+  let waterTempC = 12.6;
   let isLive = false;
   let timeOfMeasurement = '07:00';
   let dateOfMeasurement = new Date().toLocaleDateString('hr-HR');
@@ -520,6 +525,7 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
     airTempC: meteo.airTempC,
     waterTempC,
     windSpeedKmh: meteo.windSpeedKmh,
+    windSpeedMs: meteo.windSpeedMs,
     windDirection: meteo.windDirection,
     weatherCondition: meteo.weatherCondition,
     sourceUrl: HIDMET_BOGOJEVO_URL,

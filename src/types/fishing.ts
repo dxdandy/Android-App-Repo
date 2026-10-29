@@ -98,6 +98,7 @@ export interface StationWaterData {
   airTempC: number;
   waterTempC: number;
   windSpeedKmh: number;
+  windSpeedMs?: number;
   windDirection: string;
   weatherCondition: WeatherCondition;
   sourceUrl: string;
@@ -116,6 +117,7 @@ export interface ExtractedMeteoData {
   airPressureHpa?: number;
   airPressureTrend?: PressureTrend;
   windSpeedKmh?: number;
+  windSpeedMs?: number;
   windDirection?: string;
   weatherCondition?: WeatherCondition;
   sourceUrl: string;

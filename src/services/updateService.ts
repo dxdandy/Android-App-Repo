@@ -4,7 +4,9 @@
  * GitHub: dxdandy/Android-App-Repo
  */
 
-export const CURRENT_APP_VERSION = '1.1.9';
+import { registerPlugin } from '@capacitor/core';
+
+export const CURRENT_APP_VERSION = '1.2.1';
 
 export interface AppVersionInfo {
   version: string;
@@ -288,12 +290,41 @@ export function dismissUpdateFor24h(version: string): void {
   } catch {}
 }
 
+interface ApkCleanerPlugin {
+  cleanApks(): Promise<{ success: boolean; deletedCount: number }>;
+}
+
+export const ApkCleaner = registerPlugin<ApkCleanerPlugin>('ApkCleaner');
+
+/**
+ * Automatski briše privremene instalacijske APK datoteke s mobilnog uređaja
+ * kako ne bi nepotrebno zauzimale korisničku memoriju nakon ažuriranja.
+ */
+export async function cleanupInstallationFiles(): Promise<{ success: boolean; deletedCount: number }> {
+  try {
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+      const res = await ApkCleaner.cleanApks();
+      if (res && res.deletedCount > 0) {
+        console.log(`[RiboPrognoza] Uspješno uklonjeno ${res.deletedCount} starih instalacijskih APK datoteka.`);
+      }
+      return res;
+    }
+  } catch (err) {
+    console.debug('ApkCleaner status:', err);
+  }
+  return { success: true, deletedCount: 0 };
+}
+
 /**
  * Pokreće preuzimanje i instalaciju novog APK-a
  */
 export function startApkDownload(apkUrl: string): void {
   const repo = getSavedGithubRepo();
   const finalUrl = apkUrl || `https://github.com/${repo}/releases/latest/download/RiboPrognoza.apk`;
+
+  try {
+    localStorage.setItem('ribo_pending_apk_cleanup', 'true');
+  } catch {}
 
   if (typeof window !== 'undefined') {
     window.open(finalUrl, '_blank');

@@ -27,7 +27,8 @@ import {
   runUpdateDiagnostic, 
   CURRENT_APP_VERSION, 
   setSavedGithubRepo,
-  AppVersionInfo 
+  AppVersionInfo,
+  cleanupInstallationFiles 
 } from '../services/updateService';
 
 interface AdminKeyGeneratorModalProps {
@@ -66,6 +67,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
   const [repoSavedMsg, setRepoSavedMsg] = useState(false);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
+  const [cleanResult, setCleanResult] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -417,7 +419,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                 )}
 
                 {/* Gumb za isprobavanje skočnog prozora */}
-                <div className="pt-2 border-t border-slate-800">
+                <div className="pt-2 border-t border-slate-800 space-y-2">
                   <button
                     type="button"
                     onClick={handleTriggerTestPopup}
@@ -426,8 +428,29 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                     <span>Isprobaj skočni prozor za novu verziju (Test)</span>
                   </button>
-                  <p className="text-[10px] text-slate-500 text-center mt-1.5">
-                    Otvara skočni prozor kako biste vidjeli točno kako ga vaši korisnici vide.
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const res = await cleanupInstallationFiles();
+                      setCleanResult(res.deletedCount > 0 
+                        ? `✓ Uspješno obrisano ${res.deletedCount} starih APK datoteka s uređaja!` 
+                        : '✓ Nema zaostalih APK datoteka (memorija uređaja je čista).');
+                      setTimeout(() => setCleanResult(null), 4000);
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-teal-950/50 hover:bg-teal-900/60 border border-teal-500/30 text-teal-300 font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>🧹 Očisti stare instalacijske APK datoteke</span>
+                  </button>
+
+                  {cleanResult && (
+                    <p className="text-[11px] text-teal-300 text-center font-bold bg-teal-950/60 p-2 rounded-xl border border-teal-500/40">
+                      {cleanResult}
+                    </p>
+                  )}
+
+                  <p className="text-[10px] text-slate-500 text-center mt-1">
+                    Aplikacija također automatski briše privremene instalacijske datoteke nakon svakog ažuriranja.
                   </p>
                 </div>
 

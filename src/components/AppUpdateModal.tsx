@@ -108,10 +108,16 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
           </div>
         </div>
 
-        {/* Napomena o licenci */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-teal-950/30 border border-teal-500/30 rounded-xl text-[11px] text-teal-300">
-          <ShieldCheck className="w-4 h-4 shrink-0 text-teal-400" />
-          <span>Aktivacijski ključ i podaci ostaju trajno sačuvani nakon ažuriranja.</span>
+        {/* Napomena o licenci i automatskom brisanju instalacijskog filea */}
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 px-3 py-2 bg-teal-950/30 border border-teal-500/30 rounded-xl text-[11px] text-teal-300">
+            <ShieldCheck className="w-4 h-4 shrink-0 text-teal-400" />
+            <span>Aktivacijski ključ i podaci ostaju trajno sačuvani nakon ažuriranja.</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-cyan-950/30 border border-cyan-500/30 rounded-xl text-[10.5px] text-cyan-300">
+            <span className="text-sm shrink-0">🧹</span>
+            <span>Instalacijski APK automatski se briše s uređaja nakon instalacije radi uštede memorije.</span>
+          </div>
         </div>
 
         {/* Gumbi za akciju */}
