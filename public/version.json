@@ -1,13 +1,12 @@
 {
-  "version": "1.2.2",
+  "version": "1.2.3",
   "name": "RiboPrognoza",
   "releaseDate": "2026-10-30",
   "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk",
   "changelog": [
-    "Aljmaš: tlak zraka povezan s putovnica.net (Aljmaš) i oznaka ažurirana u Meteo & Barometar (Aljmaš)",
-    "Bogojevo: tlak zraka povezan s vojvodinameteo.rs (Bogojevo)",
-    "Bogojevo gumb: dodan točan podatak o protoku vode sa stranice hidmet.gov.rs u m3/s",
-    "Horizontalni (landscape) prikaz: desni podaci raspoređeni u točno 2 reda po 3 podatka s povećanim fontom i većim ikonama usklađenim s glavnim gumbovima",
+    "Dinamičko prepoznavanje orijentacije uređaja: u vertikalnom (portrait) položaju koristi se dokazani kompaktni raspored iz v1.2.1, a u horizontalnom (landscape) položaju prostrani prikaz u 2 reda po 3 podatka s većim fontom i ikonama",
+    "Bogojevo: prikaz točnog protoka vode (m3/s) sa stranice hidmet.gov.rs",
+    "Aljmaš i Bogojevo: ažuriran tlak zraka s lokalnih postaja Putovnica.net i VojvodinaMeteo",
     "Automatsko brisanje instalacijskih APK datoteka s uređaja nakon nadogradnje"
   ],
   "isCritical": false
