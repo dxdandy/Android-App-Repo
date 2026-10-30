@@ -413,15 +413,15 @@ app.get('/api/scrape', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.2.3',
+    version: '1.2.4',
     name: 'RiboPrognoza',
     releaseDate: '2026-10-30',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Dinamičko prepoznavanje orijentacije uređaja: u vertikalnom (portrait) položaju koristi se dokazani kompaktni raspored iz v1.2.1, a u horizontalnom (landscape) položaju prostrani prikaz u 2 reda po 3 podatka s većim fontom i ikonama',
-      'Bogojevo: prikaz točnog protoka vode (m3/s) sa stranice hidmet.gov.rs',
-      'Aljmaš i Bogojevo: ažuriran tlak zraka s lokalnih postaja Putovnica.net i VojvodinaMeteo',
-      'Automatsko brisanje instalacijskih APK datoteka s uređaja nakon nadogradnje'
+      'Optimiziran raspored na vrhu: blinkajući tekst i gumb za donaciju premješteni u podnožje aplikacije',
+      'Gumbovi Osnovni mod i Ekspertni mod podignuti više prema vrhu odmah ispod naslova za trenutačnu dostupnost',
+      'Podignut i ukomponiran cijeli sadržaj Osnovnog moda uz smanjene razmake za savršenu preglednost bez nepotrebnog scrollanja',
+      'Zadržano automatsko prepoznavanje vertikalnog i horizontalnog položaja s prilagođenim layoutom'
     ],
     isCritical: false
   });

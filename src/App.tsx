@@ -289,11 +289,11 @@ export default function App() {
       />
 
       {/* Hero Header sa sažetkom stanja na Dunavu */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80 px-3 sm:px-6 lg:px-8 py-3 sm:py-4.5 w-full max-w-full overflow-hidden">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4 w-full">
+      <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 w-full max-w-full overflow-hidden">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3.5 w-full">
           
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap text-xs text-cyan-400 font-bold mb-1.5">
+            <div className="flex items-center gap-2 flex-wrap text-xs text-cyan-400 font-bold mb-1">
               <span className="flex items-center gap-1.5 font-mono text-slate-300">
                 <Calendar className="w-3.5 h-3.5 text-cyan-400" /> {solunarData.formattedDate}
               </span>
@@ -302,20 +302,9 @@ export default function App() {
             <h1 className="text-xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight break-words">
               Hidrometeo & Solunarni Centar Dunava
             </h1>
-            <p className="text-[10px] sm:text-xs text-slate-400 mt-1 max-w-xl leading-snug animate-pulse">
-              <span>Aplikacija je potpuno besplatna. Rad autora možete podržati neobaveznim donacijama za čevape i Colu </span>
-              <button
-                type="button"
-                onClick={() => setShowDonationModal(true)}
-                className="inline-flex items-center px-1.5 py-0.5 rounded bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-[9px] tracking-wider uppercase cursor-pointer shadow-sm active:scale-95 transition-transform border border-amber-300 align-baseline ml-1"
-                title="Donacija za podršku autoru"
-              >
-                DONACIJA
-              </button>
-            </p>
 
-            {/* Odabir načina prikaza: Osnovni mod vs Ekspertni mod */}
-            <div className="mt-3.5 flex items-center gap-2.5 flex-wrap">
+            {/* Odabir načina prikaza: Osnovni mod vs Ekspertni mod (podignuto na visinu blinkajućeg teksta) */}
+            <div className="mt-2 sm:mt-2.5 flex items-center gap-2.5 flex-wrap">
               <div className="inline-flex p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner">
                 <button
                   type="button"
@@ -422,7 +411,7 @@ export default function App() {
       </div>
 
       {/* Glavni sadržaj */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 flex-1 w-full max-w-full overflow-hidden">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3.5 flex-1 w-full max-w-full overflow-hidden">
         
         {viewMode === 'basic' ? (
           /* POJEDNOSTAVLJENI OSNOVNI PRIKAZ NA POKRETANJU */
@@ -563,8 +552,23 @@ export default function App() {
         }}
       />
 
+      {/* Podnožje: Donacije i podrška radu autora (premješteno s vrha u podnožje) */}
+      <div className="max-w-7xl mx-auto px-4 w-full mt-4 mb-2 text-center">
+        <div className="inline-flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-3.5 sm:px-5 rounded-2xl bg-slate-900/90 border border-amber-500/30 text-[11px] sm:text-xs text-slate-300 animate-pulse shadow-lg flex-wrap">
+          <span>Aplikacija je potpuno besplatna. Rad autora možete podržati neobaveznim donacijama za čevape i Colu </span>
+          <button
+            type="button"
+            onClick={() => setShowDonationModal(true)}
+            className="inline-flex items-center px-2 py-0.5 rounded bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-[10px] tracking-wider uppercase cursor-pointer shadow-sm active:scale-95 transition-transform border border-amber-300 ml-1"
+            title="Donacija za podršku autoru"
+          >
+            DONACIJA
+          </button>
+        </div>
+      </div>
+
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-900/60 py-6 mt-10 text-center text-xs text-slate-400 w-full max-w-full overflow-hidden">
+      <footer className="border-t border-slate-800/80 bg-slate-900/60 py-5 mt-4 text-center text-xs text-slate-400 w-full max-w-full overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <button 
             type="button"
