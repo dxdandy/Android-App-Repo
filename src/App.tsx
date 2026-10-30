@@ -27,7 +27,8 @@ import { ActivationLockScreen } from './components/ActivationLockScreen';
 import { AdminKeyGeneratorModal } from './components/AdminKeyGeneratorModal';
 import { AppUpdateModal } from './components/AppUpdateModal';
 import { DonationModal } from './components/DonationModal';
-import { isAppActivated } from './services/licenseService';
+import { FishingChatModal } from './components/FishingChatModal';
+import { isAppActivated, verifyLicenseWithServer } from './services/licenseService';
 import { 
   checkForAppUpdate, 
   AppVersionInfo, 
@@ -41,6 +42,7 @@ export default function App() {
   const [isActivated, setIsActivated] = useState<boolean>(() => isAppActivated());
   const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
   const [showDonationModal, setShowDonationModal] = useState<boolean>(false);
+  const [showChatModal, setShowChatModal] = useState<boolean>(false);
 
   // Stanja za automatska ažuriranja
   const [availableUpdate, setAvailableUpdate] = useState<AppVersionInfo | null>(null);
@@ -193,6 +195,27 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Redovita provjera valjanosti i opoziva licence s centralnim poslužiteljem
+  useEffect(() => {
+    if (!isActivated) return;
+
+    const checkStatus = async () => {
+      try {
+        const result = await verifyLicenseWithServer();
+        if (!result.valid && result.status === 'revoked') {
+          setIsActivated(false);
+        }
+      } catch {}
+    };
+
+    // Provjeri pri učitavanju
+    checkStatus();
+
+    // I periodički svakih 35 sekundi ako je korisnik online
+    const interval = setInterval(checkStatus, 35000);
+    return () => clearInterval(interval);
+  }, [isActivated]);
+
   // Ručna provjera nadogradnji (iz footera ili postavki)
   const handleManualCheckUpdate = async () => {
     setIsCheckingUpdate(true);
@@ -286,6 +309,7 @@ export default function App() {
         onRefresh={handleRefreshAll}
         isLoading={isLoading}
         lastUpdated={lastUpdated}
+        onOpenChat={() => setShowChatModal(true)}
       />
 
       {/* Hero Header sa sažetkom stanja na Dunavu */}
@@ -624,6 +648,12 @@ export default function App() {
       <DonationModal
         isOpen={showDonationModal}
         onClose={() => setShowDonationModal(false)}
+      />
+
+      {/* Modal za interni Dunavski ribički chat */}
+      <FishingChatModal
+        isOpen={showChatModal}
+        onClose={() => setShowChatModal(false)}
       />
 
     </div>

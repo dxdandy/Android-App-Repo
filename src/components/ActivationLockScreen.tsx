@@ -23,9 +23,16 @@ export const ActivationLockScreen: React.FC<ActivationLockScreenProps> = ({
 }) => {
   const deviceId = getDeviceId();
   const [enteredKey, setEnteredKey] = useState('');
+  const [userNameInput, setUserNameInput] = useState('');
   const [copiedId, setCopiedId] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('ribo_license_revoked') === 'true') {
+      return 'Vaša licenca za ovaj uređaj je ukinuta od strane administratora.';
+    }
+    return '';
+  });
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(deviceId);
@@ -34,8 +41,8 @@ export const ActivationLockScreen: React.FC<ActivationLockScreenProps> = ({
   };
 
   const handleSendIdToOwner = () => {
-    const text = `Pozdrav Daniel, molim te aktivacijski ključ za aplikaciju RiboPrognoza.\n\nID mog uređaja je: ${deviceId}`;
-    // Pokušaj WhatsApp Web / App ili standardni share
+    const namePart = userNameInput.trim() ? ` (Ime: ${userNameInput.trim()})` : '';
+    const text = `Pozdrav Daniel, molim te aktivacijski ključ za aplikaciju RiboPrognoza${namePart}.\n\nID mog uređaja je: ${deviceId}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     if (navigator.share) {
       navigator.share({
@@ -49,7 +56,7 @@ export const ActivationLockScreen: React.FC<ActivationLockScreenProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -58,14 +65,19 @@ export const ActivationLockScreen: React.FC<ActivationLockScreenProps> = ({
       return;
     }
 
-    const success = activateApp(enteredKey.trim());
-    if (success) {
-      setIsSuccess(true);
-      setTimeout(() => {
-        onActivated();
-      }, 900);
-    } else {
-      setErrorMsg('Nevažeći aktivacijski ključ za ovaj uređaj. Provjerite jeste li točno prepisali kod.');
+    setIsSubmitting(true);
+    try {
+      const res = await activateApp(enteredKey.trim(), userNameInput.trim());
+      if (res.success) {
+        setIsSuccess(true);
+        setTimeout(() => {
+          onActivated();
+        }, 900);
+      } else {
+        setErrorMsg(res.message || 'Nevažeći aktivacijski ključ za ovaj uređaj.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -134,6 +146,19 @@ export const ActivationLockScreen: React.FC<ActivationLockScreenProps> = ({
 
         {/* Obrazac za unos aktivacijskog koda */}
         <form onSubmit={handleSubmit} className="space-y-3.5">
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">
+              Vaše ime ili nadimak (za interni ribički chat):
+            </label>
+            <input
+              type="text"
+              value={userNameInput}
+              onChange={(e) => setUserNameInput(e.target.value)}
+              placeholder="npr. Mario Vinkovci ili Pero - Aljmaš"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+            />
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1.5">
               Unesite aktivacijski ključ:

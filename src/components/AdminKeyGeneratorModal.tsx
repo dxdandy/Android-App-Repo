@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   KeyRound, 
   ShieldCheck, 
@@ -15,14 +15,29 @@ import {
   CheckCircle2,
   Terminal,
   Download,
-  ArrowUp
+  Users,
+  MessageSquare,
+  Trash2,
+  Edit2,
+  UserCheck,
+  UserX,
+  Search
 } from 'lucide-react';
 import { 
   generateActivationKey, 
   getDeviceId, 
   activateApp, 
-  checkAdminPin 
+  checkAdminPin,
+  fetchAdminLicenses,
+  updateAdminLicense,
+  deleteAdminLicense,
+  LicenseRecord
 } from '../services/licenseService';
+import { 
+  fetchChatMessages,
+  deleteChatMessageAsAdmin,
+  ChatMessage
+} from '../services/chatService';
 import { 
   runUpdateDiagnostic, 
   CURRENT_APP_VERSION, 
@@ -48,13 +63,26 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinError, setPinError] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'licence' | 'azuriranja'>('licence');
+  const [activeTab, setActiveTab] = useState<'korisnici' | 'generator' | 'chat' | 'azuriranja'>('korisnici');
 
-  // Stanja za licence
+  // Stanja za generator
   const [targetDeviceId, setTargetDeviceId] = useState('');
+  const [targetUserName, setTargetUserName] = useState('');
   const [generatedKey, setGeneratedKey] = useState('');
   const [copiedKey, setCopiedKey] = useState(false);
   const [selfActivatedMsg, setSelfActivatedMsg] = useState(false);
+
+  // Stanja za listu korisnika / licenci
+  const [licenses, setLicenses] = useState<LicenseRecord[]>([]);
+  const [isLoadingLicenses, setIsLoadingLicenses] = useState(false);
+  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
+  const [editingNameValue, setEditingNameValue] = useState('');
+  const [licenseSearchQuery, setLicenseSearchQuery] = useState('');
+  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+
+  // Stanja za nadzor chata
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isLoadingChat, setIsLoadingChat] = useState(false);
 
   // Stanja za ažuriranja
   const [githubRepoInput, setGithubRepoInput] = useState(() => {
@@ -69,6 +97,37 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
   const [cleanResult, setCleanResult] = useState<string | null>(null);
 
+  const loadLicensesData = async () => {
+    setIsLoadingLicenses(true);
+    try {
+      const data = await fetchAdminLicenses(pinInput || '2026');
+      setLicenses(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingLicenses(false);
+    }
+  };
+
+  const loadChatData = async () => {
+    setIsLoadingChat(true);
+    try {
+      const data = await fetchChatMessages();
+      setChatMessages(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingChat(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      if (activeTab === 'korisnici') loadLicensesData();
+      if (activeTab === 'chat') loadChatData();
+    }
+  }, [isAuthenticated, activeTab]);
+
   if (!isOpen) return null;
 
   const handleVerifyPin = (e: React.FormEvent) => {
@@ -81,12 +140,27 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
     }
   };
 
-  const handleGenerate = (e: React.FormEvent) => {
+  const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetDeviceId.trim()) return;
-    const key = generateActivationKey(targetDeviceId.trim());
+    const cleanId = targetDeviceId.trim().toUpperCase();
+    const key = generateActivationKey(cleanId);
     setGeneratedKey(key);
     setCopiedKey(false);
+
+    // Ako je admin upisao ime, odmah registriramo/ažuriramo na poslužitelju
+    if (targetUserName.trim()) {
+      try {
+        await updateAdminLicense(pinInput || '2026', {
+          deviceId: cleanId,
+          userName: targetUserName.trim(),
+          status: 'active'
+        });
+        loadLicensesData();
+      } catch (err) {
+        console.error('Greška pri automatskom spremanju imena:', err);
+      }
+    }
   };
 
   const handleCopyKey = () => {
@@ -98,7 +172,8 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
 
   const handleShareKey = () => {
     if (!generatedKey) return;
-    const text = `Pozdrav! Tvoj aktivacijski ključ za RiboPrognoza aplikaciju (uređaj: ${targetDeviceId}):\n\n${generatedKey}\n\nUnesi ga u aplikaciju za trajno otključavanje.`;
+    const greeting = targetUserName.trim() ? `Pozdrav ${targetUserName.trim()}!` : 'Pozdrav!';
+    const text = `${greeting} Tvoj aktivacijski ključ za RiboPrognoza aplikaciju (uređaj: ${targetDeviceId}):\n\n${generatedKey}\n\nUnesi ga u aplikaciju za trajno otključavanje.`;
     if (navigator.share) {
       navigator.share({
         title: 'RiboPrognoza Aktivacijski Ključ',
@@ -111,16 +186,61 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
     }
   };
 
-  const handleActivateThisPhone = () => {
-    const myId = getDeviceId();
-    const myKey = generateActivationKey(myId);
-    activateApp(myKey);
-    setSelfActivatedMsg(true);
-    if (onSelfActivated) {
-      setTimeout(() => {
-        onSelfActivated();
-        onClose();
-      }, 1200);
+  const handleToggleLicenseStatus = async (item: LicenseRecord) => {
+    const newStatus = item.status === 'active' ? 'revoked' : 'active';
+    try {
+      await updateAdminLicense(pinInput || '2026', {
+        deviceId: item.deviceId,
+        status: newStatus
+      });
+      setLicenses(prev => prev.map(l => l.deviceId === item.deviceId ? { ...l, status: newStatus } : l));
+      setActionSuccessMsg(newStatus === 'revoked' ? `Licenca za ${item.userName} je UKINUTA.` : `Licenca za ${item.userName} je ponovno AKTIVIRANA.`);
+      setTimeout(() => setActionSuccessMsg(null), 3000);
+    } catch (err: any) {
+      alert('Greška pri izmjeni statusa: ' + err.message);
+    }
+  };
+
+  const handleStartEditingName = (item: LicenseRecord) => {
+    setEditingDeviceId(item.deviceId);
+    setEditingNameValue(item.userName);
+  };
+
+  const handleSaveName = async (deviceId: string) => {
+    if (!editingNameValue.trim()) return;
+    try {
+      await updateAdminLicense(pinInput || '2026', {
+        deviceId,
+        userName: editingNameValue.trim()
+      });
+      setLicenses(prev => prev.map(l => l.deviceId === deviceId ? { ...l, userName: editingNameValue.trim() } : l));
+      setEditingDeviceId(null);
+      setActionSuccessMsg(`Ime korisnika uspješno promijenjeno u: ${editingNameValue.trim()}`);
+      setTimeout(() => setActionSuccessMsg(null), 3000);
+    } catch (err: any) {
+      alert('Greška pri spremanju imena: ' + err.message);
+    }
+  };
+
+  const handleDeleteLicense = async (deviceId: string, userName: string) => {
+    if (!window.confirm(`Sigurno želite obrisati licencu za "${userName}" (${deviceId})?`)) return;
+    try {
+      await deleteAdminLicense(pinInput || '2026', deviceId);
+      setLicenses(prev => prev.filter(l => l.deviceId !== deviceId));
+      setActionSuccessMsg(`Licenca za ${userName} je obrisana.`);
+      setTimeout(() => setActionSuccessMsg(null), 3000);
+    } catch (err: any) {
+      alert('Greška pri brisanju licence: ' + err.message);
+    }
+  };
+
+  const handleDeleteChatMessage = async (msgId: string) => {
+    if (!window.confirm('Želite li obrisati ovu poruku iz chata?')) return;
+    try {
+      await deleteChatMessageAsAdmin(pinInput || '2026', msgId);
+      setChatMessages(prev => prev.filter(m => m.id !== msgId));
+    } catch (err: any) {
+      alert('Greška pri brisanju poruke: ' + err.message);
     }
   };
 
@@ -128,33 +248,22 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
     setIsDiagnosing(true);
     setDiagnosticResult(null);
     try {
-      const result = await runUpdateDiagnostic();
-      setDiagnosticResult(result);
+      const res = await runUpdateDiagnostic();
+      setDiagnosticResult(res);
     } finally {
       setIsDiagnosing(false);
     }
   };
 
-  const handleTriggerTestPopup = () => {
-    if (onTestUpdatePopup) {
-      onTestUpdatePopup({
-        version: '1.0.2',
-        name: 'RiboPrognoza',
-        releaseDate: new Date().toISOString().split('T')[0],
-        apkUrl: 'https://github.com/dani4galaxy/riboprognoza/releases/latest/download/app-release.apk',
-        changelog: [
-          'Testna simulacija nadogradnje aplikacije',
-          'Sve funkcije rade ispravno i spremne su za korisnike'
-        ],
-        isCritical: false
-      });
-      onClose();
-    }
-  };
+  const filteredLicenses = licenses.filter(l => 
+    l.userName.toLowerCase().includes(licenseSearchQuery.toLowerCase()) ||
+    l.deviceId.toLowerCase().includes(licenseSearchQuery.toLowerCase()) ||
+    l.activationKey.toLowerCase().includes(licenseSearchQuery.toLowerCase())
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md select-none">
-      <div className="bg-slate-900 border border-amber-500/40 rounded-3xl p-5 sm:p-7 max-w-md w-full shadow-2xl relative text-white max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md select-none animate-fadeIn">
+      <div className={`bg-slate-900 border border-amber-500/40 rounded-3xl p-4 sm:p-6 w-full ${isAuthenticated ? 'max-w-3xl' : 'max-w-md'} shadow-2xl relative text-white max-h-[90vh] overflow-y-auto transition-all`}>
         
         {/* Zatvori gumb */}
         <button
@@ -170,8 +279,8 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
             <KeyRound className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-white leading-tight">
-              Upravljačka Ploča
+            <h2 className="text-base sm:text-lg font-black text-white leading-tight">
+              Kontrolni Panel & Licence
             </h2>
             <p className="text-xs text-amber-400 font-medium">
               Autor: Daniel Čizmar (Admin)
@@ -186,19 +295,17 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
               <label className="block text-xs text-slate-300 font-bold mb-2">
                 Unesite administratorski PIN (zadano: 2026):
               </label>
-              <div className="relative">
-                <input
-                  type="password"
-                  value={pinInput}
-                  onChange={(e) => {
-                    setPinInput(e.target.value);
-                    setPinError(false);
-                  }}
-                  placeholder="Unesite PIN"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-center text-lg tracking-widest text-white focus:outline-none focus:border-amber-400"
-                  autoFocus
-                />
-              </div>
+              <input
+                type="password"
+                value={pinInput}
+                onChange={(e) => {
+                  setPinInput(e.target.value);
+                  setPinError(false);
+                }}
+                placeholder="Unesite PIN"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-center text-lg tracking-widest text-white focus:outline-none focus:border-amber-400"
+                autoFocus
+              />
               {pinError && (
                 <p className="text-rose-400 text-xs mt-2 font-bold text-center">
                   Pogrešan PIN. Pokušajte ponovno.
@@ -214,246 +321,402 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
             </button>
           </form>
         ) : (
-          /* Korak 2: Admin sučelje s tabovima */
+          /* Korak 2: Admin sučelje s 4 taba */
           <div className="space-y-4">
             
             {/* Tabovi */}
-            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs font-bold">
+            <div className="flex border-b border-slate-800 gap-1 overflow-x-auto pb-1 text-xs font-bold">
               <button
-                onClick={() => setActiveTab('licence')}
-                className={`py-2 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'licence' 
-                    ? 'bg-amber-500 text-slate-950 shadow-sm' 
+                type="button"
+                onClick={() => setActiveTab('korisnici')}
+                className={`px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                  activeTab === 'korisnici'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Licence & Kodovi
+                <Users className="w-4 h-4" />
+                <span>Korisnici & Opoziv</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-amber-300">
+                  {licenses.length}
+                </span>
               </button>
+
               <button
-                onClick={() => setActiveTab('azuriranja')}
-                className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  activeTab === 'azuriranja' 
-                    ? 'bg-cyan-600 text-white shadow-sm' 
+                type="button"
+                onClick={() => setActiveTab('generator')}
+                className={`px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                  activeTab === 'generator'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <KeyRound className="w-4 h-4" />
+                <span>Generator Koda</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('chat')}
+                className={`px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                  activeTab === 'chat'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Nadzor Chata</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-cyan-300">
+                  {chatMessages.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('azuriranja')}
+                className={`px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                  activeTab === 'azuriranja'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Globe className="w-4 h-4" />
                 <span>Ažuriranja</span>
               </button>
             </div>
 
-            {activeTab === 'licence' ? (
-              /* TAB 1: GENERATOR LICENCI */
-              <div className="space-y-4">
-                {/* Gumb za brzo otključavanje Danielovog mobitela */}
-                <div className="p-3 bg-teal-950/40 border border-teal-500/30 rounded-2xl flex items-center justify-between gap-3">
-                  <div className="text-xs">
-                    <span className="font-bold text-teal-300 block">Vaš mobitel:</span>
-                    <span className="font-mono text-slate-400 text-[11px]">{getDeviceId()}</span>
+            {/* Obavijest o uspješnoj akciji */}
+            {actionSuccessMsg && (
+              <div className="p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-700/80 text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{actionSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* TAB 1: KORISNICI I OPOZIV LICENCI */}
+            {activeTab === 'korisnici' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      value={licenseSearchQuery}
+                      onChange={(e) => setLicenseSearchQuery(e.target.value)}
+                      placeholder="Pretraži po imenu, ID-u ili ključu..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                    />
                   </div>
                   <button
-                    type="button"
-                    onClick={handleActivateThisPhone}
-                    className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shrink-0 cursor-pointer transition-all"
+                    onClick={loadLicensesData}
+                    disabled={isLoadingLicenses}
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center gap-1.5 cursor-pointer shrink-0"
+                    title="Osvježi listu"
                   >
-                    {selfActivatedMsg ? '✓ Aktivirano!' : 'Otključaj moj mobitel'}
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLicenses ? 'animate-spin' : ''}`} />
+                    <span>Osvježi</span>
                   </button>
                 </div>
 
-                {/* Obrazac za izračun ključa za bilo koji drugi mobitel */}
+                {isLoadingLicenses && licenses.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
+                    <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
+                    <span>Učitavanje registriranih korisnika...</span>
+                  </div>
+                ) : filteredLicenses.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 bg-slate-950/60 rounded-2xl border border-slate-800">
+                    <Users className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-slate-300">Nema registriranih korisnika</p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Kada korisnik aktivira aplikaciju ključem, automatski će se pojaviti ovdje.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                    {filteredLicenses.map((lic) => {
+                      const isRevoked = lic.status === 'revoked';
+                      const isEditing = editingDeviceId === lic.deviceId;
+
+                      return (
+                        <div 
+                          key={lic.deviceId} 
+                          className={`p-3 sm:p-3.5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                            isRevoked 
+                              ? 'bg-rose-950/20 border-rose-900/50' 
+                              : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            {/* Ime korisnika */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {isEditing ? (
+                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                  <input
+                                    type="text"
+                                    value={editingNameValue}
+                                    onChange={(e) => setEditingNameValue(e.target.value)}
+                                    className="bg-slate-900 border border-amber-400 rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+                                    placeholder="Ime i prezime..."
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => handleSaveName(lic.deviceId)}
+                                    className="px-2 py-1 rounded bg-amber-500 text-slate-950 font-bold text-xs cursor-pointer"
+                                  >
+                                    Spremi
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingDeviceId(null)}
+                                    className="px-2 py-1 rounded bg-slate-800 text-slate-400 text-xs cursor-pointer"
+                                  >
+                                    Odustani
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span className="font-black text-white text-sm">
+                                    {lic.userName}
+                                  </span>
+                                  <button
+                                    onClick={() => handleStartEditingName(lic)}
+                                    className="text-slate-400 hover:text-amber-300 p-0.5 cursor-pointer"
+                                    title="Uredi ime korisnika"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Status bedž */}
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                isRevoked 
+                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
+                                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              }`}>
+                                {isRevoked ? 'Ukinuta (Blokiran)' : 'Aktivan'}
+                              </span>
+                            </div>
+
+                            {/* ID uređaja i ključ */}
+                            <div className="flex items-center gap-3 text-xs text-slate-400 mt-1 flex-wrap font-mono">
+                              <span>ID: <strong className="text-slate-200">{lic.deviceId}</strong></span>
+                              <span>Ključ: <strong className="text-amber-300">{lic.activationKey}</strong></span>
+                            </div>
+                          </div>
+
+                          {/* Akcijski gumbi */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => handleToggleLicenseStatus(lic)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                                isRevoked
+                                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                                  : 'bg-rose-950 hover:bg-rose-900 border border-rose-700/60 text-rose-300'
+                              }`}
+                              title={isRevoked ? 'Vrati aktivaciju' : 'Ukini valjanost licence'}
+                            >
+                              {isRevoked ? (
+                                <>
+                                  <UserCheck className="w-3.5 h-3.5" />
+                                  <span>Aktiviraj</span>
+                                </>
+                              ) : (
+                                <>
+                                  <UserX className="w-3.5 h-3.5" />
+                                  <span>Ukini licencu</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteLicense(lic.deviceId, lic.userName)}
+                              className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-500 hover:text-rose-400 border border-slate-800 cursor-pointer transition-colors"
+                              title="Obriši iz baze"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: GENERATOR KLJUČEVA */}
+            {activeTab === 'generator' && (
+              <div className="space-y-4">
                 <form onSubmit={handleGenerate} className="space-y-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                      ID uređaja kupca / prijatelja:
+                    <label className="block text-xs text-slate-300 font-bold mb-1">
+                      1. Ime i prezime / Nadimak korisnika (za interni chat):
+                    </label>
+                    <input
+                      type="text"
+                      value={targetUserName}
+                      onChange={(e) => setTargetUserName(e.target.value)}
+                      placeholder="npr. Pero - Aljmaš ili Mario Vinkovci"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-300 font-bold mb-1">
+                      2. Unesite ID uređaja kupca/korisnika:
                     </label>
                     <input
                       type="text"
                       value={targetDeviceId}
                       onChange={(e) => setTargetDeviceId(e.target.value.toUpperCase())}
                       placeholder="npr. RP-8B3E-72C9"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-center font-mono text-sm tracking-wider uppercase text-white focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono tracking-wider text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 uppercase"
                     />
                   </div>
 
                   <button
                     type="submit"
-                    disabled={!targetDeviceId.trim()}
-                    className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs transition-all shadow-md cursor-pointer"
+                    className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    Izračunaj Aktivacijski Ključ
+                    <Sparkles className="w-4 h-4" />
+                    <span>Izračunaj Aktivacijski Kod</span>
                   </button>
                 </form>
 
-                {/* Prikaz izračunatog ključa */}
                 {generatedKey && (
-                  <div className="p-4 bg-slate-950 border border-amber-500/50 rounded-2xl text-center space-y-3">
-                    <span className="text-[11px] text-amber-400 font-bold uppercase tracking-wider block">
-                      Aktivacijski ključ za {targetDeviceId}:
+                  <div className="p-3.5 bg-slate-950 border border-amber-500/40 rounded-2xl space-y-2.5 animate-fadeIn">
+                    <span className="text-[11px] text-slate-400 block font-bold">
+                      Generirani aktivacijski kod za uređaj {targetDeviceId}:
                     </span>
-                    <div className="font-mono text-lg font-black text-white bg-slate-900 border border-slate-800 py-2.5 px-3 rounded-xl select-all tracking-widest">
+                    <div className="text-xl font-mono font-black text-amber-400 text-center tracking-widest bg-slate-900 py-2 rounded-xl border border-slate-800">
                       {generatedKey}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="flex gap-2">
                       <button
+                        type="button"
                         onClick={handleCopyKey}
-                        className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer transition-all"
+                        className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        {copiedKey ? <Check className="w-3.5 h-3.5 text-teal-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copiedKey ? 'Kopirano!' : 'Kopiraj ključ'}</span>
+                        {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedKey ? 'Kopirano!' : 'Kopiraj kod'}</span>
                       </button>
                       <button
+                        type="button"
                         onClick={handleShareKey}
-                        className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs cursor-pointer transition-all"
+                        className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <Share2 className="w-3.5 h-3.5" />
-                        <span>Pošalji porukom</span>
+                        <span>Podijeli korisniku</span>
                       </button>
                     </div>
                   </div>
                 )}
               </div>
-            ) : (
-              /* TAB 2: AŽURIRANJA I DIJAGNOSTIKA */
-              <div className="space-y-4">
-                <div className="bg-slate-950 border border-cyan-500/30 rounded-2xl p-3.5 space-y-2 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Instalirana verzija na mobitelu:</span>
-                    <span className="font-mono font-bold text-cyan-300">v{CURRENT_APP_VERSION}</span>
-                  </div>
+            )}
+
+            {/* TAB 3: NADZOR CHATA */}
+            {activeTab === 'chat' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-slate-400 font-bold">
+                    Zadnje poruke u internom chatu ribiča:
+                  </span>
+                  <button
+                    onClick={loadChatData}
+                    disabled={isLoadingChat}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isLoadingChat ? 'animate-spin' : ''}`} />
+                    <span>Osvježi</span>
+                  </button>
                 </div>
 
-                {/* Postavka GitHub repozitorija */}
-                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 space-y-2">
-                  <label className="block text-[11px] font-bold text-slate-300">
-                    GitHub repozitorij (Korisnik / Repozitorij):
+                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                  {chatMessages.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 text-xs">
+                      Nema poruka u chatu.
+                    </div>
+                  ) : (
+                    chatMessages.slice().reverse().map((msg) => (
+                      <div key={msg.id} className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-start justify-between gap-3 text-xs">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-cyan-300">{msg.userName}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">({msg.deviceId})</span>
+                            <span className="text-[10px] text-slate-400 font-mono ml-auto">{msg.timestamp}</span>
+                          </div>
+                          <p className="text-slate-200 break-words">{msg.text}</p>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteChatMessage(msg.id)}
+                          className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
+                          title="Obriši poruku"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: AŽURIRANJA I APK */}
+            {activeTab === 'azuriranja' && (
+              <div className="space-y-3">
+                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                  <label className="block text-xs text-slate-300 font-bold">
+                    GitHub repozitorij za APK ažuriranja:
                   </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={githubRepoInput}
-                      onChange={(e) => setGithubRepoInput(e.target.value)}
-                      placeholder="dxdandy/Android-App-Repo"
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:border-cyan-400 focus:outline-none"
-                    />
+                  <input
+                    type="text"
+                    value={githubRepoInput}
+                    onChange={(e) => setGithubRepoInput(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-cyan-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSavedGithubRepo(githubRepoInput.trim());
+                      setRepoSavedMsg(true);
+                      setTimeout(() => setRepoSavedMsg(false), 2500);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer"
+                  >
+                    {repoSavedMsg ? 'Spremljeno!' : 'Spremi repozitorij'}
+                  </button>
+                </div>
+
+                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                  <span className="text-xs text-slate-300 font-bold block">
+                    Dijagnostika & Testiranje skočnog prozora:
+                  </span>
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => {
-                        setSavedGithubRepo(githubRepoInput);
-                        setRepoSavedMsg(true);
-                        setTimeout(() => setRepoSavedMsg(false), 2000);
-                        handleRunDiagnostic();
-                      }}
-                      className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-white font-bold text-xs cursor-pointer shrink-0"
+                      onClick={handleRunDiagnostic}
+                      disabled={isDiagnosing}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer"
                     >
-                      {repoSavedMsg ? '✓ Spremljeno!' : 'Spremi'}
+                      {isDiagnosing ? 'Testiranje...' : 'Pokreni dijagnostiku'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onTestUpdatePopup && onTestUpdatePopup({
+                        version: '1.3.1',
+                        name: 'RiboPrognoza',
+                        releaseDate: '2026-10-30',
+                        apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
+                        changelog: ['Testiranje skočnog prozora nadogradnje'],
+                        isCritical: false
+                      })}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold cursor-pointer"
+                    >
+                      Testiraj Popup
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-400">
-                    S ovog repozitorija mobitel preuzima <code>version.json</code> i novi APK.
-                  </p>
                 </div>
-
-                {/* Gumb za test dijagnostike */}
-                <button
-                  type="button"
-                  onClick={handleRunDiagnostic}
-                  disabled={isDiagnosing}
-                  className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isDiagnosing ? 'animate-spin' : ''}`} />
-                  <span>{isDiagnosing ? 'Provjera veze u tijeku...' : 'Testiraj vezu sa serverom'}</span>
-                </button>
-
-                {/* Rezultat dijagnostike */}
-                {diagnosticResult && (
-                  <div className={`p-3.5 rounded-2xl border text-xs space-y-2 ${
-                    diagnosticResult.success 
-                      ? 'bg-teal-950/40 border-teal-500/40 text-teal-200' 
-                      : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
-                  }`}>
-                    <div className="flex items-center gap-2 font-bold">
-                      {diagnosticResult.success ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-                          <span>Povezano s poslužiteljem!</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                          <span>Greška pri povezivanju:</span>
-                        </>
-                      )}
-                    </div>
-
-                    {diagnosticResult.success ? (
-                      <div className="space-y-1 text-[11px] pt-1">
-                        <div>• Najnovija verzija na serveru: <strong>v{diagnosticResult.serverVersion}</strong></div>
-                        <div>• Verzija na ovom mobitelu: <strong>v{diagnosticResult.currentVersion}</strong></div>
-                        <div>
-                          • Status: {diagnosticResult.hasUpdate ? (
-                            <span className="text-amber-400 font-bold">🚀 Dostupna je nova verzija!</span>
-                          ) : (
-                            <span className="text-teal-400 font-bold">✓ Imate najnoviju verziju.</span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-rose-300">
-                        {diagnosticResult.error}
-                      </p>
-                    )}
-
-                    {/* Detalji svih provjerenih adresa */}
-                    {diagnosticResult.details && diagnosticResult.details.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-slate-800 text-[10px] font-mono text-slate-300 space-y-1">
-                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-sans">
-                          Pregled adresa:
-                        </span>
-                        {diagnosticResult.details.map((d: string, idx: number) => (
-                          <div key={idx} className="break-all">{d}</div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Gumb za isprobavanje skočnog prozora */}
-                <div className="pt-2 border-t border-slate-800 space-y-2">
-                  <button
-                    type="button"
-                    onClick={handleTriggerTestPopup}
-                    className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Isprobaj skočni prozor za novu verziju (Test)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const res = await cleanupInstallationFiles();
-                      setCleanResult(res.deletedCount > 0 
-                        ? `✓ Uspješno obrisano ${res.deletedCount} starih APK datoteka s uređaja!` 
-                        : '✓ Nema zaostalih APK datoteka (memorija uređaja je čista).');
-                      setTimeout(() => setCleanResult(null), 4000);
-                    }}
-                    className="w-full py-2 px-3 rounded-xl bg-teal-950/50 hover:bg-teal-900/60 border border-teal-500/30 text-teal-300 font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>🧹 Očisti stare instalacijske APK datoteke</span>
-                  </button>
-
-                  {cleanResult && (
-                    <p className="text-[11px] text-teal-300 text-center font-bold bg-teal-950/60 p-2 rounded-xl border border-teal-500/40">
-                      {cleanResult}
-                    </p>
-                  )}
-
-                  <p className="text-[10px] text-slate-500 text-center mt-1">
-                    Aplikacija također automatski briše privremene instalacijske datoteke nakon svakog ažuriranja.
-                  </p>
-                </div>
-
               </div>
             )}
 

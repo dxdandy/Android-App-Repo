@@ -4,8 +4,9 @@ import {
   Sparkles, 
   Scale, 
   RefreshCw, 
-  CheckCircle2,
-  Clock
+  CheckCircle2, 
+  Clock,
+  MessageSquare
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -14,6 +15,7 @@ interface NavbarProps {
   onRefresh: () => void;
   isLoading: boolean;
   lastUpdated: Date | null;
+  onOpenChat: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -21,7 +23,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectTab,
   onRefresh,
   isLoading,
-  lastUpdated
+  lastUpdated,
+  onOpenChat
 }) => {
   const formatTime = (date: Date | null) => {
     if (!date) return '--:--';
@@ -108,8 +111,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Desna strana: Glavni gumb za osvježavanje podataka */}
-          <div className="flex items-center space-x-2 shrink-0">
+          {/* Desna strana: Chat gumb i gumb za osvježavanje podataka */}
+          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+            {/* Gumb za interni Dunavski chat */}
+            <button
+              onClick={onOpenChat}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold text-teal-200 bg-teal-950/80 hover:bg-teal-900 transition-all shadow-md border border-teal-500/40 cursor-pointer active:scale-95"
+              title="Otvori interni Dunavski chat"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-teal-400" />
+              <span>Chat</span>
+            </button>
+
             <button
               onClick={onRefresh}
               disabled={isLoading}
@@ -118,10 +131,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
               <div className="flex flex-col text-left leading-tight">
-                <span>{isLoading ? 'Ažuriranje...' : 'Ažuriraj podatke'}</span>
+                <span>{isLoading ? 'Ažuriranje...' : 'Ažuriraj'}</span>
                 {lastUpdated && (
                   <span className="text-[10px] text-cyan-200 font-normal">
-                    u {formatTime(lastUpdated)} h
+                    {formatTime(lastUpdated)} h
                   </span>
                 )}
               </div>
