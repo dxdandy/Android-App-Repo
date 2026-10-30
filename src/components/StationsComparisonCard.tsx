@@ -131,7 +131,7 @@ export const StationsComparisonCard: React.FC<StationsComparisonCardProps> = ({
                 Tlak zraka & Barometar:
               </td>
               <td className="py-3 px-4 text-white font-bold bg-teal-950/20">
-                {aljmas.airPressureHpa} hPa (Vinkovci)
+                {aljmas.airPressureHpa} hPa (Aljmaš)
               </td>
               <td className="py-3 px-4 text-white font-bold bg-cyan-950/20">
                 {bogojevo.airPressureHpa} hPa (Bogojevo)

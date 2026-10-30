@@ -128,7 +128,7 @@ export const StationCardAljmas: React.FC<StationCardAljmasProps> = ({ data, isLo
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs uppercase tracking-wider font-bold text-slate-300 flex items-center gap-1.5">
                 <Gauge className="w-4 h-4 text-cyan-400" />
-                Meteo & Barometar (Vinkovci)
+                Meteo & Barometar (Aljmaš)
               </span>
               <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
                 Povoljan tlak

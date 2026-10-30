@@ -1,13 +1,14 @@
 {
-  "version": "1.2.1",
+  "version": "1.2.2",
   "name": "RiboPrognoza",
-  "releaseDate": "2026-10-29",
+  "releaseDate": "2026-10-30",
   "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk",
   "changelog": [
-    "Aljmaš: osigurano uzimanje najgornjeg (najnovijeg) retka mjerenja s mvodostaji.voda.hr (postaja 148)",
-    "Bogojevo: vodostaj se očitava s hidmet.gov.rs (hm_id=42020), a temperatura vode Dunava s hidmet.gov.rs (hm_id=42015)",
-    "Automatsko brisanje instalacijskih APK datoteka s uređaja nakon nadogradnje",
-    "Brzina vjetra u m/s na svim karticama"
+    "Aljmaš: tlak zraka povezan s putovnica.net (Aljmaš) i oznaka ažurirana u Meteo & Barometar (Aljmaš)",
+    "Bogojevo: tlak zraka povezan s vojvodinameteo.rs (Bogojevo)",
+    "Bogojevo gumb: dodan točan podatak o protoku vode sa stranice hidmet.gov.rs u m3/s",
+    "Horizontalni (landscape) prikaz: desni podaci raspoređeni u točno 2 reda po 3 podatka s povećanim fontom i većim ikonama usklađenim s glavnim gumbovima",
+    "Automatsko brisanje instalacijskih APK datoteka s uređaja nakon nadogradnje"
   ],
   "isCritical": false
 }

@@ -399,6 +399,9 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
     { date: dateOfMeasurement, time: '04:00', level: -76, trendChange: 0 }
   ];
 
+  let airPressureHpa = meteo.airPressureHpa;
+  let airPressureTrend: PressureTrend = meteo.airPressureTrend;
+
   try {
     const res = await fetch('/api/water/aljmas', { signal: AbortSignal.timeout(5000) });
     if (res.ok) {
@@ -414,6 +417,12 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
         prepLevelCm = data.prepLevelCm || 400;
         if (data.waterTempC !== undefined) {
           waterTempC = data.waterTempC;
+        }
+        if (data.airPressureHpa !== undefined) {
+          airPressureHpa = data.airPressureHpa;
+          if (airPressureHpa > 1019) airPressureTrend = 'rast';
+          else if (airPressureHpa < 1012) airPressureTrend = 'pad';
+          else airPressureTrend = 'stabilan';
         }
         isLive = Boolean(data.isLive);
         if (Array.isArray(data.recentHours) && data.recentHours.length > 0) {
@@ -445,8 +454,8 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
     maxLevelDate,
     prepLevelCm,
     recentHistory: history,
-    airPressureHpa: meteo.airPressureHpa,
-    airPressureTrend: meteo.airPressureTrend,
+    airPressureHpa,
+    airPressureTrend,
     airTempC: meteo.airTempC,
     waterTempC,
     windSpeedKmh: meteo.windSpeedKmh,
@@ -456,7 +465,7 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
     sourceUrl: MVODOSTAJI_ALJMAS_URL,
     sourceName: 'mvodostaji.voda.hr (postaja 148)',
     isLive,
-    notes: 'Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Temperatura vode s hr.seatemperature.net (Danas).'
+    notes: 'Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s putovnica.net (Aljmaš).'
   };
 }
 
@@ -469,7 +478,7 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
   let waterLevelCm = -83;
   let waterLevelTrend: WaterTrend = 'opada';
   let waterLevelChangeCm = -1;
-  let flowM3s = 880;
+  let flowM3s = 985;
   let forecastDays: number[] = [-92, -86, -90, -96];
   let regularDefenseCm = 600;
   let emergencyDefenseCm = 700;
@@ -477,6 +486,8 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
   let isLive = false;
   let timeOfMeasurement = '07:00';
   let dateOfMeasurement = new Date().toLocaleDateString('hr-HR');
+  let airPressureHpa = meteo.airPressureHpa;
+  let airPressureTrend: PressureTrend = meteo.airPressureTrend;
 
   try {
     const res = await fetch('/api/water/bogojevo', { signal: AbortSignal.timeout(5000) });
@@ -484,13 +495,19 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
       const data = await res.json();
       if (data.waterLevelCm !== undefined) {
         waterLevelCm = data.waterLevelCm;
-        waterLevelChangeCm = data.waterLevelChangeCm || 10;
-        waterLevelTrend = data.waterLevelTrend || 'u_porastu';
-        flowM3s = data.flowM3s || 880;
+        waterLevelChangeCm = data.waterLevelChangeCm !== undefined ? data.waterLevelChangeCm : -1;
+        waterLevelTrend = data.waterLevelTrend || 'opada';
+        flowM3s = data.flowM3s !== undefined ? data.flowM3s : 985;
         forecastDays = data.forecastDays || forecastDays;
         regularDefenseCm = data.regularDefenseCm || 600;
         emergencyDefenseCm = data.emergencyDefenseCm || 700;
-        waterTempC = data.waterTempC !== undefined ? data.waterTempC : 12.4;
+        waterTempC = data.waterTempC !== undefined ? data.waterTempC : 12.6;
+        if (data.airPressureHpa !== undefined) {
+          airPressureHpa = data.airPressureHpa;
+          if (airPressureHpa > 1019) airPressureTrend = 'rast';
+          else if (airPressureHpa < 1012) airPressureTrend = 'pad';
+          else airPressureTrend = 'stabilan';
+        }
         isLive = Boolean(data.isLive);
       }
     }
@@ -520,8 +537,8 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
     timeOfMeasurement,
     dateOfMeasurement,
     recentHistory: history,
-    airPressureHpa: meteo.airPressureHpa,
-    airPressureTrend: meteo.airPressureTrend,
+    airPressureHpa,
+    airPressureTrend,
     airTempC: meteo.airTempC,
     waterTempC,
     windSpeedKmh: meteo.windSpeedKmh,
@@ -531,6 +548,6 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
     sourceUrl: HIDMET_BOGOJEVO_URL,
     sourceName: 'hidmet.gov.rs (hm_id 42020)',
     isLive,
-    notes: 'Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava.'
+    notes: 'Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s vojvodinameteo.rs (Bogojevo).'
   };
 }
