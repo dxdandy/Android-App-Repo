@@ -16,6 +16,7 @@ interface NavbarProps {
   isLoading: boolean;
   lastUpdated: Date | null;
   onOpenChat: () => void;
+  unreadChatCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -24,7 +25,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onRefresh,
   isLoading,
   lastUpdated,
-  onOpenChat
+  onOpenChat,
+  unreadChatCount = 0
 }) => {
   const formatTime = (date: Date | null) => {
     if (!date) return '--:--';
@@ -119,9 +121,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Gumb za interni LiveChat */}
             <button
               onClick={onOpenChat}
-              className="h-10 sm:h-11 flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-teal-200 bg-teal-950/80 hover:bg-teal-900 transition-all shadow-md border border-teal-500/40 cursor-pointer active:scale-95 shrink-0"
+              className="relative h-10 sm:h-11 flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-teal-200 bg-teal-950/80 hover:bg-teal-900 transition-all shadow-md border border-teal-500/40 cursor-pointer active:scale-95 shrink-0"
               title="Otvori interni LiveChat"
             >
+              {unreadChatCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 bg-rose-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-950 shadow-lg animate-pulse">
+                  {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                </span>
+              )}
               <MessageSquare className="w-4 h-4 text-teal-400 shrink-0" />
               <div className="flex flex-col text-left leading-tight">
                 <span className="text-white font-bold text-xs sm:text-sm">LiveChat</span>

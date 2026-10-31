@@ -28,7 +28,13 @@ import { AdminKeyGeneratorModal } from './components/AdminKeyGeneratorModal';
 import { AppUpdateModal } from './components/AppUpdateModal';
 import { DonationModal } from './components/DonationModal';
 import { FishingChatModal } from './components/FishingChatModal';
-import { isAppActivated, verifyLicenseWithServer } from './services/licenseService';
+import { isAppActivated, verifyLicenseWithServer, getDeviceId } from './services/licenseService';
+import { 
+  fetchChatMessages, 
+  getUnreadChatCount, 
+  markChatAsRead, 
+  updateAppBadge 
+} from './services/chatService';
 import { 
   checkForAppUpdate, 
   AppVersionInfo, 
@@ -43,6 +49,7 @@ export default function App() {
   const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
   const [showDonationModal, setShowDonationModal] = useState<boolean>(false);
   const [showChatModal, setShowChatModal] = useState<boolean>(false);
+  const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
 
   // Stanja za automatska ažuriranja
   const [availableUpdate, setAvailableUpdate] = useState<AppVersionInfo | null>(null);
@@ -211,6 +218,39 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isActivated]);
 
+  // Provjera nepročitanih poruka za obavijest na ikoni aplikacije (App Badge) i na LiveChat gumbu
+  useEffect(() => {
+    if (!isActivated) return;
+
+    const checkUnreadMessages = async () => {
+      // Ako je modal chata otvoren, nema nepročitanih
+      if (showChatModal) {
+        setUnreadChatCount(0);
+        updateAppBadge(0);
+        return;
+      }
+      try {
+        const res = await fetchChatMessages();
+        if (!res.chatBlocked && Array.isArray(res.messages)) {
+          const count = getUnreadChatCount(res.messages, getDeviceId());
+          setUnreadChatCount(count);
+          updateAppBadge(count);
+        }
+      } catch {}
+    };
+
+    checkUnreadMessages();
+    const chatInterval = setInterval(checkUnreadMessages, 12000);
+    return () => clearInterval(chatInterval);
+  }, [isActivated, showChatModal]);
+
+  const handleOpenChat = () => {
+    setShowChatModal(true);
+    setUnreadChatCount(0);
+    markChatAsRead();
+    updateAppBadge(0);
+  };
+
   // Ručna provjera nadogradnji (iz footera ili postavki)
   const handleManualCheckUpdate = async () => {
     setIsCheckingUpdate(true);
@@ -304,7 +344,8 @@ export default function App() {
         onRefresh={handleRefreshAll}
         isLoading={isLoading}
         lastUpdated={lastUpdated}
-        onOpenChat={() => setShowChatModal(true)}
+        onOpenChat={handleOpenChat}
+        unreadChatCount={unreadChatCount}
       />
 
       {/* Hero Header sa sažetkom stanja na Dunavu */}

@@ -8,19 +8,28 @@ import {
   User, 
   Clock, 
   CheckCheck,
-  AlertCircle
+  AlertCircle,
+  Edit2,
+  Check
 } from 'lucide-react';
-import { fetchChatMessages, sendChatMessage, ChatMessage } from '../services/chatService';
+import { 
+  fetchChatMessages, 
+  sendChatMessage, 
+  ChatMessage, 
+  markChatAsRead,
+  renameMyUserName 
+} from '../services/chatService';
 import { getDeviceId, getUserName } from '../services/licenseService';
 
 interface FishingChatModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onNameChanged?: (newName: string) => void;
 }
 
 const QUICK_EMOJIS = ['🎣', '🐟', '🦈', '🌊', '☀️', '🌧️', '⛵', '⚓', '👍', '🔥', '🍻', '☕'];
 
-export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onClose }) => {
+export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onClose, onNameChanged }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -29,8 +38,13 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
+  // Stanja za promjenu vlastitog imena u chatu
+  const [myUserName, setMyUserName] = useState<string>(() => getUserName());
+  const [isEditingMyName, setIsEditingMyName] = useState(false);
+  const [newMyNameInput, setNewMyNameInput] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+
   const myDeviceId = getDeviceId();
-  const myUserName = getUserName();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -48,6 +62,31 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
       setIsBlocked(false);
       setBlockedReason(null);
       setMessages(res.messages);
+      // Označi sve poruke pročitanima i ukloni WhatsApp-style badge
+      markChatAsRead(res.messages);
+    }
+  };
+
+  const handleSaveMyName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMyNameInput.trim() || isSavingName) return;
+
+    setIsSavingName(true);
+    setErrorMessage(null);
+    try {
+      const res = await renameMyUserName(newMyNameInput.trim());
+      if (res.success) {
+        setMyUserName(res.userName);
+        setIsEditingMyName(false);
+        if (onNameChanged) onNameChanged(res.userName);
+        await loadMessages();
+      } else {
+        setErrorMessage(res.error || 'Neuspješna promjena imena.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Greška pri promjeni imena.');
+    } finally {
+      setIsSavingName(false);
     }
   };
 
@@ -127,9 +166,52 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-400 truncate">
-                Prijavljeni ste kao: <span className="font-bold text-teal-300">{myUserName}</span>
-              </p>
+              {isEditingMyName ? (
+                <form onSubmit={handleSaveMyName} className="flex items-center gap-1.5 mt-0.5">
+                  <input
+                    type="text"
+                    value={newMyNameInput}
+                    onChange={(e) => setNewMyNameInput(e.target.value)}
+                    placeholder="Novo ime..."
+                    autoFocus
+                    maxLength={28}
+                    className="bg-slate-900 border border-teal-500 rounded-lg px-2 py-0.5 text-[11px] text-white focus:outline-none w-28 sm:w-36"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSavingName || !newMyNameInput.trim()}
+                    className="px-2 py-0.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-[10px] cursor-pointer flex items-center gap-1 shrink-0"
+                    title="Spremi novo ime"
+                  >
+                    {isSavingName ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : <Check className="w-2.5 h-2.5" />}
+                    <span>Spremi</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingMyName(false)}
+                    className="px-1.5 py-0.5 rounded-lg bg-slate-800 text-slate-400 text-[10px] cursor-pointer hover:text-white"
+                  >
+                    Odustani
+                  </button>
+                </form>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[11px] text-slate-400 truncate">
+                    Prijavljeni: <span className="font-bold text-teal-300">{myUserName}</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewMyNameInput(myUserName);
+                      setIsEditingMyName(true);
+                    }}
+                    className="p-1 rounded-md text-slate-400 hover:text-teal-300 hover:bg-slate-800/80 transition-colors cursor-pointer"
+                    title="Promijeni vlastito ime u chatu"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

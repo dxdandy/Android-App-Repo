@@ -767,10 +767,25 @@ app.get('/api/chat/messages', (req, res) => {
   const deviceId = (req.query.deviceId as string) || (req.headers['x-device-id'] as string);
   const cleanDeviceId = deviceId ? String(deviceId).trim().toUpperCase() : '';
 
+  // Admin ili korisnik - dohvaćamo bazu licenci i poruke
+  const licenses = loadLicenses();
+  const rawMessages = loadChat();
+
+  // Mapa trenutnih imena iz baze kontrolnog panela po ID-u uređaja
+  const nameMap = new Map<string, string>();
+  licenses.forEach(l => {
+    if (l.deviceId && l.userName) {
+      nameMap.set(l.deviceId, l.userName);
+    }
+  });
+
   // Admin uvijek ima pravo pregleda
   if (pin === ADMIN_MASTER_PIN || cleanDeviceId === 'RP-ADMIN') {
-    const messages = loadChat();
-    return res.json({ success: true, messages: messages.slice(-60) });
+    const enrichedMessages = rawMessages.slice(-70).map(msg => {
+      const currentName = nameMap.get(msg.deviceId);
+      return currentName ? { ...msg, userName: currentName } : msg;
+    });
+    return res.json({ success: true, messages: enrichedMessages });
   }
 
   if (!cleanDeviceId) {
@@ -781,7 +796,6 @@ app.get('/api/chat/messages', (req, res) => {
     });
   }
 
-  const licenses = loadLicenses();
   const userLicense = licenses.find(l => l.deviceId === cleanDeviceId);
 
   if (!userLicense) {
@@ -808,8 +822,64 @@ app.get('/api/chat/messages', (req, res) => {
     });
   }
 
-  const messages = loadChat();
-  return res.json({ success: true, messages: messages.slice(-60) });
+  // Neka svi u chat grupi vide drugog korisnika točno onako kako ga je admin unio/promijenio u kontrolnom panelu
+  const enrichedMessages = rawMessages.slice(-70).map(msg => {
+    const currentName = nameMap.get(msg.deviceId);
+    if (currentName) {
+      return { ...msg, userName: currentName };
+    }
+    return msg;
+  });
+
+  return res.json({ success: true, messages: enrichedMessages });
+});
+
+/**
+ * API: Promjena vlastitog imena korisnika u chatu
+ */
+app.post('/api/chat/rename', (req, res) => {
+  const { deviceId, newName } = req.body || {};
+  if (!deviceId || !newName || !String(newName).trim()) {
+    return res.status(400).json({ error: 'ID uređaja i novo ime su obavezni' });
+  }
+
+  const cleanDeviceId = String(deviceId).trim().toUpperCase();
+  const cleanName = String(newName).trim().slice(0, 30);
+
+  const licenses = loadLicenses();
+  const existing = licenses.find(l => l.deviceId === cleanDeviceId);
+  if (existing) {
+    existing.userName = cleanName;
+    saveLicenses(licenses);
+  } else {
+    const newRecord: LicenseRecord = {
+      deviceId: cleanDeviceId,
+      activationKey: generateActivationKey(cleanDeviceId),
+      userName: cleanName,
+      status: 'active',
+      chatEnabled: true,
+      createdAt: new Date().toISOString(),
+      lastSeenAt: new Date().toISOString()
+    };
+    licenses.push(newRecord);
+    saveLicenses(licenses);
+  }
+
+  // Ažuriraj i u zadnjim spremljenim porukama
+  let chat = loadChat();
+  let updatedAny = false;
+  chat = chat.map(m => {
+    if (m.deviceId === cleanDeviceId) {
+      updatedAny = true;
+      return { ...m, userName: cleanName };
+    }
+    return m;
+  });
+  if (updatedAny) {
+    saveChat(chat);
+  }
+
+  return res.json({ success: true, userName: cleanName });
 });
 
 /**
@@ -839,7 +909,7 @@ app.post('/api/chat/messages', (req, res) => {
   const newMsg: ChatMessageRecord = {
     id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     deviceId: cleanDeviceId,
-    userName: userLicense.userName,
+    userName: userLicense.userName, // Koristi službeno ime iz kontrolnog panela
     text: cleanText,
     timestamp: new Date().toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' }),
     createdAt: Date.now()
@@ -877,15 +947,15 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.3.2',
+    version: '1.3.3',
     name: 'RiboPrognoza',
     releaseDate: '2026-10-31',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Optimiziran vertikalni razmak u gornjoj fiksnoj traci (jednaka udaljenost iznad i ispod ikone i gumbova)',
-      'Povećan font naziva Ribo Prognoza i smanjen međusobni razmak između riječi',
-      'Aplikacija se pri svakom ponovnom pokretanju automatski i pouzdano otvara u Osnovnom modu',
-      'Poboljšana robusnost i offline perzistencija za dodavanje korisnika i kontrolu LiveChata'
+      'Prikaz imena korisnika u chatu točno prema imenu unesenom u administratorskom kontrolnom panelu',
+      'Mogućnost jednostavne promjene vlastitog imena u chatu direktno iz aplikacije',
+      'Obavijest i brojač nepročitanih poruka (App Badge) na ikoni aplikacije i gumbu LiveChat poput WhatsAppa/Gmaila',
+      'Administrator može u svakom trenutku promijeniti ime bilo kojeg korisnika u kontrolnom panelu'
     ],
     isCritical: false
   });
