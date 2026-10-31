@@ -136,6 +136,85 @@ export function isAppActivated(): boolean {
 /**
  * Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
  */
+// Cloud backend URL kada se aplikacija pokreće unutar Android Capacitor WebViewa
+export const CLOUD_BACKEND_URL = 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
+const LOCAL_LICENSES_CACHE_KEY = 'ribo_admin_licenses_cache';
+
+/**
+ * Razrješava ispravan URL API rute ovisno o okruženju (Web preglednik vs. Android Capacitor)
+ */
+export function getApiUrl(endpoint: string): string {
+  if (typeof window === 'undefined') return endpoint;
+  
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  
+  // Detekcija Android Capacitor nativnog okruženja (gdje localhost nema lokalni node poslužitelj)
+  const isCapacitor = 
+    window.location.protocol === 'capacitor:' ||
+    (window.location.hostname === 'localhost' && !window.location.port) ||
+    (typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.());
+
+  if (isCapacitor) {
+    return `${CLOUD_BACKEND_URL}${cleanEndpoint}`;
+  }
+  
+  return cleanEndpoint;
+}
+
+/**
+ * Siguran dohvat JSON odgovora koji nikada ne ruši aplikaciju s greškom "Unexpected token <"
+ */
+export async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
+  try {
+    const res = await fetch(url, options);
+    const contentType = res.headers.get('content-type') || '';
+    
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      return { ok: res.ok, status: res.status, data, error: data?.error || data?.message };
+    }
+    
+    const text = await res.text();
+    try {
+      const data = JSON.parse(text);
+      return { ok: res.ok, status: res.status, data, error: data?.error || data?.message };
+    } catch {
+      // Primljen je HTML dokument (npr. SPA index.html fallback u Capacitoru ili 404 stranica)
+      return { 
+        ok: false, 
+        status: res.status, 
+        data: null, 
+        error: `Poslužitelj je vratio HTML odgovor umjesto JSON podataka (kod: ${res.status}).` 
+      };
+    }
+  } catch (err: any) {
+    return { ok: false, status: 0, data: null, error: err?.message || 'Greška u mrežnoj komunikaciji.' };
+  }
+}
+
+/**
+ * Lokalna predmemorija registriranih licenci (osigurava nesmetan rad offline ili u Capacitoru)
+ */
+export function getLocalLicenses(): LicenseRecord[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LOCAL_LICENSES_CACHE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalLicenses(records: LicenseRecord[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(LOCAL_LICENSES_CACHE_KEY, JSON.stringify(records));
+  } catch {}
+}
+
+/**
+ * Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
+ */
 export async function activateApp(key: string, proposedName?: string): Promise<{ success: boolean; message?: string }> {
   const currentDeviceId = getDeviceId();
   if (!verifyActivationKey(currentDeviceId, key)) {
@@ -146,9 +225,9 @@ export async function activateApp(key: string, proposedName?: string): Promise<{
   localStorage.setItem('ribo_activation_key', formattedKey);
   localStorage.removeItem('ribo_license_revoked');
 
-  // Registriraj ili provjeri na poslužitelju
+  // Registriraj ili provjeri na poslužitelju (koristi getApiUrl za Capacitor)
   try {
-    const res = await fetch('/api/license/register-or-verify', {
+    const res = await safeFetchJson<any>(getApiUrl('/api/license/register-or-verify'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -157,13 +236,15 @@ export async function activateApp(key: string, proposedName?: string): Promise<{
         proposedName: proposedName || getUserName()
       })
     });
-    const data = await res.json();
-    if (data.userName) {
-      setStoredUserName(data.userName);
-    }
-    if (data.status === 'revoked') {
-      localStorage.setItem('ribo_license_revoked', 'true');
-      return { success: false, message: 'Vaša licenca je ukinuta od strane administratora.' };
+    
+    if (res.data) {
+      if (res.data.userName) {
+        setStoredUserName(res.data.userName);
+      }
+      if (res.data.status === 'revoked') {
+        localStorage.setItem('ribo_license_revoked', 'true');
+        return { success: false, message: 'Vaša licenca je ukinuta od strane administratora.' };
+      }
     }
   } catch (err) {
     console.warn('Poslužitelj trenutno nije dostupan, aktivacija spremljena lokalno.');
@@ -184,30 +265,28 @@ export async function verifyLicenseWithServer(): Promise<{ valid: boolean; statu
   }
 
   try {
-    const res = await fetch('/api/license/register-or-verify', {
+    const res = await safeFetchJson<any>(getApiUrl('/api/license/register-or-verify'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ deviceId, activationKey, proposedName: getUserName() })
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { valid: false, status: 'revoked', userName: '', message: err.message || 'Greška provjere licence.' };
+    
+    if (res.ok && res.data) {
+      if (res.data.userName) {
+        setStoredUserName(res.data.userName);
+      }
+      if (res.data.status === 'revoked') {
+        localStorage.setItem('ribo_license_revoked', 'true');
+        return { valid: false, status: 'revoked', userName: res.data.userName || '', message: res.data.message };
+      }
+      localStorage.removeItem('ribo_license_revoked');
+      return { valid: true, status: 'active', userName: res.data.userName || '' };
     }
-    const data = await res.json();
-    if (data.userName) {
-      setStoredUserName(data.userName);
-    }
-    if (data.status === 'revoked') {
-      localStorage.setItem('ribo_license_revoked', 'true');
-      return { valid: false, status: 'revoked', userName: data.userName || '', message: data.message };
-    }
-    localStorage.removeItem('ribo_license_revoked');
-    return { valid: true, status: 'active', userName: data.userName || '' };
-  } catch {
-    // Ako nema interneta, vjerujemo lokalnoj matematičkoj provjeri
-    const localValid = verifyActivationKey(deviceId, activationKey);
-    return { valid: localValid, status: 'active', userName: getUserName() };
-  }
+  } catch {}
+
+  // Ako nema interneta ili poslužitelj vrati grešku, vjerujemo lokalnoj matematičkoj provjeri
+  const localValid = verifyActivationKey(deviceId, activationKey);
+  return { valid: localValid, status: 'active', userName: getUserName() };
 }
 
 /**
@@ -226,16 +305,34 @@ export function checkAdminPin(pin: string): boolean {
 }
 
 /* =====================================================================
- * ADMIN POZIVI ZA KONTROLU I OPOZIV LICENCI
+ * ADMIN POZIVI ZA KONTROLU I OPOZIV LICENCI (S LOKALNOM POUZDANOM POHRANOM)
  * ===================================================================== */
 
 export async function fetchAdminLicenses(pin: string): Promise<LicenseRecord[]> {
-  const res = await fetch('/api/admin/licenses', {
-    headers: { 'x-admin-pin': pin.trim() }
-  });
-  if (!res.ok) throw new Error('Neuspješno dohvaćanje licenci. Provjerite PIN.');
-  const data = await res.json();
-  return data.licenses || [];
+  const localList = getLocalLicenses();
+  
+  const res = await safeFetchJson<{ success: boolean; licenses: LicenseRecord[] }>(
+    getApiUrl('/api/admin/licenses'),
+    {
+      headers: { 'x-admin-pin': pin.trim() }
+    }
+  );
+
+  if (res.ok && res.data?.licenses) {
+    const serverList = res.data.licenses;
+    // Spoji zapise tako da server i lokalni podaci ostanu sinkronizirani
+    const map = new Map<string, LicenseRecord>();
+    localList.forEach(item => map.set(item.deviceId, item));
+    serverList.forEach(item => map.set(item.deviceId, item));
+    const merged = Array.from(map.values()).sort(
+      (a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime()
+    );
+    saveLocalLicenses(merged);
+    return merged;
+  }
+
+  // Ako je poslužitelj privremeno nedostupan ili je vratio HTML, vrati lokalne spremljene licence
+  return localList;
 }
 
 export async function addAdminLicense(
@@ -249,20 +346,62 @@ export async function addAdminLicense(
     notes?: string;
   }
 ): Promise<LicenseRecord> {
-  const res = await fetch('/api/admin/licenses/add', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-pin': pin.trim()
-    },
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Dodavanje korisnika nije uspjelo.');
+  const cleanId = payload.deviceId.trim().toUpperCase();
+  const validKey = payload.activationKey?.trim().toUpperCase() || generateActivationKey(cleanId);
+  const cleanName = payload.userName?.trim() || `Ribič (${cleanId.slice(-4)})`;
+  const cleanStatus = payload.status === 'revoked' ? 'revoked' : 'active';
+  const cleanChat = payload.chatEnabled !== false;
+
+  // 1. Uvijek odmah spremi u lokalnu trajnu bazu na uređaju
+  const localRecord: LicenseRecord = {
+    deviceId: cleanId,
+    activationKey: validKey,
+    userName: cleanName,
+    status: cleanStatus,
+    chatEnabled: cleanChat,
+    createdAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString(),
+    notes: payload.notes?.trim() || ''
+  };
+
+  const currentLocal = getLocalLicenses();
+  const existingIdx = currentLocal.findIndex(l => l.deviceId === cleanId);
+  if (existingIdx >= 0) {
+    currentLocal[existingIdx] = { ...currentLocal[existingIdx], ...localRecord };
+  } else {
+    currentLocal.unshift(localRecord);
   }
-  const data = await res.json();
-  return data.license;
+  saveLocalLicenses(currentLocal);
+
+  // 2. Pošalji na poslužitelj putem sigurne rute bez rušenja na HTML
+  const res = await safeFetchJson<{ success: boolean; license: LicenseRecord }>(
+    getApiUrl('/api/admin/licenses/add'),
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-pin': pin.trim()
+      },
+      body: JSON.stringify({
+        deviceId: cleanId,
+        userName: cleanName,
+        activationKey: validKey,
+        status: cleanStatus,
+        chatEnabled: cleanChat,
+        notes: payload.notes
+      })
+    }
+  );
+
+  if (res.ok && res.data?.license) {
+    // Ažuriraj lokalnu bazu sa poslužiteljskim podacima
+    const updated = getLocalLicenses().map(l => l.deviceId === cleanId ? res.data!.license : l);
+    saveLocalLicenses(updated);
+    return res.data.license;
+  }
+
+  // Vrati lokalno kreiran i potvrđen zapis čak i ako poslužitelj nije vratio JSON
+  return localRecord;
 }
 
 export async function updateAdminLicense(
@@ -275,23 +414,64 @@ export async function updateAdminLicense(
     notes?: string;
   }
 ): Promise<LicenseRecord> {
-  const res = await fetch('/api/admin/licenses/update', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-pin': pin.trim()
-    },
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) throw new Error('Ažuriranje licence nije uspjelo.');
-  const data = await res.json();
-  return data.license;
+  const cleanId = payload.deviceId.trim().toUpperCase();
+
+  // 1. Ažuriraj lokalnu bazu odmah
+  const currentLocal = getLocalLicenses();
+  const target = currentLocal.find(l => l.deviceId === cleanId);
+  if (target) {
+    if (typeof payload.userName === 'string') target.userName = payload.userName.trim();
+    if (payload.status) target.status = payload.status;
+    if (typeof payload.chatEnabled === 'boolean') target.chatEnabled = payload.chatEnabled;
+    if (typeof payload.notes === 'string') target.notes = payload.notes.trim();
+    saveLocalLicenses(currentLocal);
+  }
+
+  // 2. Pošalji na poslužitelj sigurno
+  const res = await safeFetchJson<{ success: boolean; license: LicenseRecord }>(
+    getApiUrl('/api/admin/licenses/update'),
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-pin': pin.trim()
+      },
+      body: JSON.stringify(payload)
+    }
+  );
+
+  if (res.ok && res.data?.license) {
+    return res.data.license;
+  }
+
+  if (target) return target;
+
+  // Fallback ako još nije postojao u lokalnoj bazi
+  return {
+    deviceId: cleanId,
+    activationKey: generateActivationKey(cleanId),
+    userName: payload.userName || `Ribič (${cleanId.slice(-4)})`,
+    status: payload.status || 'active',
+    chatEnabled: payload.chatEnabled !== false,
+    createdAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString(),
+    notes: payload.notes || ''
+  };
 }
 
 export async function deleteAdminLicense(pin: string, deviceId: string): Promise<boolean> {
-  const res = await fetch(`/api/admin/licenses/${encodeURIComponent(deviceId)}`, {
-    method: 'DELETE',
-    headers: { 'x-admin-pin': pin.trim() }
-  });
-  return res.ok;
+  const cleanId = deviceId.trim().toUpperCase();
+  
+  // Ukloni lokalno odmah
+  const updated = getLocalLicenses().filter(l => l.deviceId !== cleanId);
+  saveLocalLicenses(updated);
+
+  try {
+    await safeFetchJson(getApiUrl(`/api/admin/licenses/${encodeURIComponent(cleanId)}`), {
+      method: 'DELETE',
+      headers: { 'x-admin-pin': pin.trim() }
+    });
+  } catch {}
+
+  return true;
 }

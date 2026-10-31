@@ -35,9 +35,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-lg pt-[max(env(safe-area-inset-top,0px),1.75rem)] sm:pt-[max(env(safe-area-inset-top,0px),0.5rem)] w-full">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="h-16 flex items-center justify-between gap-3">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-lg pt-[env(safe-area-inset-top,0px)] w-full">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5">
+        <div className="flex items-center justify-between gap-2.5 sm:gap-3">
           
           {/* Brand */}
           <div 
@@ -47,14 +47,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             <img 
               src="/pwa-192x192.png" 
               alt="RiboPrognoza ikona" 
-              className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl object-cover shadow-sm ring-2 ring-cyan-500/30 shrink-0" 
+              className="h-[50px] w-[50px] sm:h-[54px] sm:w-[54px] rounded-2xl object-cover shadow-md ring-2 ring-cyan-500/30 shrink-0" 
               referrerPolicy="no-referrer" 
             />
-            <div className="h-10 sm:h-11 flex flex-col justify-between text-left select-none py-0.5">
-              <span className="font-black text-white text-[15px] sm:text-[17px] leading-none tracking-tight block">
+            <div className="h-[50px] sm:h-[54px] flex flex-col justify-center gap-0.5 sm:gap-1 text-left select-none">
+              <span className="font-black text-white text-[19px] sm:text-[21px] leading-none tracking-tight block">
                 Ribo
               </span>
-              <span className="font-black text-cyan-400 text-[15px] sm:text-[17px] leading-none tracking-tight block">
+              <span className="font-black text-white text-[19px] sm:text-[21px] leading-none tracking-tight block">
                 Prognoza
               </span>
             </div>

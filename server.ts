@@ -877,16 +877,15 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.3.1',
+    version: '1.3.2',
     name: 'RiboPrognoza',
     releaseDate: '2026-10-31',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Mogućnost ručnog dodavanja postojećih korisnika u kontrolni panel licenci i chat',
-      'Mogućnost pojedinačnog odobravanja i blokiranja pristupa LiveChatu za svakog korisnika',
-      'Prikaz poruka u LiveChatu isključivo korisnicima kojima je administrator odobrio sudjelovanje',
-      'Povećan LiveChat gumb u navigaciji usklađen s dimenzijama gumba za Ažuriranje',
-      'Naziv aplikacije RiboPrognoza prikazan u dva reda s poravnatim početnim slovima usklađen s visinom ikone'
+      'Optimiziran vertikalni razmak u gornjoj fiksnoj traci (jednaka udaljenost iznad i ispod ikone i gumbova)',
+      'Povećan font naziva Ribo Prognoza i smanjen međusobni razmak između riječi',
+      'Aplikacija se pri svakom ponovnom pokretanju automatski i pouzdano otvara u Osnovnom modu',
+      'Poboljšana robusnost i offline perzistencija za dodavanje korisnika i kontrolu LiveChata'
     ],
     isCritical: false
   });

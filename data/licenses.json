@@ -1,0 +1,21 @@
+[
+  {
+    "deviceId": "RP-TEST-1234",
+    "activationKey": "AKT-4D9Z-HUSR",
+    "userName": "Test Ribic",
+    "status": "active",
+    "chatEnabled": true,
+    "createdAt": "2026-10-31T20:07:26.088Z",
+    "lastSeenAt": "2026-10-31T20:07:26.088Z",
+    "notes": ""
+  },
+  {
+    "deviceId": "RP-4HTV-82DC",
+    "activationKey": "AKT-PYWJ-4M46",
+    "userName": "Ribič (82DC)",
+    "status": "active",
+    "createdAt": "2026-10-31T10:52:37.170Z",
+    "lastSeenAt": "2026-10-31T20:20:56.379Z",
+    "chatEnabled": true
+  }
+]

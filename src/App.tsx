@@ -51,13 +51,8 @@ export default function App() {
   const [manualUpdateToast, setManualUpdateToast] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba'>('sve');
-  const [viewMode, setViewMode] = useState<'basic' | 'expert'>(() => {
-    try {
-      const saved = localStorage.getItem('ribo_app_view_mode');
-      if (saved === 'expert' || saved === 'basic') return saved;
-    } catch {}
-    return 'basic'; // Zadani način pri pokretanju je pojednostavljena verzija
-  });
+  // Aplikacija se pri svakom ponovnom pokretanju uvijek otvara u Osnovnom modu
+  const [viewMode, setViewMode] = useState<'basic' | 'expert'>('basic');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(() => {
     try {
@@ -297,7 +292,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-20 md:pb-10 selection:bg-cyan-500 selection:text-white w-full max-w-full overflow-x-hidden pt-[calc(4rem+max(env(safe-area-inset-top,0px),1.75rem))] sm:pt-[calc(4rem+max(env(safe-area-inset-top,0px),0.5rem))]">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-20 md:pb-10 selection:bg-cyan-500 selection:text-white w-full max-w-full overflow-x-hidden pt-[calc(4.25rem+env(safe-area-inset-top,0px))] sm:pt-[calc(4.5rem+env(safe-area-inset-top,0px))]">
       
       {/* Offline Status Badge */}
       <OfflineIndicator />
