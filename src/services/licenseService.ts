@@ -11,6 +11,7 @@ export interface LicenseRecord {
   activationKey: string;
   userName: string;
   status: 'active' | 'revoked';
+  chatEnabled?: boolean;
   createdAt: string;
   lastSeenAt: string;
   notes?: string;
@@ -237,9 +238,42 @@ export async function fetchAdminLicenses(pin: string): Promise<LicenseRecord[]> 
   return data.licenses || [];
 }
 
+export async function addAdminLicense(
+  pin: string,
+  payload: {
+    deviceId: string;
+    userName?: string;
+    activationKey?: string;
+    status?: 'active' | 'revoked';
+    chatEnabled?: boolean;
+    notes?: string;
+  }
+): Promise<LicenseRecord> {
+  const res = await fetch('/api/admin/licenses/add', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-pin': pin.trim()
+    },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Dodavanje korisnika nije uspjelo.');
+  }
+  const data = await res.json();
+  return data.license;
+}
+
 export async function updateAdminLicense(
   pin: string, 
-  payload: { deviceId: string; userName?: string; status?: 'active' | 'revoked'; notes?: string }
+  payload: { 
+    deviceId: string; 
+    userName?: string; 
+    status?: 'active' | 'revoked'; 
+    chatEnabled?: boolean;
+    notes?: string;
+  }
 ): Promise<LicenseRecord> {
   const res = await fetch('/api/admin/licenses/update', {
     method: 'POST',

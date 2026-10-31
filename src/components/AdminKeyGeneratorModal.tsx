@@ -21,7 +21,10 @@ import {
   Edit2,
   UserCheck,
   UserX,
-  Search
+  Search,
+  UserPlus,
+  ShieldAlert,
+  Ban
 } from 'lucide-react';
 import { 
   generateActivationKey, 
@@ -29,12 +32,14 @@ import {
   activateApp, 
   checkAdminPin,
   fetchAdminLicenses,
+  addAdminLicense,
   updateAdminLicense,
   deleteAdminLicense,
   LicenseRecord
 } from '../services/licenseService';
 import { 
   fetchChatMessages,
+  fetchChatMessagesForAdmin,
   deleteChatMessageAsAdmin,
   ChatMessage
 } from '../services/chatService';
@@ -80,6 +85,16 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
   const [licenseSearchQuery, setLicenseSearchQuery] = useState('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
+  // Stanja za ručni unos postojećeg/novog korisnika
+  const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [newUserId, setNewUserId] = useState('');
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserKey, setNewUserKey] = useState('');
+  const [newUserChatEnabled, setNewUserChatEnabled] = useState(true);
+  const [newUserStatus, setNewUserStatus] = useState<'active' | 'revoked'>('active');
+  const [newUserNotes, setNewUserNotes] = useState('');
+  const [isAddingUser, setIsAddingUser] = useState(false);
+
   // Stanja za nadzor chata
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
@@ -112,7 +127,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
   const loadChatData = async () => {
     setIsLoadingChat(true);
     try {
-      const data = await fetchChatMessages();
+      const data = await fetchChatMessagesForAdmin(pinInput || '2026');
       setChatMessages(data);
     } catch (err) {
       console.error(err);
@@ -231,6 +246,59 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
       setTimeout(() => setActionSuccessMsg(null), 3000);
     } catch (err: any) {
       alert('Greška pri brisanju licence: ' + err.message);
+    }
+  };
+
+  const handleToggleChatPermission = async (item: LicenseRecord) => {
+    const nextChatEnabled = item.chatEnabled === false;
+    try {
+      await updateAdminLicense(pinInput || '2026', {
+        deviceId: item.deviceId,
+        chatEnabled: nextChatEnabled
+      });
+      setLicenses(prev => prev.map(l => l.deviceId === item.deviceId ? { ...l, chatEnabled: nextChatEnabled } : l));
+      setActionSuccessMsg(nextChatEnabled ? `LiveChat je ODOBREN za: ${item.userName}` : `LiveChat je BLOKIRAN za: ${item.userName}`);
+      setTimeout(() => setActionSuccessMsg(null), 3000);
+    } catch (err: any) {
+      alert('Greška pri izmjeni prava za LiveChat: ' + err.message);
+    }
+  };
+
+  const handleAddNewUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserId.trim()) {
+      alert('Molimo unesite ID uređaja (npr. RP-8B3E-72C9).');
+      return;
+    }
+    setIsAddingUser(true);
+    try {
+      const cleanId = newUserId.trim().toUpperCase();
+      const finalKey = newUserKey.trim().toUpperCase() || generateActivationKey(cleanId);
+      const cleanName = newUserName.trim() || `Ribič (${cleanId.slice(-4)})`;
+
+      await addAdminLicense(pinInput || '2026', {
+        deviceId: cleanId,
+        userName: cleanName,
+        activationKey: finalKey,
+        chatEnabled: newUserChatEnabled,
+        status: newUserStatus,
+        notes: newUserNotes.trim()
+      });
+
+      await loadLicensesData();
+      setShowAddUserForm(false);
+      setNewUserId('');
+      setNewUserName('');
+      setNewUserKey('');
+      setNewUserNotes('');
+      setNewUserChatEnabled(true);
+      setNewUserStatus('active');
+      setActionSuccessMsg(`Korisnik ${cleanName} je uspješno dodan/ažuriran sa statusom: ${newUserChatEnabled ? 'Chat odobren' : 'Chat blokiran'}!`);
+      setTimeout(() => setActionSuccessMsg(null), 3500);
+    } catch (err: any) {
+      alert('Greška pri spremanju korisnika: ' + err.message);
+    } finally {
+      setIsAddingUser(false);
     }
   };
 
@@ -397,7 +465,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
             {activeTab === 'korisnici' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="relative flex-1 min-w-[200px]">
+                  <div className="relative flex-1 min-w-[180px]">
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
                     <input
                       type="text"
@@ -407,7 +475,19 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
                     />
                   </div>
+
                   <button
+                    type="button"
+                    onClick={() => setShowAddUserForm(!showAddUserForm)}
+                    className="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0"
+                    title="Ručni unos postojećeg ili novog korisnika"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>{showAddUserForm ? 'Zatvori unos' : '+ Dodaj korisnika'}</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={loadLicensesData}
                     disabled={isLoadingLicenses}
                     className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center gap-1.5 cursor-pointer shrink-0"
@@ -417,6 +497,136 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     <span>Osvježi</span>
                   </button>
                 </div>
+
+                {/* Forma za ručno dodavanje postojećeg ili novog korisnika */}
+                {showAddUserForm && (
+                  <form onSubmit={handleAddNewUserSubmit} className="p-3.5 sm:p-4 rounded-2xl bg-slate-950 border border-teal-500/50 space-y-3 animate-fadeIn">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <div className="flex items-center gap-2">
+                        <UserPlus className="w-4 h-4 text-teal-400" />
+                        <h3 className="text-xs sm:text-sm font-bold text-white">
+                          Dodavanje postojećeg ili novog korisnika u bazu & chat
+                        </h3>
+                      </div>
+                      <span className="text-[10px] text-teal-400 font-mono bg-teal-950/80 px-2 py-0.5 rounded-md border border-teal-800/60">
+                        Admin unos
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block text-slate-300 font-bold mb-1">
+                          ID uređaja (Device ID) <span className="text-rose-400">*</span>:
+                        </label>
+                        <input
+                          type="text"
+                          value={newUserId}
+                          onChange={(e) => setNewUserId(e.target.value)}
+                          placeholder="npr. RP-8B3E-72C9"
+                          required
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono uppercase focus:outline-none focus:border-teal-400"
+                        />
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Jedinstveni ID uređaja korisnika (prikazan na dnu aplikacije)
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-bold mb-1">
+                          Ime korisnika / Ribiča:
+                        </label>
+                        <input
+                          type="text"
+                          value={newUserName}
+                          onChange={(e) => setNewUserName(e.target.value)}
+                          placeholder="npr. Marko - Aljmaš"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-teal-400"
+                        />
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Ovo ime će se prikazivati u kontrolnom panelu i LiveChatu
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-bold mb-1">
+                          Aktivacijski kod (opcionalno):
+                        </label>
+                        <input
+                          type="text"
+                          value={newUserKey}
+                          onChange={(e) => setNewUserKey(e.target.value)}
+                          placeholder="Automatski se računa ako je prazno"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono uppercase focus:outline-none focus:border-teal-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-bold mb-1">
+                          Status licence:
+                        </label>
+                        <select
+                          value={newUserStatus}
+                          onChange={(e) => setNewUserStatus(e.target.value as any)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-teal-400 cursor-pointer"
+                        >
+                          <option value="active">🟢 Aktivna licenca (odobren rad)</option>
+                          <option value="revoked">🔴 Ukinuta licenca (blokiran rad)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Prekidač za LiveChat dozvolu */}
+                    <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs font-bold text-white block">
+                          Pristup internom LiveChatu
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">
+                          Dozvoli ovom korisniku pregled i slanje poruka na vodi
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setNewUserChatEnabled(!newUserChatEnabled)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border ${
+                          newUserChatEnabled
+                            ? 'bg-emerald-600 border-emerald-400 text-white shadow-sm'
+                            : 'bg-rose-950 border-rose-700 text-rose-300'
+                        }`}
+                      >
+                        {newUserChatEnabled ? '✓ Chat: ODOBREN' : '✕ Chat: BLOKIRAN'}
+                      </button>
+                    </div>
+
+                    <div>
+                      <input
+                        type="text"
+                        value={newUserNotes}
+                        onChange={(e) => setNewUserNotes(e.target.value)}
+                        placeholder="Interna bilješka (opcionalno)..."
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-teal-400"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddUserForm(false)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer hover:bg-slate-700"
+                      >
+                        Odustani
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isAddingUser}
+                        className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-black text-xs cursor-pointer shadow-md flex items-center gap-1.5"
+                      >
+                        {isAddingUser ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        <span>Spremi korisnika u sustav & chat</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
 
                 {isLoadingLicenses && licenses.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
@@ -428,7 +638,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     <Users className="w-8 h-8 text-slate-600 mx-auto mb-2" />
                     <p className="text-xs font-bold text-slate-300">Nema registriranih korisnika</p>
                     <p className="text-[11px] text-slate-500 mt-1">
-                      Kada korisnik aktivira aplikaciju ključem, automatski će se pojaviti ovdje.
+                      Kliknite gore na "+ Dodaj korisnika" za ručni unos postojećeg ribiča, ili kada korisnik aktivira aplikaciju ključem, automatski će se pojaviti ovdje.
                     </p>
                   </div>
                 ) : (
@@ -487,14 +697,29 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                                 </div>
                               )}
 
-                              {/* Status bedž */}
+                              {/* Status licence bedž */}
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                                 isRevoked 
                                   ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
                                   : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                               }`}>
-                                {isRevoked ? 'Ukinuta (Blokiran)' : 'Aktivan'}
+                                {isRevoked ? 'Ukinuta' : 'Aktivna'}
                               </span>
+
+                              {/* LiveChat status & brzi toggle */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleChatPermission(lic)}
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1.5 cursor-pointer border transition-all ${
+                                  lic.chatEnabled !== false
+                                    ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 hover:bg-rose-950/80 hover:text-rose-300 hover:border-rose-500/60'
+                                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-teal-950/80 hover:text-teal-300 hover:border-teal-500/60'
+                                }`}
+                                title={lic.chatEnabled !== false ? 'Klikni za blokiranje chata ovom korisniku' : 'Klikni za odobrenje chata ovom korisniku'}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${lic.chatEnabled !== false ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                                <span>{lic.chatEnabled !== false ? 'Chat: Odobren' : 'Chat: Blokiran'}</span>
+                              </button>
                             </div>
 
                             {/* ID uređaja i ključ */}
@@ -648,13 +873,41 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                           </div>
                           <p className="text-slate-200 break-words">{msg.text}</p>
                         </div>
-                        <button
-                          onClick={() => handleDeleteChatMessage(msg.id)}
-                          className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
-                          title="Obriši poruku"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {msg.deviceId !== 'RP-ADMIN' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const found = licenses.find(l => l.deviceId === msg.deviceId);
+                                if (found) {
+                                  handleToggleChatPermission(found);
+                                } else {
+                                  updateAdminLicense(pinInput || '2026', {
+                                    deviceId: msg.deviceId,
+                                    userName: msg.userName,
+                                    chatEnabled: false
+                                  }).then(() => {
+                                    loadLicensesData();
+                                    setActionSuccessMsg(`LiveChat je BLOKIRAN za: ${msg.userName}`);
+                                    setTimeout(() => setActionSuccessMsg(null), 3000);
+                                  });
+                                }
+                              }}
+                              className="px-2 py-1 rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-[10px] text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
+                              title="Brzo blokiranje chata za ovog korisnika"
+                            >
+                              <Ban className="w-3 h-3" />
+                              <span>Blokiraj chat</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteChatMessage(msg.id)}
+                            className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
+                            title="Obriši poruku"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}

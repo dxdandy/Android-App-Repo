@@ -14,19 +14,57 @@ export interface ChatMessage {
   createdAt: number;
 }
 
+export interface FetchChatResult {
+  messages: ChatMessage[];
+  chatBlocked?: boolean;
+  message?: string;
+}
+
 /**
- * Dohvaća zadnje poruke iz chata
+ * Dohvaća zadnje poruke iz chata (samo ako je korisnik odobren)
  */
-export async function fetchChatMessages(): Promise<ChatMessage[]> {
+export async function fetchChatMessages(overrideDeviceId?: string): Promise<FetchChatResult> {
   try {
-    const res = await fetch('/api/chat/messages', {
-      headers: { 'Cache-Control': 'no-cache' }
+    const deviceId = overrideDeviceId || getDeviceId();
+    const res = await fetch(`/api/chat/messages?deviceId=${encodeURIComponent(deviceId)}`, {
+      headers: { 
+        'Cache-Control': 'no-cache',
+        'x-device-id': deviceId
+      }
     });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.messages || [];
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.chatBlocked) {
+      return {
+        messages: [],
+        chatBlocked: true,
+        message: data.message || 'Pristup LiveChatu je onemogućen.'
+      };
+    }
+    return {
+      messages: data.messages || [],
+      chatBlocked: false
+    };
   } catch (err) {
     console.error('Greška pri dohvatu chata:', err);
+    return { messages: [], chatBlocked: false };
+  }
+}
+
+/**
+ * Admin dohvat svih poruka chata
+ */
+export async function fetchChatMessagesForAdmin(pin: string): Promise<ChatMessage[]> {
+  try {
+    const res = await fetch('/api/chat/messages', {
+      headers: { 
+        'Cache-Control': 'no-cache',
+        'x-admin-pin': pin.trim()
+      }
+    });
+    const data = await res.json().catch(() => ({}));
+    return data.messages || [];
+  } catch (err) {
+    console.error('Greška pri dohvatu chata za admina:', err);
     return [];
   }
 }

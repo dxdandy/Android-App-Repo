@@ -47,13 +47,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             <img 
               src="/pwa-192x192.png" 
               alt="RiboPrognoza ikona" 
-              className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl object-cover shadow-sm ring-2 ring-cyan-500/30 shrink-0" 
+              className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl object-cover shadow-sm ring-2 ring-cyan-500/30 shrink-0" 
               referrerPolicy="no-referrer" 
             />
-            <div>
-              <h1 className="font-black text-white text-base sm:text-lg leading-tight tracking-tight">
-                RiboPrognoza
-              </h1>
+            <div className="h-10 sm:h-11 flex flex-col justify-between text-left select-none py-0.5">
+              <span className="font-black text-white text-[15px] sm:text-[17px] leading-none tracking-tight block">
+                Ribo
+              </span>
+              <span className="font-black text-cyan-400 text-[15px] sm:text-[17px] leading-none tracking-tight block">
+                Prognoza
+              </span>
             </div>
           </div>
 
@@ -111,27 +114,31 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Desna strana: Chat gumb i gumb za osvježavanje podataka */}
+          {/* Desna strana: LiveChat gumb i gumb za osvježavanje podataka (identične visine i veličine) */}
           <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
-            {/* Gumb za interni Dunavski chat */}
+            {/* Gumb za interni LiveChat */}
             <button
               onClick={onOpenChat}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold text-teal-200 bg-teal-950/80 hover:bg-teal-900 transition-all shadow-md border border-teal-500/40 cursor-pointer active:scale-95"
-              title="Otvori interni Dunavski chat"
+              className="h-10 sm:h-11 flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-teal-200 bg-teal-950/80 hover:bg-teal-900 transition-all shadow-md border border-teal-500/40 cursor-pointer active:scale-95 shrink-0"
+              title="Otvori interni LiveChat"
             >
-              <MessageSquare className="w-3.5 h-3.5 text-teal-400" />
-              <span>Chat</span>
+              <MessageSquare className="w-4 h-4 text-teal-400 shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-white font-bold text-xs sm:text-sm">LiveChat</span>
+                <span className="text-[10px] text-teal-300 font-normal">Dunav</span>
+              </div>
             </button>
 
+            {/* Gumb za ažuriranje */}
             <button
               onClick={onRefresh}
               disabled={isLoading}
-              className="flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-600 transition-all shadow-md border border-cyan-500/40 cursor-pointer active:scale-95"
+              className="h-10 sm:h-11 flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-600 transition-all shadow-md border border-cyan-500/40 cursor-pointer active:scale-95 shrink-0"
               title="Ažuriraj sve hidrometeo i solunarne podatke"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 text-cyan-200 shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
               <div className="flex flex-col text-left leading-tight">
-                <span>{isLoading ? 'Ažuriranje...' : 'Ažuriraj'}</span>
+                <span className="text-xs sm:text-sm">{isLoading ? 'Ažuriranje...' : 'Ažuriraj'}</span>
                 {lastUpdated && (
                   <span className="text-[10px] text-cyan-200 font-normal">
                     {formatTime(lastUpdated)} h

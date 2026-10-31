@@ -463,6 +463,7 @@ export interface LicenseRecord {
   activationKey: string;
   userName: string;
   status: 'active' | 'revoked';
+  chatEnabled?: boolean; // true = odobren chat, false = blokiran chat
   createdAt: string;
   lastSeenAt: string;
   notes?: string;
@@ -495,7 +496,7 @@ function ensureDataStorage() {
           id: 'msg-welcome',
           deviceId: 'RP-ADMIN',
           userName: 'Daniel (Admin)',
-          text: 'Bistro ribiči! Dobrodošli u interni Dunavski chat. Ovdje možete javljati stanje vode, ulove i aktivnost ribe! 🎣🌊',
+          text: 'Bistro ribiči! Dobrodošli u interni Dunavski LiveChat. Ovdje možete javljati stanje vode, ulove i aktivnost ribe! 🎣🌊',
           timestamp: new Date().toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' }),
           createdAt: Date.now()
         }
@@ -570,6 +571,9 @@ app.post('/api/license/register-or-verify', (req, res) => {
 
   if (existing) {
     existing.lastSeenAt = new Date().toISOString();
+    if (existing.chatEnabled === undefined) {
+      existing.chatEnabled = true;
+    }
     // Ako korisnik pošalje proposedName, a admin još nije postavio prilagođeno ime
     if (proposedName && (!existing.userName || existing.userName.startsWith('Ribič (RP-'))) {
       existing.userName = String(proposedName).trim();
@@ -580,6 +584,7 @@ app.post('/api/license/register-or-verify', (req, res) => {
       return res.json({
         valid: false,
         status: 'revoked',
+        chatEnabled: false,
         userName: existing.userName,
         message: 'Vaša licenca za ovaj uređaj je ukinuta od strane administratora.'
       });
@@ -588,6 +593,7 @@ app.post('/api/license/register-or-verify', (req, res) => {
     return res.json({
       valid: true,
       status: 'active',
+      chatEnabled: existing.chatEnabled !== false,
       userName: existing.userName
     });
   }
@@ -600,12 +606,13 @@ app.post('/api/license/register-or-verify', (req, res) => {
     });
   }
 
-  // Registriramo novog korisnika
+  // Registriramo novog korisnika (default chatEnabled = true)
   const newRec: LicenseRecord = {
     deviceId: cleanDeviceId,
     activationKey: cleanKey,
     userName: (proposedName && String(proposedName).trim()) || `Ribič (${cleanDeviceId.slice(-4)})`,
     status: 'active',
+    chatEnabled: true,
     createdAt: new Date().toISOString(),
     lastSeenAt: new Date().toISOString()
   };
@@ -616,6 +623,7 @@ app.post('/api/license/register-or-verify', (req, res) => {
   return res.json({
     valid: true,
     status: 'active',
+    chatEnabled: true,
     userName: newRec.userName
   });
 });
@@ -630,13 +638,67 @@ app.get('/api/admin/licenses', (req, res) => {
   }
 
   const licenses = loadLicenses();
+  // Osiguraj chatEnabled zadanu vrijednost ako nedostaje
+  licenses.forEach(l => {
+    if (l.chatEnabled === undefined) l.chatEnabled = true;
+  });
   // Sortiraj tako da najnoviji ili nedavno viđeni budu na vrhu
   licenses.sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime());
   res.json({ success: true, licenses });
 });
 
 /**
- * API (Admin): Ažuriranje imena, statusa (aktivan/ukinut) i bilješki
+ * API (Admin): Dodavanje novog ili postojećeg korisnika u kontrolni panel i chat
+ */
+app.post('/api/admin/licenses/add', (req, res) => {
+  const pin = req.headers['x-admin-pin'] as string;
+  if (pin !== ADMIN_MASTER_PIN) {
+    return res.status(403).json({ error: 'Neispravan administratorski PIN' });
+  }
+
+  const { deviceId, userName, activationKey, status, chatEnabled, notes } = req.body || {};
+  if (!deviceId) {
+    return res.status(400).json({ error: 'ID uređaja (Device ID) je obavezan' });
+  }
+
+  const cleanDeviceId = String(deviceId).trim().toUpperCase();
+  const validKey = (activationKey && String(activationKey).trim().toUpperCase()) || generateActivationKey(cleanDeviceId);
+  const cleanName = (userName && String(userName).trim()) || `Ribič (${cleanDeviceId.slice(-4)})`;
+  const cleanStatus = status === 'revoked' ? 'revoked' : 'active';
+  const cleanChat = chatEnabled !== false;
+
+  const licenses = loadLicenses();
+  const existingIdx = licenses.findIndex(l => l.deviceId === cleanDeviceId);
+
+  if (existingIdx >= 0) {
+    licenses[existingIdx].userName = cleanName;
+    licenses[existingIdx].activationKey = validKey;
+    licenses[existingIdx].status = cleanStatus;
+    licenses[existingIdx].chatEnabled = cleanChat;
+    if (typeof notes === 'string') licenses[existingIdx].notes = notes.trim();
+    licenses[existingIdx].lastSeenAt = new Date().toISOString();
+    saveLicenses(licenses);
+    return res.json({ success: true, license: licenses[existingIdx], updated: true });
+  }
+
+  const newRecord: LicenseRecord = {
+    deviceId: cleanDeviceId,
+    activationKey: validKey,
+    userName: cleanName,
+    status: cleanStatus,
+    chatEnabled: cleanChat,
+    createdAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString(),
+    notes: (notes && String(notes).trim()) || ''
+  };
+
+  licenses.unshift(newRecord);
+  saveLicenses(licenses);
+  return res.json({ success: true, license: newRecord, created: true });
+});
+
+/**
+ * API (Admin): Ažuriranje imena, statusa licence, dozvole za chat i bilješki
  */
 app.post('/api/admin/licenses/update', (req, res) => {
   const pin = req.headers['x-admin-pin'] as string;
@@ -644,7 +706,7 @@ app.post('/api/admin/licenses/update', (req, res) => {
     return res.status(403).json({ error: 'Neispravan administratorski PIN' });
   }
 
-  const { deviceId, userName, status, notes } = req.body || {};
+  const { deviceId, userName, status, chatEnabled, notes } = req.body || {};
   if (!deviceId) {
     return res.status(400).json({ error: 'Nedostaje deviceId' });
   }
@@ -661,6 +723,7 @@ app.post('/api/admin/licenses/update', (req, res) => {
       activationKey: generatedKey,
       userName: userName ? String(userName).trim() : `Ribič (${cleanDeviceId.slice(-4)})`,
       status: status === 'revoked' ? 'revoked' : 'active',
+      chatEnabled: chatEnabled !== false,
       createdAt: new Date().toISOString(),
       lastSeenAt: new Date().toISOString(),
       notes: notes ? String(notes).trim() : ''
@@ -672,6 +735,7 @@ app.post('/api/admin/licenses/update', (req, res) => {
 
   if (typeof userName === 'string') target.userName = userName.trim();
   if (status === 'active' || status === 'revoked') target.status = status;
+  if (typeof chatEnabled === 'boolean') target.chatEnabled = chatEnabled;
   if (typeof notes === 'string') target.notes = notes.trim();
 
   saveLicenses(licenses);
@@ -696,19 +760,63 @@ app.delete('/api/admin/licenses/:deviceId', (req, res) => {
 });
 
 /**
- * API: Dohvat poruka internog chata
+ * API: Dohvat poruka internog chata (samo odobreni korisnici kojima nije blokiran chat)
  */
-app.get('/api/chat/messages', (_req, res) => {
+app.get('/api/chat/messages', (req, res) => {
+  const pin = req.headers['x-admin-pin'] as string;
+  const deviceId = (req.query.deviceId as string) || (req.headers['x-device-id'] as string);
+  const cleanDeviceId = deviceId ? String(deviceId).trim().toUpperCase() : '';
+
+  // Admin uvijek ima pravo pregleda
+  if (pin === ADMIN_MASTER_PIN || cleanDeviceId === 'RP-ADMIN') {
+    const messages = loadChat();
+    return res.json({ success: true, messages: messages.slice(-60) });
+  }
+
+  if (!cleanDeviceId) {
+    return res.status(403).json({ 
+      success: false, 
+      chatBlocked: true, 
+      message: 'Potrebna je aktivacija aplikacije za pristup LiveChatu.' 
+    });
+  }
+
+  const licenses = loadLicenses();
+  const userLicense = licenses.find(l => l.deviceId === cleanDeviceId);
+
+  if (!userLicense) {
+    return res.status(403).json({ 
+      success: false, 
+      chatBlocked: true, 
+      message: 'Uređaj još nije registriran u sustavu licenci.' 
+    });
+  }
+
+  if (userLicense.status === 'revoked') {
+    return res.status(403).json({ 
+      success: false, 
+      chatBlocked: true, 
+      message: 'Vaša licenca je ukinuta od strane administratora.' 
+    });
+  }
+
+  if (userLicense.chatEnabled === false) {
+    return res.status(403).json({ 
+      success: false, 
+      chatBlocked: true, 
+      message: 'Administrator vam je onemogućio pristup LiveChatu.' 
+    });
+  }
+
   const messages = loadChat();
-  // Vrati zadnjih 60 poruka
-  res.json({ success: true, messages: messages.slice(-60) });
+  return res.json({ success: true, messages: messages.slice(-60) });
 });
 
 /**
- * API: Slanje poruke u interni chat (dozvoljeno isključivo aktivnim korisnicima)
+ * API: Slanje poruke u interni chat (dozvoljeno isključivo aktivnim korisnicima s odobrenim chatom)
  */
 app.post('/api/chat/messages', (req, res) => {
-  const { deviceId, activationKey, text } = req.body || {};
+  const { deviceId, text } = req.body || {};
   if (!deviceId || !text || !String(text).trim()) {
     return res.status(400).json({ error: 'Tekst poruke je obavezan' });
   }
@@ -719,6 +827,10 @@ app.post('/api/chat/messages', (req, res) => {
 
   if (!userLicense || userLicense.status === 'revoked') {
     return res.status(403).json({ error: 'Nemate važeću aktivnu licencu za pisanje u chat.' });
+  }
+
+  if (userLicense.chatEnabled === false) {
+    return res.status(403).json({ error: 'Administrator vam je onemogućio pristup LiveChatu.' });
   }
 
   const cleanText = String(text).trim().slice(0, 350); // limit 350 znakova
@@ -765,15 +877,16 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.3.0',
+    version: '1.3.1',
     name: 'RiboPrognoza',
-    releaseDate: '2026-10-30',
+    releaseDate: '2026-10-31',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Centralno upravljanje licencama u Admin panelu: dodjeljivanje imena korisnika i mogućnost trenutnog ukidanja/blokiranja koda',
-      'Novi interni Dunavski chat s javljanjima s vode za aktivirane korisnike s tekstom i ribičkim emotikonima',
-      'Dinamičko prepoznavanje orijentacije uređaja (portrait / landscape)',
-      'Optimiziran raspored na vrhu s donacijskom trakom u podnožju'
+      'Mogućnost ručnog dodavanja postojećih korisnika u kontrolni panel licenci i chat',
+      'Mogućnost pojedinačnog odobravanja i blokiranja pristupa LiveChatu za svakog korisnika',
+      'Prikaz poruka u LiveChatu isključivo korisnicima kojima je administrator odobrio sudjelovanje',
+      'Povećan LiveChat gumb u navigaciji usklađen s dimenzijama gumba za Ažuriranje',
+      'Naziv aplikacije RiboPrognoza prikazan u dva reda s poravnatim početnim slovima usklađen s visinom ikone'
     ],
     isCritical: false
   });

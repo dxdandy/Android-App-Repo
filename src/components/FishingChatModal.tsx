@@ -26,6 +26,8 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
   const myDeviceId = getDeviceId();
   const myUserName = getUserName();
@@ -37,8 +39,16 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   };
 
   const loadMessages = async () => {
-    const list = await fetchChatMessages();
-    setMessages(list);
+    const res = await fetchChatMessages();
+    if (res.chatBlocked) {
+      setIsBlocked(true);
+      setBlockedReason(res.message || 'Pristup LiveChatu je onemogućen.');
+      setMessages([]);
+    } else {
+      setIsBlocked(false);
+      setBlockedReason(null);
+      setMessages(res.messages);
+    }
   };
 
   useEffect(() => {
@@ -108,12 +118,14 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
-                  Dunavski Ribički Chat
+                  Dunavski Ribički LiveChat
                 </h2>
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-                  Uživo
-                </span>
+                {!isBlocked && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                    Uživo
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-slate-400 truncate">
                 Prijavljeni ste kao: <span className="font-bold text-teal-300">{myUserName}</span>
@@ -130,58 +142,75 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </button>
         </div>
 
-        {/* Prozor s porukama */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 bg-slate-950/40">
-          {isLoading && messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-2">
-              <RefreshCw className="w-5 h-5 animate-spin text-teal-400" />
-              <span>Učitavanje poruka s vode...</span>
+        {/* Prozor s porukama ili prikaz blokiranog statusa */}
+        {isBlocked ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-slate-950/70">
+            <div className="w-16 h-16 rounded-3xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shadow-lg">
+              <AlertCircle className="w-8 h-8" />
             </div>
-          ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400">
-              <div className="text-3xl mb-2">🎣</div>
-              <p className="text-xs font-semibold text-slate-300">Još nema poruka u chatu</p>
-              <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
-                Budite prvi koji će javiti kakvo je stanje vodostaja ili griz na Dunavu!
+            <div className="max-w-xs space-y-1.5">
+              <h3 className="text-base font-black text-white">LiveChat nije odobren</h3>
+              <p className="text-xs text-rose-300 font-semibold">
+                {blockedReason || 'Administrator vam je onemogućio pristup LiveChatu.'}
+              </p>
+              <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                Poruke u LiveChatu mogu pratiti i pisati isključivo korisnici kojima je administrator dodijelio odobrenje. Za pristup se obratite Danielu.
               </p>
             </div>
-          ) : (
-            messages.map((msg) => {
-              const isMine = msg.deviceId === myDeviceId;
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 bg-slate-950/40">
+            {isLoading && messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-2">
+                <RefreshCw className="w-5 h-5 animate-spin text-teal-400" />
+                <span>Učitavanje poruka s vode...</span>
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400">
+                <div className="text-3xl mb-2">🎣</div>
+                <p className="text-xs font-semibold text-slate-300">Još nema poruka u LiveChatu</p>
+                <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
+                  Budite prvi koji će javiti kakvo je stanje vodostaja ili griz na Dunavu!
+                </p>
+              </div>
+            ) : (
+              messages.map((msg) => {
+                const isMine = msg.deviceId === myDeviceId;
 
-              return (
-                <div 
-                  key={msg.id} 
-                  className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[85%] ${isMine ? 'ml-auto' : 'mr-auto'}`}
-                >
-                  {/* Ime pošiljatelja */}
-                  <span className={`text-[10px] font-bold mb-0.5 px-1 ${
-                    isMine ? 'text-teal-300' : 'text-cyan-300'
-                  }`}>
-                    {msg.userName} {isMine && '(Vi)'}
-                  </span>
+                return (
+                  <div 
+                    key={msg.id} 
+                    className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[85%] ${isMine ? 'ml-auto' : 'mr-auto'}`}
+                  >
+                    {/* Ime pošiljatelja */}
+                    <span className={`text-[10px] font-bold mb-0.5 px-1 ${
+                      isMine ? 'text-teal-300' : 'text-cyan-300'
+                    }`}>
+                      {msg.userName} {isMine && '(Vi)'}
+                    </span>
 
-                  {/* Oblačić poruke */}
-                  <div className={`p-2.5 sm:p-3 rounded-2xl text-xs sm:text-sm break-words leading-relaxed shadow-sm ${
-                    isMine 
-                      ? 'bg-gradient-to-br from-teal-600 to-cyan-700 text-white rounded-tr-xs border border-teal-400/30' 
-                      : 'bg-slate-800/90 text-slate-100 rounded-tl-xs border border-slate-700/80'
-                  }`}>
-                    {msg.text}
+                    {/* Oblačić poruke */}
+                    <div className={`p-2.5 sm:p-3 rounded-2xl text-xs sm:text-sm break-words leading-relaxed shadow-sm ${
+                      isMine 
+                        ? 'bg-gradient-to-br from-teal-600 to-cyan-700 text-white rounded-tr-xs border border-teal-400/30' 
+                        : 'bg-slate-800/90 text-slate-100 rounded-tl-xs border border-slate-700/80'
+                    }`}>
+                      {msg.text}
+                    </div>
+
+                    {/* Vrijeme slanja */}
+                    <div className="flex items-center gap-1 text-[9px] text-slate-400 mt-0.5 px-1 font-mono">
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>{msg.timestamp}</span>
+                      {isMine && <CheckCheck className="w-3 h-3 text-teal-400 ml-0.5" />}
+                    </div>
                   </div>
-
-                  {/* Vrijeme slanja */}
-                  <div className="flex items-center gap-1 text-[9px] text-slate-400 mt-0.5 px-1 font-mono">
-                    <Clock className="w-2.5 h-2.5" />
-                    <span>{msg.timestamp}</span>
-                    {isMine && <CheckCheck className="w-3 h-3 text-teal-400 ml-0.5" />}
-                  </div>
-                </div>
-              );
-            })
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+                );
+              })
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
 
         {/* Greška kod slanja */}
         {errorMessage && (
@@ -200,51 +229,55 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
         )}
 
         {/* Brza traka s ribičkim emotikonima */}
-        <div className="px-3 py-1.5 bg-slate-950/90 border-t border-slate-800/80 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
-            <Smile className="w-3 h-3 text-amber-400" />
-          </span>
-          {QUICK_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => handleAddEmoji(emoji)}
-              className="w-7 h-7 flex items-center justify-center text-sm rounded-lg hover:bg-slate-800 active:scale-90 transition-transform cursor-pointer shrink-0"
-              title={`Dodaj ${emoji}`}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
+        {!isBlocked && (
+          <div className="px-3 py-1.5 bg-slate-950/90 border-t border-slate-800/80 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
+              <Smile className="w-3 h-3 text-amber-400" />
+            </span>
+            {QUICK_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => handleAddEmoji(emoji)}
+                className="w-7 h-7 flex items-center justify-center text-sm rounded-lg hover:bg-slate-800 active:scale-90 transition-transform cursor-pointer shrink-0"
+                title={`Dodaj ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Unos teksta i gumb za slanje */}
-        <form onSubmit={handleSendMessage} className="p-3 bg-slate-950 border-t border-slate-800/80 flex items-center gap-2 shrink-0">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="Napiši poruku s Dunava..."
-            maxLength={350}
-            className="flex-1 bg-slate-900 border border-slate-700/80 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition-all"
-          />
+        {!isBlocked && (
+          <form onSubmit={handleSendMessage} className="p-3 bg-slate-950 border-t border-slate-800/80 flex items-center gap-2 shrink-0">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="Napiši poruku s Dunava..."
+              maxLength={350}
+              className="flex-1 bg-slate-900 border border-slate-700/80 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition-all"
+            />
 
-          <button
-            type="submit"
-            disabled={!inputText.trim() || isSending}
-            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
-            title="Pošalji poruku"
-          >
-            {isSending ? (
-              <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-            ) : (
-              <>
-                <span className="hidden sm:inline">Pošalji</span>
-                <Send className="w-3.5 h-3.5" />
-              </>
-            )}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={!inputText.trim() || isSending}
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
+              title="Pošalji poruku"
+            >
+              {isSending ? (
+                <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+              ) : (
+                <>
+                  <span className="hidden sm:inline">Pošalji</span>
+                  <Send className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </form>
+        )}
 
       </div>
     </div>
