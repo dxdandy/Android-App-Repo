@@ -11785,6 +11785,21 @@ var Download = createLucideIcon("download", [
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Eye = createLucideIcon("eye", [["path", {
+	d: "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0",
+	key: "1nclc0"
+}], ["circle", {
+	cx: "12",
+	cy: "12",
+	r: "3",
+	key: "1v7zrd"
+}]]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var Fish = createLucideIcon("fish", [
 	["path", {
 		d: "M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z",
@@ -12492,6 +12507,21 @@ var UserX = createLucideIcon("user-x", [
 		key: "1swrse"
 	}]
 ]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var User = createLucideIcon("user", [["path", {
+	d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2",
+	key: "975kel"
+}], ["circle", {
+	cx: "12",
+	cy: "7",
+	r: "4",
+	key: "17ys0d"
+}]]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -16779,7 +16809,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 };
 //#endregion
 //#region node_modules/@capacitor/local-notifications/dist/esm/index.js
-var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-D6y4ErGp.js").then((m) => new m.LocalNotificationsWeb()), []) });
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-C2fBkjgt.js").then((m) => new m.LocalNotificationsWeb()), []) });
 //#endregion
 //#region src/services/notificationService.ts
 /**
@@ -16948,7 +16978,25 @@ function getUnreadChatCount(messages, currentDeviceId) {
 	}
 }
 /**
-* Označava sve trenutne poruke pročitanima i uklanja obavijest s ikone
+* Šalje poslužitelju potvrdu da je korisnik pročitao poruke
+*/
+async function sendReadReceipts(messageIds) {
+	const deviceId = getDeviceId();
+	const userName = getUserName();
+	try {
+		await safeFetchJson(getApiUrl("/api/chat/read"), {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				deviceId,
+				userName,
+				messageIds
+			})
+		});
+	} catch {}
+}
+/**
+* Označava sve trenutne poruke pročitanima, šalje potvrdu čitanja i uklanja obavijest s ikone
 */
 function markChatAsRead(messages) {
 	if (typeof window === "undefined") return;
@@ -16957,6 +17005,8 @@ function markChatAsRead(messages) {
 		if (messages && messages.length > 0) {
 			const maxMsgTime = Math.max(...messages.map((m) => m.createdAt || 0));
 			if (maxMsgTime > 0) latestTime = Math.max(latestTime, maxMsgTime);
+			const otherUserMsgIds = messages.filter((m) => m.deviceId !== getDeviceId()).map((m) => m.id);
+			if (otherUserMsgIds.length > 0) sendReadReceipts(otherUserMsgIds).catch(() => {});
 		}
 		localStorage.setItem(LAST_READ_CHAT_TIME_KEY, String(latestTime));
 		updateAppBadge(0);
@@ -17104,7 +17154,7 @@ async function deleteChatMessageAsAdmin(pin, messageId) {
 * Autor: Daniel Čizmar
 * GitHub: dxdandy/Android-App-Repo
 */
-var CURRENT_APP_VERSION = "1.3.4";
+var CURRENT_APP_VERSION = "1.3.5";
 /**
 * Uspoređuje dvije semantičke verzije (npr. '1.1.0' > '1.0.1')
 * Vraća true ako je remoteVer novija od currentVer
@@ -17218,7 +17268,7 @@ async function checkForAppUpdate(force = false) {
 		currentVersion: CURRENT_APP_VERSION,
 		errorMessage: lastErrorMsg
 	};
-	if (!isNewerVersion(latestData.version, "1.3.4")) return {
+	if (!isNewerVersion(latestData.version, "1.3.5")) return {
 		status: "up_to_date",
 		serverVersion: latestData.version,
 		currentVersion: CURRENT_APP_VERSION,
@@ -18384,6 +18434,7 @@ var FishingChatModal = ({ isOpen, onClose, onNameChanged }) => {
 	const [isLoading, setIsLoading] = (0, import_react.useState)(false);
 	const [isBlocked, setIsBlocked] = (0, import_react.useState)(false);
 	const [blockedReason, setBlockedReason] = (0, import_react.useState)(null);
+	const [selectedMessageForInfo, setSelectedMessageForInfo] = (0, import_react.useState)(null);
 	const [myUserName, setMyUserName] = (0, import_react.useState)(() => getUserName());
 	const [isEditingMyName, setIsEditingMyName] = (0, import_react.useState)(false);
 	const [newMyNameInput, setNewMyNameInput] = (0, import_react.useState)("");
@@ -18409,6 +18460,10 @@ var FishingChatModal = ({ isOpen, onClose, onNameChanged }) => {
 					if (newest && newest.deviceId !== myDeviceId) playNotificationSound();
 				}
 				return res.messages;
+			});
+			setSelectedMessageForInfo((prevSelected) => {
+				if (!prevSelected) return null;
+				return res.messages.find((m) => m.id === prevSelected.id) || prevSelected;
 			});
 			markChatAsRead(res.messages);
 		}
@@ -18592,6 +18647,7 @@ var FishingChatModal = ({ isOpen, onClose, onNameChanged }) => {
 						]
 					}) : messages.map((msg) => {
 						const isMine = msg.deviceId === myDeviceId;
+						const readCount = msg.readBy?.length || 0;
 						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: `flex flex-col ${isMine ? "items-end" : "items-start"} max-w-[85%] ${isMine ? "ml-auto" : "mr-auto"}`,
 							children: [
@@ -18603,17 +18659,32 @@ var FishingChatModal = ({ isOpen, onClose, onNameChanged }) => {
 										isMine && "(Vi)"
 									]
 								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: `p-2.5 sm:p-3 rounded-2xl text-xs sm:text-sm break-words leading-relaxed shadow-sm ${isMine ? "bg-gradient-to-br from-teal-600 to-cyan-700 text-white rounded-tr-xs border border-teal-400/30" : "bg-slate-800/90 text-slate-100 rounded-tl-xs border border-slate-700/80"}`,
-									children: msg.text
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => setSelectedMessageForInfo(msg),
+									className: `text-left p-2.5 sm:p-3 rounded-2xl text-xs sm:text-sm break-words leading-relaxed shadow-sm cursor-pointer hover:brightness-110 active:scale-[0.99] transition-all group relative border ${isMine ? "bg-gradient-to-br from-teal-600 to-cyan-700 text-white rounded-tr-xs border-teal-400/40" : "bg-slate-800/95 text-slate-100 rounded-tl-xs border-slate-700/80 hover:border-slate-600"}`,
+									title: "Klikni za prikaz tko je sve pročitao ovu poruku",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: msg.text })
 								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center gap-1 text-[9px] text-slate-400 mt-0.5 px-1 font-mono",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Clock, { className: "w-2.5 h-2.5" }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: msg.timestamp }),
-										isMine && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CheckCheck, { className: "w-3 h-3 text-teal-400 ml-0.5" })
-									]
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									type: "button",
+									onClick: () => setSelectedMessageForInfo(msg),
+									className: "flex items-center gap-1.5 text-[9px] text-slate-400 hover:text-cyan-300 mt-0.5 px-1 font-mono transition-colors cursor-pointer",
+									title: "Klikni za prikaz tko je sve pročitao ovu poruku",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "flex items-center gap-0.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Clock, { className: "w-2.5 h-2.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: msg.timestamp })]
+									}), readCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "flex items-center gap-1 text-cyan-300 font-bold bg-cyan-950/70 hover:bg-cyan-900/80 px-1.5 py-0.5 rounded-md border border-cyan-700/60 transition-colors",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CheckCheck, { className: "w-3 h-3 text-cyan-400 shrink-0" }),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-2.5 h-2.5 text-cyan-300 shrink-0" }),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: readCount })
+										]
+									}) : isMine ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "flex items-center gap-0.5 text-slate-500",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3 h-3" })
+									}) : null]
 								})
 							]
 						}, msg.id);
@@ -18664,6 +18735,98 @@ var FishingChatModal = ({ isOpen, onClose, onNameChanged }) => {
 							children: "Pošalji"
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Send, { className: "w-3.5 h-3.5" })] })
 					})]
+				}),
+				selectedMessageForInfo && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					onClick: () => setSelectedMessageForInfo(null),
+					className: "absolute inset-0 z-30 bg-slate-950/90 backdrop-blur-sm p-4 flex flex-col justify-center items-center animate-fadeIn select-text",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						onClick: (e) => e.stopPropagation(),
+						className: "w-full max-w-sm bg-slate-900 border border-teal-500/50 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col space-y-3.5",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center justify-between border-b border-slate-800 pb-2.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "w-8 h-8 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-4 h-4" })
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+										className: "text-sm font-black text-white",
+										children: "Tko je pročitao poruku"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[10px] text-teal-300 font-semibold",
+										children: selectedMessageForInfo.readBy && selectedMessageForInfo.readBy.length > 0 ? `${selectedMessageForInfo.readBy.length} ${selectedMessageForInfo.readBy.length === 1 ? "osoba pročitala" : "osoba pročitalo"}` : "Još nitko nije pročitao"
+									})] })]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => setSelectedMessageForInfo(null),
+									className: "w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-1",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+									className: "text-slate-200 break-words leading-relaxed",
+									children: [
+										"\"",
+										selectedMessageForInfo.text,
+										"\""
+									]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "pt-1 border-t border-slate-850 flex items-center justify-between text-[10px] text-slate-400 font-mono",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Poslao: ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", {
+										className: "text-teal-300",
+										children: selectedMessageForInfo.userName
+									})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [selectedMessageForInfo.timestamp, " h"] })]
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "space-y-1.5 max-h-52 overflow-y-auto pr-1",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1",
+									children: "Popis čitatelja:"
+								}), selectedMessageForInfo.readBy && selectedMessageForInfo.readBy.length > 0 ? selectedMessageForInfo.readBy.map((reader, idx) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center justify-between p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-2 min-w-0",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "w-6 h-6 rounded-lg bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold text-[10px] shrink-0",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(User, { className: "w-3.5 h-3.5" })
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "font-bold text-white text-xs truncate",
+											children: reader.userName
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "text-[10px] text-teal-300 font-mono shrink-0 pl-2",
+										children: [new Date(reader.readAt).toLocaleTimeString("hr-HR", {
+											hour: "2-digit",
+											minute: "2-digit"
+										}), " h"]
+									})]
+								}, reader.deviceId + "-" + idx)) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 text-center text-xs text-slate-400 space-y-1",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-5 h-5 mx-auto text-slate-600" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "font-semibold text-slate-300",
+											children: "Nema evidentiranih pregleda"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[10px] text-slate-500",
+											children: "Čim netko otvori LiveChat, ovdje će se pojaviti njegovo ime i vrijeme čitanja."
+										})
+									]
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => setSelectedMessageForInfo(null),
+								className: "w-full py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-slate-950 font-black text-xs cursor-pointer shadow-md transition-all active:scale-95",
+								children: "Zatvori pregled"
+							})
+						]
+					})
 				})
 			]
 		})

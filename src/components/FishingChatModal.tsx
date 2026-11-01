@@ -10,7 +10,8 @@ import {
   CheckCheck,
   AlertCircle,
   Edit2,
-  Check
+  Check,
+  Eye
 } from 'lucide-react';
 import { 
   fetchChatMessages, 
@@ -38,6 +39,9 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [isLoading, setIsLoading] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
+
+  // Stanje za pregled tko je pročitao poruku (dostupno svima klikom na poruku)
+  const [selectedMessageForInfo, setSelectedMessageForInfo] = useState<ChatMessage | null>(null);
 
   // Stanja za promjenu vlastitog imena u chatu
   const [myUserName, setMyUserName] = useState<string>(() => getUserName());
@@ -72,6 +76,12 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
         }
         return res.messages;
       });
+      // Ako je otvoren pregled detalja tko je pročitao poruku, ažuriraj ga
+      setSelectedMessageForInfo(prevSelected => {
+        if (!prevSelected) return null;
+        return res.messages.find(m => m.id === prevSelected.id) || prevSelected;
+      });
+
       // Označi sve poruke pročitanima i ukloni WhatsApp-style badge
       markChatAsRead(res.messages);
     }
@@ -271,6 +281,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
             ) : (
               messages.map((msg) => {
                 const isMine = msg.deviceId === myDeviceId;
+                const readCount = msg.readBy?.length || 0;
 
                 return (
                   <div 
@@ -284,21 +295,45 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                       {msg.userName} {isMine && '(Vi)'}
                     </span>
 
-                    {/* Oblačić poruke */}
-                    <div className={`p-2.5 sm:p-3 rounded-2xl text-xs sm:text-sm break-words leading-relaxed shadow-sm ${
-                      isMine 
-                        ? 'bg-gradient-to-br from-teal-600 to-cyan-700 text-white rounded-tr-xs border border-teal-400/30' 
-                        : 'bg-slate-800/90 text-slate-100 rounded-tl-xs border border-slate-700/80'
-                    }`}>
-                      {msg.text}
-                    </div>
+                    {/* Oblačić poruke - klikom na njega svima se otvara tko je pročitao */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMessageForInfo(msg)}
+                      className={`text-left p-2.5 sm:p-3 rounded-2xl text-xs sm:text-sm break-words leading-relaxed shadow-sm cursor-pointer hover:brightness-110 active:scale-[0.99] transition-all group relative border ${
+                        isMine 
+                          ? 'bg-gradient-to-br from-teal-600 to-cyan-700 text-white rounded-tr-xs border-teal-400/40' 
+                          : 'bg-slate-800/95 text-slate-100 rounded-tl-xs border-slate-700/80 hover:border-slate-600'
+                      }`}
+                      title="Klikni za prikaz tko je sve pročitao ovu poruku"
+                    >
+                      <span>{msg.text}</span>
+                    </button>
 
-                    {/* Vrijeme slanja */}
-                    <div className="flex items-center gap-1 text-[9px] text-slate-400 mt-0.5 px-1 font-mono">
-                      <Clock className="w-2.5 h-2.5" />
-                      <span>{msg.timestamp}</span>
-                      {isMine && <CheckCheck className="w-3 h-3 text-teal-400 ml-0.5" />}
-                    </div>
+                    {/* Vrijeme slanja, kvačice i status tko je pročitao (svima vidljivo i klikabilno) */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMessageForInfo(msg)}
+                      className="flex items-center gap-1.5 text-[9px] text-slate-400 hover:text-cyan-300 mt-0.5 px-1 font-mono transition-colors cursor-pointer"
+                      title="Klikni za prikaz tko je sve pročitao ovu poruku"
+                    >
+                      <span className="flex items-center gap-0.5">
+                        <Clock className="w-2.5 h-2.5" />
+                        <span>{msg.timestamp}</span>
+                      </span>
+
+                      {/* Prikaz kvačica i brojača pregleda */}
+                      {readCount > 0 ? (
+                        <span className="flex items-center gap-1 text-cyan-300 font-bold bg-cyan-950/70 hover:bg-cyan-900/80 px-1.5 py-0.5 rounded-md border border-cyan-700/60 transition-colors">
+                          <CheckCheck className="w-3 h-3 text-cyan-400 shrink-0" />
+                          <Eye className="w-2.5 h-2.5 text-cyan-300 shrink-0" />
+                          <span>{readCount}</span>
+                        </span>
+                      ) : isMine ? (
+                        <span className="flex items-center gap-0.5 text-slate-500">
+                          <Check className="w-3 h-3" />
+                        </span>
+                      ) : null}
+                    </button>
                   </div>
                 );
               })
@@ -372,6 +407,91 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
               )}
             </button>
           </form>
+        )}
+        {/* Modal s detaljima: Tko je sve pročitao poruku (dostupno svima klikom na bilo koju poruku) */}
+        {selectedMessageForInfo && (
+          <div 
+            onClick={() => setSelectedMessageForInfo(null)}
+            className="absolute inset-0 z-30 bg-slate-950/90 backdrop-blur-sm p-4 flex flex-col justify-center items-center animate-fadeIn select-text"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-slate-900 border border-teal-500/50 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col space-y-3.5"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center">
+                    <Eye className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white">Tko je pročitao poruku</h3>
+                    <p className="text-[10px] text-teal-300 font-semibold">
+                      {selectedMessageForInfo.readBy && selectedMessageForInfo.readBy.length > 0
+                        ? `${selectedMessageForInfo.readBy.length} ${selectedMessageForInfo.readBy.length === 1 ? 'osoba pročitala' : 'osoba pročitalo'}`
+                        : 'Još nitko nije pročitao'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMessageForInfo(null)}
+                  className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Sažetak pregledavane poruke */}
+              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-1">
+                <p className="text-slate-200 break-words leading-relaxed">
+                  "{selectedMessageForInfo.text}"
+                </p>
+                <div className="pt-1 border-t border-slate-850 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                  <span>Poslao: <strong className="text-teal-300">{selectedMessageForInfo.userName}</strong></span>
+                  <span>{selectedMessageForInfo.timestamp} h</span>
+                </div>
+              </div>
+
+              {/* Popis korisnika koji su pročitali poruku */}
+              <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                  Popis čitatelja:
+                </div>
+                {selectedMessageForInfo.readBy && selectedMessageForInfo.readBy.length > 0 ? (
+                  selectedMessageForInfo.readBy.map((reader, idx) => (
+                    <div 
+                      key={reader.deviceId + '-' + idx}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-lg bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold text-[10px] shrink-0">
+                          <User className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="font-bold text-white text-xs truncate">{reader.userName}</span>
+                      </div>
+                      <span className="text-[10px] text-teal-300 font-mono shrink-0 pl-2">
+                        {new Date(reader.readAt).toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })} h
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 text-center text-xs text-slate-400 space-y-1">
+                    <Check className="w-5 h-5 mx-auto text-slate-600" />
+                    <p className="font-semibold text-slate-300">Nema evidentiranih pregleda</p>
+                    <p className="text-[10px] text-slate-500">Čim netko otvori LiveChat, ovdje će se pojaviti njegovo ime i vrijeme čitanja.</p>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedMessageForInfo(null)}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-slate-950 font-black text-xs cursor-pointer shadow-md transition-all active:scale-95"
+              >
+                Zatvori pregled
+              </button>
+            </div>
+          </div>
         )}
 
       </div>

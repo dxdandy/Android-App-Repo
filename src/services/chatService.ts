@@ -10,6 +10,12 @@ import { updateAppBadge } from './notificationService';
 
 export { updateAppBadge };
 
+export interface ChatReadReceipt {
+  deviceId: string;
+  userName: string;
+  readAt: number;
+}
+
 export interface ChatMessage {
   id: string;
   deviceId: string;
@@ -17,6 +23,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   createdAt: number;
+  readBy?: ChatReadReceipt[];
 }
 
 export interface FetchChatResult {
@@ -65,7 +72,25 @@ export function getUnreadChatCount(messages: ChatMessage[], currentDeviceId: str
 }
 
 /**
- * Označava sve trenutne poruke pročitanima i uklanja obavijest s ikone
+ * Šalje poslužitelju potvrdu da je korisnik pročitao poruke
+ */
+export async function sendReadReceipts(messageIds?: string[]): Promise<void> {
+  const deviceId = getDeviceId();
+  const userName = getUserName();
+  try {
+    await safeFetchJson(
+      getApiUrl('/api/chat/read'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId, userName, messageIds })
+      }
+    );
+  } catch {}
+}
+
+/**
+ * Označava sve trenutne poruke pročitanima, šalje potvrdu čitanja i uklanja obavijest s ikone
  */
 export function markChatAsRead(messages?: ChatMessage[]): void {
   if (typeof window === 'undefined') return;
@@ -74,6 +99,14 @@ export function markChatAsRead(messages?: ChatMessage[]): void {
     if (messages && messages.length > 0) {
       const maxMsgTime = Math.max(...messages.map(m => m.createdAt || 0));
       if (maxMsgTime > 0) latestTime = Math.max(latestTime, maxMsgTime);
+      
+      // Pošalji poslužitelju potvrdu da smo pročitali ove poruke
+      const otherUserMsgIds = messages
+        .filter(m => m.deviceId !== getDeviceId())
+        .map(m => m.id);
+      if (otherUserMsgIds.length > 0) {
+        sendReadReceipts(otherUserMsgIds).catch(() => {});
+      }
     }
     localStorage.setItem(LAST_READ_CHAT_TIME_KEY, String(latestTime));
     updateAppBadge(0);

@@ -480,6 +480,12 @@ export interface LicenseRecord {
   notes?: string;
 }
 
+export interface ChatReadReceipt {
+  deviceId: string;
+  userName: string;
+  readAt: number;
+}
+
 export interface ChatMessageRecord {
   id: string;
   deviceId: string;
@@ -487,6 +493,7 @@ export interface ChatMessageRecord {
   text: string;
   timestamp: string;
   createdAt: number;
+  readBy?: ChatReadReceipt[];
 }
 
 const DATA_DIR = path.resolve(__dirname, 'data');
@@ -790,12 +797,23 @@ app.get('/api/chat/messages', (req, res) => {
     }
   });
 
+  // Funkcija za obogaćivanje poruke trenutnim imenima iz baze i popisom tko ju je pročitao
+  const enrichMsg = (msg: ChatMessageRecord) => {
+    const currentName = nameMap.get(msg.deviceId) || msg.userName;
+    const enrichedReadBy = (msg.readBy || []).map(r => ({
+      ...r,
+      userName: nameMap.get(r.deviceId) || r.userName
+    }));
+    return {
+      ...msg,
+      userName: currentName,
+      readBy: enrichedReadBy
+    };
+  };
+
   // Admin uvijek ima pravo pregleda
   if (pin === ADMIN_MASTER_PIN || cleanDeviceId === 'RP-ADMIN') {
-    const enrichedMessages = rawMessages.slice(-70).map(msg => {
-      const currentName = nameMap.get(msg.deviceId);
-      return currentName ? { ...msg, userName: currentName } : msg;
-    });
+    const enrichedMessages = rawMessages.slice(-70).map(enrichMsg);
     return res.json({ success: true, messages: enrichedMessages });
   }
 
@@ -833,16 +851,54 @@ app.get('/api/chat/messages', (req, res) => {
     });
   }
 
-  // Neka svi u chat grupi vide drugog korisnika točno onako kako ga je admin unio/promijenio u kontrolnom panelu
-  const enrichedMessages = rawMessages.slice(-70).map(msg => {
-    const currentName = nameMap.get(msg.deviceId);
-    if (currentName) {
-      return { ...msg, userName: currentName };
+  // Neka svi u chat grupi vide drugog korisnika i popis tko je sve pročitao poruku
+  const enrichedMessages = rawMessages.slice(-70).map(enrichMsg);
+
+  return res.json({ success: true, messages: enrichedMessages });
+});
+
+/**
+ * API: Zabilježi potvrdu čitanja poruka (svima dostupno)
+ */
+app.post('/api/chat/read', (req, res) => {
+  const { deviceId, userName, messageIds } = req.body || {};
+  if (!deviceId) {
+    return res.status(400).json({ error: 'deviceId je obavezan' });
+  }
+
+  const cleanDeviceId = String(deviceId).trim().toUpperCase();
+  const licenses = loadLicenses();
+  const userLicense = licenses.find(l => l.deviceId === cleanDeviceId);
+  const readerName = (userLicense && userLicense.userName) || (userName && String(userName).trim()) || `Ribič (${cleanDeviceId.slice(-4)})`;
+
+  let chat = loadChat();
+  let updated = false;
+  const now = Date.now();
+  const targetIds = Array.isArray(messageIds) && messageIds.length > 0 ? new Set(messageIds) : null;
+
+  chat = chat.map(msg => {
+    // Ne označavaj vlastitu poruku kao da si je pročitao
+    if (msg.deviceId === cleanDeviceId) return msg;
+
+    if (!targetIds || targetIds.has(msg.id)) {
+      const readList = msg.readBy || [];
+      const alreadyRead = readList.some(r => r.deviceId === cleanDeviceId);
+      if (!alreadyRead) {
+        updated = true;
+        return {
+          ...msg,
+          readBy: [...readList, { deviceId: cleanDeviceId, userName: readerName, readAt: now }]
+        };
+      }
     }
     return msg;
   });
 
-  return res.json({ success: true, messages: enrichedMessages });
+  if (updated) {
+    saveChat(chat);
+  }
+
+  return res.json({ success: true, updated });
 });
 
 /**
@@ -981,15 +1037,14 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.3.4',
+    version: '1.3.5',
     name: 'RiboPrognoza',
-    releaseDate: '2026-10-31',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
+    releaseDate: '2026-11-01',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.5.apk',
     changelog: [
-      'Ispravljen problem "Failed to fetch" prilikom slanja poruka u chatu',
-      'Dodana zvučna obavijest (chime) za prispjeće novih poruka',
-      'Sistemske obavijesti čak i kada korisnik nije u aplikaciji (Android i PWA)',
-      'Oznaka broja nepročitanih poruka na instalacijskoj ikoni aplikacije na zaslonu uređaja'
+      'Naziv instalacijskog APK-a sada automatski uključuje naziv aplikacije i točan broj verzije (RiboPrognoza_v1.3.5.apk)',
+      'U chatu dodan prikaz tko je sve pročitao poruku - klikom na bilo koju poruku svima je vidljiv popis čitatelja i vrijeme čitanja',
+      'Prikaz oznaka čitanja (kvačice i brojač otvaranja) na oblačićima poruka'
     ],
     isCritical: false
   });
