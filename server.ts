@@ -1037,14 +1037,14 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.3.5',
+    version: '1.3.6',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-01',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.5.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.6.apk',
     changelog: [
-      'Naziv instalacijskog APK-a sada automatski uključuje naziv aplikacije i točan broj verzije (RiboPrognoza_v1.3.5.apk)',
-      'U chatu dodan prikaz tko je sve pročitao poruku - klikom na bilo koju poruku svima je vidljiv popis čitatelja i vrijeme čitanja',
-      'Prikaz oznaka čitanja (kvačice i brojač otvaranja) na oblačićima poruka'
+      'Poboljšana GitHub CI/CD skripta za automatsku pripremu RiboPrognoza_v1.3.6.apk i RiboPrognoza.apk',
+      'Prikaz tko je pročitao poruku u chatu sa zabilježenim vremenom čitanja za sve korisnike',
+      'Optimizacije zvučnih i sistemskih obavijesti'
     ],
     isCritical: false
   });

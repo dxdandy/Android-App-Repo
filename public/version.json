@@ -1,12 +1,12 @@
 {
-  "version": "1.3.5",
+  "version": "1.3.6",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-01",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.5.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.6.apk",
   "changelog": [
-    "Naziv preuzetog APK-a sada automatski uključuje naziv aplikacije i broj verzije (RiboPrognoza_v1.3.5.apk)",
-    "U chatu dodan prikaz tko je sve pročitao poruku - klikom na bilo koju poruku svima se otvara točan popis čitatelja i vrijeme čitanja",
-    "Prikaz kvačica i brojača pregleda poruka u LiveChatu"
+    "Optimizirana CI/CD skripta za automatsku pripremu i objavu APK-a s točnim nazivom verzije (RiboPrognoza_v1.3.6.apk)",
+    "Prikaz popisa čitatelja svake poruke u chatu s vremenom čitanja",
+    "Zvučne i sistemske obavijesti čak i kada korisnik nije u aplikaciji"
   ],
   "isCritical": false
 }
