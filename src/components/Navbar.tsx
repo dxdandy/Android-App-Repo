@@ -38,26 +38,27 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-lg pt-[env(safe-area-inset-top,0px)] w-full">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5">
-        <div className="flex items-center justify-between gap-2.5 sm:gap-3">
+      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-1.5 sm:py-2.5 w-full">
+        <div className="flex items-center justify-between gap-1.5 sm:gap-3 w-full">
           
-          {/* Brand */}
+          {/* Brand - kompaktan na mobitelima, nikada ne gura gumbe van ekrana */}
           <div 
             onClick={() => onSelectTab('sve')}
-            className="flex items-center space-x-2.5 sm:space-x-3 shrink-0 cursor-pointer"
+            className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 cursor-pointer shrink"
+            title="Povratak na početni pregled"
           >
             <img 
               src="/pwa-192x192.png" 
               alt="RiboPrognoza ikona" 
-              className="h-[50px] w-[50px] sm:h-[54px] sm:w-[54px] rounded-2xl object-cover shadow-md ring-2 ring-cyan-500/30 shrink-0" 
+              className="h-8 w-8 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl object-cover shadow-md ring-1 sm:ring-2 ring-cyan-500/30 shrink-0" 
               referrerPolicy="no-referrer" 
             />
-            <div className="h-[50px] sm:h-[54px] flex flex-col justify-center gap-0.5 sm:gap-1 text-left select-none">
-              <span className="font-black text-white text-[19px] sm:text-[21px] leading-none tracking-tight block">
-                Ribo
+            <div className="flex flex-col justify-center text-left select-none min-w-0">
+              <span className="font-black text-white text-xs sm:text-lg leading-tight tracking-tight truncate">
+                RiboPrognoza
               </span>
-              <span className="font-black text-white text-[19px] sm:text-[21px] leading-none tracking-tight block">
-                Prognoza
+              <span className="text-[9px] sm:text-[10px] text-cyan-400 font-semibold uppercase tracking-wider hidden xs:block">
+                Dunav Live
               </span>
             </div>
           </div>
@@ -116,38 +117,40 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Desna strana: LiveChat gumb i gumb za osvježavanje podataka (identične visine i veličine) */}
-          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+          {/* Desna strana: LiveChat i Ažuriraj gumbi - precizno dimenzionirani da stanu u svaki zaslon */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Gumb za interni LiveChat */}
             <button
+              type="button"
               onClick={onOpenChat}
-              className="relative h-10 sm:h-11 flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-teal-200 bg-teal-950/80 hover:bg-teal-900 transition-all shadow-md border border-teal-500/40 cursor-pointer active:scale-95 shrink-0"
+              className="relative h-8 sm:h-10 flex items-center gap-1.5 px-2 sm:px-3 py-1 rounded-xl text-xs font-bold text-teal-200 bg-teal-950/90 hover:bg-teal-900 transition-all shadow-md border border-teal-500/40 cursor-pointer active:scale-95 shrink-0"
               title="Otvori interni LiveChat"
             >
               {unreadChatCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 bg-rose-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-950 shadow-lg animate-pulse">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-4.5 px-1 bg-rose-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-slate-950 shadow-lg animate-pulse">
                   {unreadChatCount > 99 ? '99+' : unreadChatCount}
                 </span>
               )}
-              <MessageSquare className="w-4 h-4 text-teal-400 shrink-0" />
+              <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal-400 shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-white font-bold text-xs sm:text-sm">LiveChat</span>
-                <span className="text-[10px] text-teal-300 font-normal">Dunav</span>
+                <span className="text-white font-bold text-[11px] sm:text-xs">LiveChat</span>
+                <span className="text-[9px] text-teal-300 font-normal hidden xs:inline">Dunav</span>
               </div>
             </button>
 
-            {/* Gumb za ažuriranje */}
+            {/* Gumb za ažuriranje - NIKADA ne bježi s ekrana */}
             <button
+              type="button"
               onClick={onRefresh}
               disabled={isLoading}
-              className="h-10 sm:h-11 flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-600 transition-all shadow-md border border-cyan-500/40 cursor-pointer active:scale-95 shrink-0"
+              className="h-8 sm:h-10 flex items-center gap-1.5 px-2 sm:px-3 py-1 rounded-xl text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-600 transition-all shadow-md border border-cyan-500/40 cursor-pointer active:scale-95 shrink-0"
               title="Ažuriraj sve hidrometeo i solunarne podatke"
             >
-              <RefreshCw className={`w-4 h-4 text-cyan-200 shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-200 shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-xs sm:text-sm">{isLoading ? 'Ažuriranje...' : 'Ažuriraj'}</span>
+                <span className="text-[11px] sm:text-xs font-bold">{isLoading ? 'Učitavam...' : 'Ažuriraj'}</span>
                 {lastUpdated && (
-                  <span className="text-[10px] text-cyan-200 font-normal">
+                  <span className="text-[9px] text-cyan-200 font-normal hidden xs:inline">
                     {formatTime(lastUpdated)} h
                   </span>
                 )}

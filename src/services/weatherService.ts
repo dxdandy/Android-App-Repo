@@ -7,6 +7,10 @@ import {
   MoonPhase,
   WaterLevelHistoryItem
 } from '../types/fishing';
+import { getApiUrl, safeFetchJson } from './licenseService';
+
+export const CACHE_ALJMAS_KEY = 'ribo_cache_aljmas_station_data';
+export const CACHE_BOGOJEVO_KEY = 'ribo_cache_bogojevo_station_data';
 
 export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=0&postajaID=148';
 export const HIDMET_BOGOJEVO_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42020';
@@ -374,38 +378,58 @@ export async function fetchMeteoForCoords(lat: number, lon: number): Promise<{
   }
 }
 
+export function getStoredAljmasData(): StationWaterData | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(CACHE_ALJMAS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredBogojevoData(): StationWaterData | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(CACHE_BOGOJEVO_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Dohvat službenih podataka za Aljmaš (mvodostaji.voda.hr + meteo Vinkovci/Aljmaš)
  */
 export async function fetchAljmasStationData(): Promise<StationWaterData> {
   const meteo = await fetchMeteoForCoords(45.5269, 18.9489); // Aljmaš / Vinkovci
+  const cached = getStoredAljmasData();
 
-  let waterLevelCm = -76;
-  let waterLevelTrend: WaterTrend = 'stagnira';
-  let waterLevelChangeCm = 0;
-  let timeOfMeasurement = '09:00';
-  let dateOfMeasurement = new Date().toLocaleDateString('hr-HR');
-  let maxLevelCm = 820;
-  let maxLevelDate = '25.06.1965.';
-  let prepLevelCm = 400;
-  let waterTempC = 12.9;
-  let isLive = false;
-  let history: WaterLevelHistoryItem[] = [
-    { date: dateOfMeasurement, time: '09:00', level: -76, trendChange: 0 },
-    { date: dateOfMeasurement, time: '08:00', level: -76, trendChange: 0 },
-    { date: dateOfMeasurement, time: '07:00', level: -76, trendChange: 0 },
-    { date: dateOfMeasurement, time: '06:00', level: -76, trendChange: 0 },
-    { date: dateOfMeasurement, time: '05:00', level: -76, trendChange: 0 },
-    { date: dateOfMeasurement, time: '04:00', level: -76, trendChange: 0 }
-  ];
+  let waterLevelCm = cached ? cached.waterLevelCm : -76;
+  let waterLevelTrend: WaterTrend = cached ? cached.waterLevelTrend : 'stagnira';
+  let waterLevelChangeCm = cached ? cached.waterLevelChangeCm : 0;
+  let timeOfMeasurement = cached ? cached.timeOfMeasurement : '09:00';
+  let dateOfMeasurement = cached ? cached.dateOfMeasurement : new Date().toLocaleDateString('hr-HR');
+  let maxLevelCm = cached?.maxLevelCm || 820;
+  let maxLevelDate = cached?.maxLevelDate || '25.06.1965.';
+  let prepLevelCm = cached?.prepLevelCm || 400;
+  let waterTempC = cached?.waterTempC || 12.9;
+  let isLive = Boolean(cached?.isLive);
+  let history: WaterLevelHistoryItem[] = cached?.recentHistory && cached.recentHistory.length > 0
+    ? cached.recentHistory
+    : [
+      { date: dateOfMeasurement, time: '09:00', level: waterLevelCm, trendChange: 0 },
+      { date: dateOfMeasurement, time: '08:00', level: waterLevelCm, trendChange: 0 },
+      { date: dateOfMeasurement, time: '07:00', level: waterLevelCm, trendChange: 0 }
+    ];
 
   let airPressureHpa = meteo.airPressureHpa;
   let airPressureTrend: PressureTrend = meteo.airPressureTrend;
 
   try {
-    const res = await fetch('/api/water/aljmas', { signal: AbortSignal.timeout(5000) });
-    if (res.ok) {
-      const data = await res.json();
+    const res = await safeFetchJson<any>(getApiUrl('/api/water/aljmas'));
+    if (res.ok && res.data) {
+      const data = res.data;
       if (data.waterLevelCm !== undefined) {
         waterLevelCm = data.waterLevelCm;
         waterLevelTrend = data.waterLevelTrend || 'stagnira';
@@ -436,10 +460,10 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
       }
     }
   } catch (err) {
-    console.warn('Lokalni dohvat za Aljmaš pao na fallback:', err);
+    console.warn('Dohvat podataka za Aljmaš poslužio iz predmemorije:', err);
   }
 
-  return {
+  const result: StationWaterData = {
     id: 'aljmas',
     name: 'Dunav - Aljmaš (Ušće Drave)',
     river: 'Dunav',
@@ -467,6 +491,14 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
     isLive,
     notes: 'Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s putovnica.net (Aljmaš).'
   };
+
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CACHE_ALJMAS_KEY, JSON.stringify(result));
+    }
+  } catch {}
+
+  return result;
 }
 
 /**
@@ -474,25 +506,26 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
  */
 export async function fetchBogojevoStationData(): Promise<StationWaterData> {
   const meteo = await fetchMeteoForCoords(45.5342, 19.1231); // Bogojevo
+  const cached = getStoredBogojevoData();
 
-  let waterLevelCm = -83;
-  let waterLevelTrend: WaterTrend = 'opada';
-  let waterLevelChangeCm = -1;
-  let flowM3s = 985;
-  let forecastDays: number[] = [-92, -86, -90, -96];
-  let regularDefenseCm = 600;
-  let emergencyDefenseCm = 700;
-  let waterTempC = 12.6;
-  let isLive = false;
-  let timeOfMeasurement = '07:00';
-  let dateOfMeasurement = new Date().toLocaleDateString('hr-HR');
+  let waterLevelCm = cached ? cached.waterLevelCm : -83;
+  let waterLevelTrend: WaterTrend = cached ? cached.waterLevelTrend : 'opada';
+  let waterLevelChangeCm = cached ? cached.waterLevelChangeCm : -1;
+  let flowM3s = cached?.flowM3s !== undefined ? cached.flowM3s : 985;
+  let forecastDays: number[] = cached?.forecastDays || [-92, -86, -90, -96];
+  let regularDefenseCm = cached?.regularDefenseCm || 600;
+  let emergencyDefenseCm = cached?.emergencyDefenseCm || 700;
+  let waterTempC = cached?.waterTempC !== undefined ? cached.waterTempC : 12.6;
+  let isLive = Boolean(cached?.isLive);
+  let timeOfMeasurement = cached?.timeOfMeasurement || '07:00';
+  let dateOfMeasurement = cached?.dateOfMeasurement || new Date().toLocaleDateString('hr-HR');
   let airPressureHpa = meteo.airPressureHpa;
   let airPressureTrend: PressureTrend = meteo.airPressureTrend;
 
   try {
-    const res = await fetch('/api/water/bogojevo', { signal: AbortSignal.timeout(5000) });
-    if (res.ok) {
-      const data = await res.json();
+    const res = await safeFetchJson<any>(getApiUrl('/api/water/bogojevo'));
+    if (res.ok && res.data) {
+      const data = res.data;
       if (data.waterLevelCm !== undefined) {
         waterLevelCm = data.waterLevelCm;
         waterLevelChangeCm = data.waterLevelChangeCm !== undefined ? data.waterLevelChangeCm : -1;
@@ -512,16 +545,18 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
       }
     }
   } catch (err) {
-    console.warn('Lokalni dohvat za Bogojevo pao na fallback:', err);
+    console.warn('Dohvat podataka za Bogojevo poslužio iz predmemorije:', err);
   }
 
-  const history: WaterLevelHistoryItem[] = [
-    { date: dateOfMeasurement, time: 'Danas 07:00', level: waterLevelCm, trendChange: waterLevelChangeCm },
-    { date: 'Jučer', time: '07:00', level: waterLevelCm - waterLevelChangeCm, trendChange: 4 },
-    { date: 'Prekjučer', time: '07:00', level: waterLevelCm - waterLevelChangeCm - 4, trendChange: -2 }
-  ];
+  const history: WaterLevelHistoryItem[] = cached?.recentHistory && cached.recentHistory.length > 0
+    ? cached.recentHistory
+    : [
+      { date: dateOfMeasurement, time: 'Danas 07:00', level: waterLevelCm, trendChange: waterLevelChangeCm },
+      { date: 'Jučer', time: '07:00', level: waterLevelCm - waterLevelChangeCm, trendChange: 4 },
+      { date: 'Prekjučer', time: '07:00', level: waterLevelCm - waterLevelChangeCm - 4, trendChange: -2 }
+    ];
 
-  return {
+  const result: StationWaterData = {
     id: 'bogojevo',
     name: 'Dunav - Bogojevo',
     river: 'Dunav',
@@ -550,4 +585,12 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
     isLive,
     notes: 'Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s vojvodinameteo.rs (Bogojevo).'
   };
+
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CACHE_BOGOJEVO_KEY, JSON.stringify(result));
+    }
+  } catch {}
+
+  return result;
 }

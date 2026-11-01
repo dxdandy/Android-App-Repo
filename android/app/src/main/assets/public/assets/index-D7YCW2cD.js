@@ -12638,8 +12638,372 @@ var X = createLucideIcon("x", [["path", {
 	key: "d8bk6v"
 }]]);
 //#endregion
-//#region src/services/weatherService.ts
+//#region src/services/licenseService.ts
 var import_client = require_client();
+/**
+* Sustav licenci i zaštite aplikacije (Hardverski ID uređaja + Centralni registar i opoziv)
+* Autor: Daniel Čizmar
+*/
+var SECRET_SALT = "DUNAV_ZANDER_DANIEL_CIZMAR_2026_PROTECT_KEY";
+var ADMIN_MASTER_PIN = "2026";
+function hashString(str) {
+	let h1 = 3735928559;
+	let h2 = 1103515245;
+	for (let i = 0; i < str.length; i++) {
+		const ch = str.charCodeAt(i);
+		h1 = Math.imul(h1 ^ ch, 2654435761);
+		h2 = Math.imul(h2 ^ ch, 1597334677);
+	}
+	h1 = Math.imul(h1 ^ h1 >>> 16, 2246822507) ^ Math.imul(h2 ^ h2 >>> 13, 3266489909);
+	h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507) ^ Math.imul(h1 ^ h1 >>> 13, 3266489909);
+	return [Math.abs(h1), Math.abs(h2)];
+}
+/**
+* Dohvaća ili stvara trajni jedinstveni ID uređaja (npr. RP-8B3E-72C9)
+*/
+function getDeviceId() {
+	if (typeof window === "undefined") return "RP-0000-0000";
+	let deviceId = localStorage.getItem("ribo_device_id");
+	if (!deviceId || !deviceId.startsWith("RP-")) {
+		const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+		let part1 = "";
+		let part2 = "";
+		for (let i = 0; i < 4; i++) {
+			part1 += chars.charAt(Math.floor(Math.random() * 32));
+			part2 += chars.charAt(Math.floor(Math.random() * 32));
+		}
+		deviceId = `RP-${part1}-${part2}`;
+		localStorage.setItem("ribo_device_id", deviceId);
+	}
+	return deviceId;
+}
+/**
+* Dohvaća spremljeni aktivacijski ključ
+*/
+function getStoredActivationKey() {
+	if (typeof window === "undefined") return "";
+	return localStorage.getItem("ribo_activation_key") || "";
+}
+/**
+* Dohvaća ime trenutnog korisnika dodijeljeno u bazi ili lokalno
+*/
+function getUserName() {
+	if (typeof window === "undefined") return "Ribič";
+	const saved = localStorage.getItem("ribo_user_name");
+	if (saved && saved.trim()) return saved;
+	return `Ribič (${getDeviceId().slice(-4)})`;
+}
+function setStoredUserName(name) {
+	if (typeof window === "undefined") return;
+	localStorage.setItem("ribo_user_name", name.trim());
+}
+/**
+* Matematički generator: Iz ID-a uređaja izračunava točan aktivacijski ključ
+* Primjer: RP-4A9B-8C2D -> AKT-7E2F-9A4B
+*/
+function generateActivationKey(deviceId) {
+	const [h1, h2] = hashString(`${deviceId.trim().toUpperCase()}:${SECRET_SALT}`);
+	const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+	let block1 = "";
+	let block2 = "";
+	let n1 = h1;
+	let n2 = h2;
+	for (let i = 0; i < 4; i++) {
+		block1 += chars.charAt(n1 % 32);
+		n1 = Math.floor(n1 / 32);
+		block2 += chars.charAt(n2 % 32);
+		n2 = Math.floor(n2 / 32);
+	}
+	return `AKT-${block1}-${block2}`;
+}
+/**
+* Provjerava je li uneseni ključ ispravan za zadani ID uređaja
+*/
+function verifyActivationKey(deviceId, enteredKey) {
+	if (!deviceId || !enteredKey) return false;
+	const expectedKey = generateActivationKey(deviceId);
+	return enteredKey.trim().toUpperCase().replace(/\s+/g, "") === expectedKey.replace(/\s+/g, "");
+}
+/**
+* Provjerava je li aplikacija trenutno trajno aktivirana na ovom uređaju
+*/
+function isAppActivated() {
+	if (typeof window === "undefined") return true;
+	if (localStorage.getItem("ribo_license_revoked") === "true") return false;
+	const currentDeviceId = getDeviceId();
+	const storedKey = localStorage.getItem("ribo_activation_key");
+	if (!storedKey) return false;
+	return verifyActivationKey(currentDeviceId, storedKey);
+}
+/**
+* Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
+*/
+var CLOUD_BACKEND_URL = "https://ais-dev-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app";
+var LOCAL_LICENSES_CACHE_KEY = "ribo_admin_licenses_cache";
+/**
+* Razrješava ispravan URL API rute ovisno o okruženju (Web preglednik vs. Android Capacitor)
+*/
+function getApiUrl(endpoint) {
+	if (typeof window === "undefined") return endpoint;
+	const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+	if (window.location.protocol === "capacitor:" || typeof window.Capacitor !== "undefined" && window.Capacitor?.isNativePlatform?.()) return `${CLOUD_BACKEND_URL}${cleanEndpoint}`;
+	return cleanEndpoint;
+}
+/**
+* Siguran dohvat JSON odgovora koji nikada ne ruši aplikaciju s greškom "Unexpected token <" ili "Failed to fetch"
+*/
+async function safeFetchJson(url, options) {
+	try {
+		const res = await fetch(url, options);
+		if ((res.headers.get("content-type") || "").includes("application/json")) {
+			const data = await res.json();
+			return {
+				ok: res.ok,
+				status: res.status,
+				data,
+				error: data?.error || data?.message
+			};
+		}
+		const text = await res.text();
+		try {
+			const data = JSON.parse(text);
+			return {
+				ok: res.ok,
+				status: res.status,
+				data,
+				error: data?.error || data?.message
+			};
+		} catch {
+			return {
+				ok: false,
+				status: res.status,
+				data: null,
+				error: `Poslužitelj privremeno nije vratio tražene podatke (kod: ${res.status}).`
+			};
+		}
+	} catch (err) {
+		return {
+			ok: false,
+			status: 0,
+			data: null,
+			error: err?.message?.toLowerCase().includes("failed to fetch") ? "Komunikacija s poslužiteljem trenutno nije uspjela (provjerite internet)." : err?.message || "Greška u mrežnoj komunikaciji."
+		};
+	}
+}
+/**
+* Lokalna predmemorija registriranih licenci (osigurava nesmetan rad offline ili u Capacitoru)
+*/
+function getLocalLicenses() {
+	if (typeof window === "undefined") return [];
+	try {
+		const raw = localStorage.getItem(LOCAL_LICENSES_CACHE_KEY);
+		return raw ? JSON.parse(raw) : [];
+	} catch {
+		return [];
+	}
+}
+function saveLocalLicenses(records) {
+	if (typeof window === "undefined") return;
+	try {
+		localStorage.setItem(LOCAL_LICENSES_CACHE_KEY, JSON.stringify(records));
+	} catch {}
+}
+/**
+* Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
+*/
+async function activateApp(key, proposedName) {
+	const currentDeviceId = getDeviceId();
+	if (!verifyActivationKey(currentDeviceId, key)) return {
+		success: false,
+		message: "Aktivacijski ključ nije ispravan za ovaj uređaj."
+	};
+	const formattedKey = generateActivationKey(currentDeviceId);
+	localStorage.setItem("ribo_activation_key", formattedKey);
+	localStorage.removeItem("ribo_license_revoked");
+	try {
+		const res = await safeFetchJson(getApiUrl("/api/license/register-or-verify"), {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				deviceId: currentDeviceId,
+				activationKey: formattedKey,
+				proposedName: proposedName || getUserName()
+			})
+		});
+		if (res.data) {
+			if (res.data.userName) setStoredUserName(res.data.userName);
+			if (res.data.status === "revoked") {
+				localStorage.setItem("ribo_license_revoked", "true");
+				return {
+					success: false,
+					message: "Vaša licenca je ukinuta od strane administratora."
+				};
+			}
+		}
+	} catch (err) {
+		console.warn("Poslužitelj trenutno nije dostupan, aktivacija spremljena lokalno.");
+	}
+	return { success: true };
+}
+/**
+* Provjerava valjanost licence na poslužitelju (provjera opoziva)
+*/
+async function verifyLicenseWithServer() {
+	const deviceId = getDeviceId();
+	const activationKey = getStoredActivationKey();
+	if (!activationKey) return {
+		valid: false,
+		status: "revoked",
+		userName: "",
+		message: "Aplikacija nije aktivirana."
+	};
+	try {
+		const res = await safeFetchJson(getApiUrl("/api/license/register-or-verify"), {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				deviceId,
+				activationKey,
+				proposedName: getUserName()
+			})
+		});
+		if (res.ok && res.data) {
+			if (res.data.userName) setStoredUserName(res.data.userName);
+			if (res.data.status === "revoked") {
+				localStorage.setItem("ribo_license_revoked", "true");
+				return {
+					valid: false,
+					status: "revoked",
+					userName: res.data.userName || "",
+					message: res.data.message
+				};
+			}
+			localStorage.removeItem("ribo_license_revoked");
+			return {
+				valid: true,
+				status: "active",
+				userName: res.data.userName || ""
+			};
+		}
+	} catch {}
+	return {
+		valid: verifyActivationKey(deviceId, activationKey),
+		status: "active",
+		userName: getUserName()
+	};
+}
+/**
+* Provjerava administratorski PIN za otvaranje generatora ključeva
+*/
+function checkAdminPin(pin) {
+	return pin.trim() === ADMIN_MASTER_PIN;
+}
+async function fetchAdminLicenses(pin) {
+	const localList = getLocalLicenses();
+	const res = await safeFetchJson(getApiUrl("/api/admin/licenses"), { headers: { "x-admin-pin": pin.trim() } });
+	if (res.ok && res.data?.licenses) {
+		const serverList = res.data.licenses;
+		const map = /* @__PURE__ */ new Map();
+		localList.forEach((item) => map.set(item.deviceId, item));
+		serverList.forEach((item) => map.set(item.deviceId, item));
+		const merged = Array.from(map.values()).sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime());
+		saveLocalLicenses(merged);
+		return merged;
+	}
+	return localList;
+}
+async function addAdminLicense(pin, payload) {
+	const cleanId = payload.deviceId.trim().toUpperCase();
+	const validKey = payload.activationKey?.trim().toUpperCase() || generateActivationKey(cleanId);
+	const cleanName = payload.userName?.trim() || `Ribič (${cleanId.slice(-4)})`;
+	const cleanStatus = payload.status === "revoked" ? "revoked" : "active";
+	const cleanChat = payload.chatEnabled !== false;
+	const localRecord = {
+		deviceId: cleanId,
+		activationKey: validKey,
+		userName: cleanName,
+		status: cleanStatus,
+		chatEnabled: cleanChat,
+		createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+		lastSeenAt: (/* @__PURE__ */ new Date()).toISOString(),
+		notes: payload.notes?.trim() || ""
+	};
+	const currentLocal = getLocalLicenses();
+	const existingIdx = currentLocal.findIndex((l) => l.deviceId === cleanId);
+	if (existingIdx >= 0) currentLocal[existingIdx] = {
+		...currentLocal[existingIdx],
+		...localRecord
+	};
+	else currentLocal.unshift(localRecord);
+	saveLocalLicenses(currentLocal);
+	const res = await safeFetchJson(getApiUrl("/api/admin/licenses/add"), {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-admin-pin": pin.trim()
+		},
+		body: JSON.stringify({
+			deviceId: cleanId,
+			userName: cleanName,
+			activationKey: validKey,
+			status: cleanStatus,
+			chatEnabled: cleanChat,
+			notes: payload.notes
+		})
+	});
+	if (res.ok && res.data?.license) {
+		saveLocalLicenses(getLocalLicenses().map((l) => l.deviceId === cleanId ? res.data.license : l));
+		return res.data.license;
+	}
+	return localRecord;
+}
+async function updateAdminLicense(pin, payload) {
+	const cleanId = payload.deviceId.trim().toUpperCase();
+	const currentLocal = getLocalLicenses();
+	const target = currentLocal.find((l) => l.deviceId === cleanId);
+	if (target) {
+		if (typeof payload.userName === "string") target.userName = payload.userName.trim();
+		if (payload.status) target.status = payload.status;
+		if (typeof payload.chatEnabled === "boolean") target.chatEnabled = payload.chatEnabled;
+		if (typeof payload.notes === "string") target.notes = payload.notes.trim();
+		saveLocalLicenses(currentLocal);
+	}
+	const res = await safeFetchJson(getApiUrl("/api/admin/licenses/update"), {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-admin-pin": pin.trim()
+		},
+		body: JSON.stringify(payload)
+	});
+	if (res.ok && res.data?.license) return res.data.license;
+	if (target) return target;
+	return {
+		deviceId: cleanId,
+		activationKey: generateActivationKey(cleanId),
+		userName: payload.userName || `Ribič (${cleanId.slice(-4)})`,
+		status: payload.status || "active",
+		chatEnabled: payload.chatEnabled !== false,
+		createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+		lastSeenAt: (/* @__PURE__ */ new Date()).toISOString(),
+		notes: payload.notes || ""
+	};
+}
+async function deleteAdminLicense(pin, deviceId) {
+	const cleanId = deviceId.trim().toUpperCase();
+	saveLocalLicenses(getLocalLicenses().filter((l) => l.deviceId !== cleanId));
+	try {
+		await safeFetchJson(getApiUrl(`/api/admin/licenses/${encodeURIComponent(cleanId)}`), {
+			method: "DELETE",
+			headers: { "x-admin-pin": pin.trim() }
+		});
+	} catch {}
+	return true;
+}
+//#endregion
+//#region src/services/weatherService.ts
+var CACHE_ALJMAS_KEY = "ribo_cache_aljmas_station_data";
+var CACHE_BOGOJEVO_KEY = "ribo_cache_bogojevo_station_data";
 var MVODOSTAJI_ALJMAS_URL = "https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=0&postajaID=148";
 var HIDMET_BOGOJEVO_URL = "https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42020";
 function getWindDirectionLabel(degrees) {
@@ -12934,65 +13298,66 @@ async function fetchMeteoForCoords(lat, lon) {
 		};
 	}
 }
+function getStoredAljmasData() {
+	if (typeof window === "undefined") return null;
+	try {
+		const raw = localStorage.getItem(CACHE_ALJMAS_KEY);
+		return raw ? JSON.parse(raw) : null;
+	} catch {
+		return null;
+	}
+}
+function getStoredBogojevoData() {
+	if (typeof window === "undefined") return null;
+	try {
+		const raw = localStorage.getItem(CACHE_BOGOJEVO_KEY);
+		return raw ? JSON.parse(raw) : null;
+	} catch {
+		return null;
+	}
+}
 /**
 * Dohvat službenih podataka za Aljmaš (mvodostaji.voda.hr + meteo Vinkovci/Aljmaš)
 */
 async function fetchAljmasStationData() {
 	const meteo = await fetchMeteoForCoords(45.5269, 18.9489);
-	let waterLevelCm = -76;
-	let waterLevelTrend = "stagnira";
-	let waterLevelChangeCm = 0;
-	let timeOfMeasurement = "09:00";
-	let dateOfMeasurement = (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR");
-	let maxLevelCm = 820;
-	let maxLevelDate = "25.06.1965.";
-	let prepLevelCm = 400;
-	let waterTempC = 12.9;
-	let isLive = false;
-	let history = [
+	const cached = getStoredAljmasData();
+	let waterLevelCm = cached ? cached.waterLevelCm : -76;
+	let waterLevelTrend = cached ? cached.waterLevelTrend : "stagnira";
+	let waterLevelChangeCm = cached ? cached.waterLevelChangeCm : 0;
+	let timeOfMeasurement = cached ? cached.timeOfMeasurement : "09:00";
+	let dateOfMeasurement = cached ? cached.dateOfMeasurement : (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR");
+	let maxLevelCm = cached?.maxLevelCm || 820;
+	let maxLevelDate = cached?.maxLevelDate || "25.06.1965.";
+	let prepLevelCm = cached?.prepLevelCm || 400;
+	let waterTempC = cached?.waterTempC || 12.9;
+	let isLive = Boolean(cached?.isLive);
+	let history = cached?.recentHistory && cached.recentHistory.length > 0 ? cached.recentHistory : [
 		{
 			date: dateOfMeasurement,
 			time: "09:00",
-			level: -76,
+			level: waterLevelCm,
 			trendChange: 0
 		},
 		{
 			date: dateOfMeasurement,
 			time: "08:00",
-			level: -76,
+			level: waterLevelCm,
 			trendChange: 0
 		},
 		{
 			date: dateOfMeasurement,
 			time: "07:00",
-			level: -76,
-			trendChange: 0
-		},
-		{
-			date: dateOfMeasurement,
-			time: "06:00",
-			level: -76,
-			trendChange: 0
-		},
-		{
-			date: dateOfMeasurement,
-			time: "05:00",
-			level: -76,
-			trendChange: 0
-		},
-		{
-			date: dateOfMeasurement,
-			time: "04:00",
-			level: -76,
+			level: waterLevelCm,
 			trendChange: 0
 		}
 	];
 	let airPressureHpa = meteo.airPressureHpa;
 	let airPressureTrend = meteo.airPressureTrend;
 	try {
-		const res = await fetch("/api/water/aljmas", { signal: AbortSignal.timeout(5e3) });
-		if (res.ok) {
-			const data = await res.json();
+		const res = await safeFetchJson(getApiUrl("/api/water/aljmas"));
+		if (res.ok && res.data) {
+			const data = res.data;
 			if (data.waterLevelCm !== void 0) {
 				waterLevelCm = data.waterLevelCm;
 				waterLevelTrend = data.waterLevelTrend || "stagnira";
@@ -13019,9 +13384,9 @@ async function fetchAljmasStationData() {
 			}
 		}
 	} catch (err) {
-		console.warn("Lokalni dohvat za Aljmaš pao na fallback:", err);
+		console.warn("Dohvat podataka za Aljmaš poslužio iz predmemorije:", err);
 	}
-	return {
+	const result = {
 		id: "aljmas",
 		name: "Dunav - Aljmaš (Ušće Drave)",
 		river: "Dunav",
@@ -13049,34 +13414,39 @@ async function fetchAljmasStationData() {
 		isLive,
 		notes: "Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s putovnica.net (Aljmaš)."
 	};
+	try {
+		if (typeof window !== "undefined") localStorage.setItem(CACHE_ALJMAS_KEY, JSON.stringify(result));
+	} catch {}
+	return result;
 }
 /**
 * Dohvat službenih podataka za Bogojevo (hidmet.gov.rs + meteo Bogojevo)
 */
 async function fetchBogojevoStationData() {
 	const meteo = await fetchMeteoForCoords(45.5342, 19.1231);
-	let waterLevelCm = -83;
-	let waterLevelTrend = "opada";
-	let waterLevelChangeCm = -1;
-	let flowM3s = 985;
-	let forecastDays = [
+	const cached = getStoredBogojevoData();
+	let waterLevelCm = cached ? cached.waterLevelCm : -83;
+	let waterLevelTrend = cached ? cached.waterLevelTrend : "opada";
+	let waterLevelChangeCm = cached ? cached.waterLevelChangeCm : -1;
+	let flowM3s = cached?.flowM3s !== void 0 ? cached.flowM3s : 985;
+	let forecastDays = cached?.forecastDays || [
 		-92,
 		-86,
 		-90,
 		-96
 	];
-	let regularDefenseCm = 600;
-	let emergencyDefenseCm = 700;
-	let waterTempC = 12.6;
-	let isLive = false;
-	let timeOfMeasurement = "07:00";
-	let dateOfMeasurement = (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR");
+	let regularDefenseCm = cached?.regularDefenseCm || 600;
+	let emergencyDefenseCm = cached?.emergencyDefenseCm || 700;
+	let waterTempC = cached?.waterTempC !== void 0 ? cached.waterTempC : 12.6;
+	let isLive = Boolean(cached?.isLive);
+	let timeOfMeasurement = cached?.timeOfMeasurement || "07:00";
+	let dateOfMeasurement = cached?.dateOfMeasurement || (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR");
 	let airPressureHpa = meteo.airPressureHpa;
 	let airPressureTrend = meteo.airPressureTrend;
 	try {
-		const res = await fetch("/api/water/bogojevo", { signal: AbortSignal.timeout(5e3) });
-		if (res.ok) {
-			const data = await res.json();
+		const res = await safeFetchJson(getApiUrl("/api/water/bogojevo"));
+		if (res.ok && res.data) {
+			const data = res.data;
 			if (data.waterLevelCm !== void 0) {
 				waterLevelCm = data.waterLevelCm;
 				waterLevelChangeCm = data.waterLevelChangeCm !== void 0 ? data.waterLevelChangeCm : -1;
@@ -13096,9 +13466,9 @@ async function fetchBogojevoStationData() {
 			}
 		}
 	} catch (err) {
-		console.warn("Lokalni dohvat za Bogojevo pao na fallback:", err);
+		console.warn("Dohvat podataka za Bogojevo poslužio iz predmemorije:", err);
 	}
-	const history = [
+	const history = cached?.recentHistory && cached.recentHistory.length > 0 ? cached.recentHistory : [
 		{
 			date: dateOfMeasurement,
 			time: "Danas 07:00",
@@ -13118,7 +13488,7 @@ async function fetchBogojevoStationData() {
 			trendChange: -2
 		}
 	];
-	return {
+	const result = {
 		id: "bogojevo",
 		name: "Dunav - Bogojevo",
 		river: "Dunav",
@@ -13147,6 +13517,10 @@ async function fetchBogojevoStationData() {
 		isLive,
 		notes: "Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s vojvodinameteo.rs (Bogojevo)."
 	};
+	try {
+		if (typeof window !== "undefined") localStorage.setItem(CACHE_BOGOJEVO_KEY, JSON.stringify(result));
+	} catch {}
+	return result;
 }
 //#endregion
 //#region node_modules/react/cjs/react-jsx-runtime.production.js
@@ -13199,26 +13573,27 @@ var Navbar = ({ activeTab, onSelectTab, onRefresh, isLoading, lastUpdated, onOpe
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("header", {
 		className: "fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-lg pt-[env(safe-area-inset-top,0px)] w-full",
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: "max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5",
+			className: "max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-1.5 sm:py-2.5 w-full",
 			children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex items-center justify-between gap-2.5 sm:gap-3",
+				className: "flex items-center justify-between gap-1.5 sm:gap-3 w-full",
 				children: [
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						onClick: () => onSelectTab("sve"),
-						className: "flex items-center space-x-2.5 sm:space-x-3 shrink-0 cursor-pointer",
+						className: "flex items-center gap-1.5 sm:gap-2.5 min-w-0 cursor-pointer shrink",
+						title: "Povratak na početni pregled",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 							src: "/pwa-192x192.png",
 							alt: "RiboPrognoza ikona",
-							className: "h-[50px] w-[50px] sm:h-[54px] sm:w-[54px] rounded-2xl object-cover shadow-md ring-2 ring-cyan-500/30 shrink-0",
+							className: "h-8 w-8 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl object-cover shadow-md ring-1 sm:ring-2 ring-cyan-500/30 shrink-0",
 							referrerPolicy: "no-referrer"
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "h-[50px] sm:h-[54px] flex flex-col justify-center gap-0.5 sm:gap-1 text-left select-none",
+							className: "flex flex-col justify-center text-left select-none min-w-0",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "font-black text-white text-[19px] sm:text-[21px] leading-none tracking-tight block",
-								children: "Ribo"
+								className: "font-black text-white text-xs sm:text-lg leading-tight tracking-tight truncate",
+								children: "RiboPrognoza"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "font-black text-white text-[19px] sm:text-[21px] leading-none tracking-tight block",
-								children: "Prognoza"
+								className: "text-[9px] sm:text-[10px] text-cyan-400 font-semibold uppercase tracking-wider hidden xs:block",
+								children: "Dunav Live"
 							})]
 						})]
 					}),
@@ -13253,40 +13628,42 @@ var Navbar = ({ activeTab, onSelectTab, onRefresh, isLoading, lastUpdated, onOpe
 						]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center space-x-1.5 sm:space-x-2 shrink-0",
+						className: "flex items-center gap-1.5 sm:gap-2 shrink-0",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
 							onClick: onOpenChat,
-							className: "relative h-10 sm:h-11 flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-teal-200 bg-teal-950/80 hover:bg-teal-900 transition-all shadow-md border border-teal-500/40 cursor-pointer active:scale-95 shrink-0",
+							className: "relative h-8 sm:h-10 flex items-center gap-1.5 px-2 sm:px-3 py-1 rounded-xl text-xs font-bold text-teal-200 bg-teal-950/90 hover:bg-teal-900 transition-all shadow-md border border-teal-500/40 cursor-pointer active:scale-95 shrink-0",
 							title: "Otvori interni LiveChat",
 							children: [
 								unreadChatCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 bg-rose-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-950 shadow-lg animate-pulse",
+									className: "absolute -top-1 -right-1 min-w-[18px] h-4.5 px-1 bg-rose-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-slate-950 shadow-lg animate-pulse",
 									children: unreadChatCount > 99 ? "99+" : unreadChatCount
 								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageSquare, { className: "w-4 h-4 text-teal-400 shrink-0" }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageSquare, { className: "w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal-400 shrink-0" }),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "flex flex-col text-left leading-tight",
 									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-white font-bold text-xs sm:text-sm",
+										className: "text-white font-bold text-[11px] sm:text-xs",
 										children: "LiveChat"
 									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[10px] text-teal-300 font-normal",
+										className: "text-[9px] text-teal-300 font-normal hidden xs:inline",
 										children: "Dunav"
 									})]
 								})
 							]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
 							onClick: onRefresh,
 							disabled: isLoading,
-							className: "h-10 sm:h-11 flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-600 transition-all shadow-md border border-cyan-500/40 cursor-pointer active:scale-95 shrink-0",
+							className: "h-8 sm:h-10 flex items-center gap-1.5 px-2 sm:px-3 py-1 rounded-xl text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-600 transition-all shadow-md border border-cyan-500/40 cursor-pointer active:scale-95 shrink-0",
 							title: "Ažuriraj sve hidrometeo i solunarne podatke",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-4 h-4 text-cyan-200 shrink-0 ${isLoading ? "animate-spin" : ""}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-200 shrink-0 ${isLoading ? "animate-spin" : ""}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex flex-col text-left leading-tight",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs sm:text-sm",
-									children: isLoading ? "Ažuriranje..." : "Ažuriraj"
+									className: "text-[11px] sm:text-xs font-bold",
+									children: isLoading ? "Učitavam..." : "Ažuriraj"
 								}), lastUpdated && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-									className: "text-[10px] text-cyan-200 font-normal",
+									className: "text-[9px] text-cyan-200 font-normal hidden xs:inline",
 									children: [formatTime(lastUpdated), " h"]
 								})]
 							})]
@@ -15573,50 +15950,66 @@ var BasicOverviewView = ({ aljmas, bogojevo, solunar, isLoading, onOpenExpertSec
 };
 //#endregion
 //#region src/components/AndroidBottomNav.tsx
-var AndroidBottomNav = ({ activeTab, onSelectTab }) => {
+var AndroidBottomNav = ({ activeTab, onSelectTab, onOpenChat, unreadChatCount = 0 }) => {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("nav", {
 		"aria-label": "Mobilna navigacija",
-		className: "md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 text-white shadow-xl px-1 py-1.5 pb-safe w-full max-w-full overflow-hidden",
+		className: "md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 text-white shadow-xl px-1 py-1 pb-safe w-full max-w-full overflow-hidden",
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "grid grid-cols-5 items-center text-center w-full",
+			className: "grid grid-cols-6 items-center text-center w-full",
 			children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 					onClick: () => onSelectTab("sve"),
 					className: `flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${activeTab === "sve" ? "text-cyan-400 font-bold" : "text-slate-400 hover:text-slate-200"}`,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LayoutDashboard, { className: "w-5 h-5 mb-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[10px] leading-tight",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LayoutDashboard, { className: "w-4.5 h-4.5 mb-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[9px] leading-tight font-medium",
 						children: "Sve"
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 					onClick: () => onSelectTab("aljmas"),
 					className: `flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${activeTab === "aljmas" ? "text-teal-400 font-bold" : "text-slate-400 hover:text-slate-200"}`,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Waves, { className: "w-5 h-5 mb-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[10px] leading-tight",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Waves, { className: "w-4.5 h-4.5 mb-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[9px] leading-tight font-medium",
 						children: "Aljmaš"
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 					onClick: () => onSelectTab("bogojevo"),
 					className: `flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${activeTab === "bogojevo" ? "text-cyan-400 font-bold" : "text-slate-400 hover:text-slate-200"}`,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Waves, { className: "w-5 h-5 mb-0.5 text-cyan-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[10px] leading-tight",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Waves, { className: "w-4.5 h-4.5 mb-0.5 text-cyan-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[9px] leading-tight font-medium",
 						children: "Bogojevo"
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 					onClick: () => onSelectTab("solunar"),
 					className: `flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${activeTab === "solunar" ? "text-indigo-400 font-bold" : "text-slate-400 hover:text-slate-200"}`,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-5 h-5 mb-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[10px] leading-tight",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4.5 h-4.5 mb-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[9px] leading-tight font-medium",
 						children: "Solunar"
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					onClick: onOpenChat,
+					className: "relative flex flex-col items-center justify-center py-1 transition-all cursor-pointer text-teal-400 hover:text-teal-300 font-bold",
+					title: "Otvori interni LiveChat",
+					children: [
+						unreadChatCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "absolute -top-0.5 right-1.5 min-w-[16px] h-4 px-0.5 bg-rose-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-slate-950 shadow-md animate-pulse",
+							children: unreadChatCount > 9 ? "9+" : unreadChatCount
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageSquare, { className: "w-4.5 h-4.5 mb-0.5 text-teal-300" }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[9px] leading-tight text-teal-200",
+							children: "Chat"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 					onClick: () => onSelectTab("usporedba"),
 					className: `flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${activeTab === "usporedba" ? "text-purple-400 font-bold" : "text-slate-400 hover:text-slate-200"}`,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Scale, { className: "w-5 h-5 mb-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[10px] leading-tight",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Scale, { className: "w-4.5 h-4.5 mb-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[9px] leading-tight font-medium",
 						children: "Usporedi"
 					})]
 				})
@@ -15649,368 +16042,6 @@ var OfflineIndicator = () => {
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(WifiOff, { className: "w-4 h-4 shrink-0 animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Rad bez interneta — ulov se sprema lokalno na vašem mobitelu." })]
 	});
 };
-//#endregion
-//#region src/services/licenseService.ts
-/**
-* Sustav licenci i zaštite aplikacije (Hardverski ID uređaja + Centralni registar i opoziv)
-* Autor: Daniel Čizmar
-*/
-var SECRET_SALT = "DUNAV_ZANDER_DANIEL_CIZMAR_2026_PROTECT_KEY";
-var ADMIN_MASTER_PIN = "2026";
-function hashString(str) {
-	let h1 = 3735928559;
-	let h2 = 1103515245;
-	for (let i = 0; i < str.length; i++) {
-		const ch = str.charCodeAt(i);
-		h1 = Math.imul(h1 ^ ch, 2654435761);
-		h2 = Math.imul(h2 ^ ch, 1597334677);
-	}
-	h1 = Math.imul(h1 ^ h1 >>> 16, 2246822507) ^ Math.imul(h2 ^ h2 >>> 13, 3266489909);
-	h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507) ^ Math.imul(h1 ^ h1 >>> 13, 3266489909);
-	return [Math.abs(h1), Math.abs(h2)];
-}
-/**
-* Dohvaća ili stvara trajni jedinstveni ID uređaja (npr. RP-8B3E-72C9)
-*/
-function getDeviceId() {
-	if (typeof window === "undefined") return "RP-0000-0000";
-	let deviceId = localStorage.getItem("ribo_device_id");
-	if (!deviceId || !deviceId.startsWith("RP-")) {
-		const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-		let part1 = "";
-		let part2 = "";
-		for (let i = 0; i < 4; i++) {
-			part1 += chars.charAt(Math.floor(Math.random() * 32));
-			part2 += chars.charAt(Math.floor(Math.random() * 32));
-		}
-		deviceId = `RP-${part1}-${part2}`;
-		localStorage.setItem("ribo_device_id", deviceId);
-	}
-	return deviceId;
-}
-/**
-* Dohvaća spremljeni aktivacijski ključ
-*/
-function getStoredActivationKey() {
-	if (typeof window === "undefined") return "";
-	return localStorage.getItem("ribo_activation_key") || "";
-}
-/**
-* Dohvaća ime trenutnog korisnika dodijeljeno u bazi ili lokalno
-*/
-function getUserName() {
-	if (typeof window === "undefined") return "Ribič";
-	const saved = localStorage.getItem("ribo_user_name");
-	if (saved && saved.trim()) return saved;
-	return `Ribič (${getDeviceId().slice(-4)})`;
-}
-function setStoredUserName(name) {
-	if (typeof window === "undefined") return;
-	localStorage.setItem("ribo_user_name", name.trim());
-}
-/**
-* Matematički generator: Iz ID-a uređaja izračunava točan aktivacijski ključ
-* Primjer: RP-4A9B-8C2D -> AKT-7E2F-9A4B
-*/
-function generateActivationKey(deviceId) {
-	const [h1, h2] = hashString(`${deviceId.trim().toUpperCase()}:${SECRET_SALT}`);
-	const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-	let block1 = "";
-	let block2 = "";
-	let n1 = h1;
-	let n2 = h2;
-	for (let i = 0; i < 4; i++) {
-		block1 += chars.charAt(n1 % 32);
-		n1 = Math.floor(n1 / 32);
-		block2 += chars.charAt(n2 % 32);
-		n2 = Math.floor(n2 / 32);
-	}
-	return `AKT-${block1}-${block2}`;
-}
-/**
-* Provjerava je li uneseni ključ ispravan za zadani ID uređaja
-*/
-function verifyActivationKey(deviceId, enteredKey) {
-	if (!deviceId || !enteredKey) return false;
-	const expectedKey = generateActivationKey(deviceId);
-	return enteredKey.trim().toUpperCase().replace(/\s+/g, "") === expectedKey.replace(/\s+/g, "");
-}
-/**
-* Provjerava je li aplikacija trenutno trajno aktivirana na ovom uređaju
-*/
-function isAppActivated() {
-	if (typeof window === "undefined") return true;
-	if (localStorage.getItem("ribo_license_revoked") === "true") return false;
-	const currentDeviceId = getDeviceId();
-	const storedKey = localStorage.getItem("ribo_activation_key");
-	if (!storedKey) return false;
-	return verifyActivationKey(currentDeviceId, storedKey);
-}
-/**
-* Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
-*/
-var CLOUD_BACKEND_URL = "https://ais-dev-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app";
-var LOCAL_LICENSES_CACHE_KEY = "ribo_admin_licenses_cache";
-/**
-* Razrješava ispravan URL API rute ovisno o okruženju (Web preglednik vs. Android Capacitor)
-*/
-function getApiUrl(endpoint) {
-	if (typeof window === "undefined") return endpoint;
-	const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-	if (window.location.protocol === "capacitor:" || typeof window.Capacitor !== "undefined" && window.Capacitor?.isNativePlatform?.()) return `${CLOUD_BACKEND_URL}${cleanEndpoint}`;
-	return cleanEndpoint;
-}
-/**
-* Siguran dohvat JSON odgovora koji nikada ne ruši aplikaciju s greškom "Unexpected token <" ili "Failed to fetch"
-*/
-async function safeFetchJson(url, options) {
-	try {
-		const res = await fetch(url, options);
-		if ((res.headers.get("content-type") || "").includes("application/json")) {
-			const data = await res.json();
-			return {
-				ok: res.ok,
-				status: res.status,
-				data,
-				error: data?.error || data?.message
-			};
-		}
-		const text = await res.text();
-		try {
-			const data = JSON.parse(text);
-			return {
-				ok: res.ok,
-				status: res.status,
-				data,
-				error: data?.error || data?.message
-			};
-		} catch {
-			return {
-				ok: false,
-				status: res.status,
-				data: null,
-				error: `Poslužitelj privremeno nije vratio tražene podatke (kod: ${res.status}).`
-			};
-		}
-	} catch (err) {
-		return {
-			ok: false,
-			status: 0,
-			data: null,
-			error: err?.message?.toLowerCase().includes("failed to fetch") ? "Komunikacija s poslužiteljem trenutno nije uspjela (provjerite internet)." : err?.message || "Greška u mrežnoj komunikaciji."
-		};
-	}
-}
-/**
-* Lokalna predmemorija registriranih licenci (osigurava nesmetan rad offline ili u Capacitoru)
-*/
-function getLocalLicenses() {
-	if (typeof window === "undefined") return [];
-	try {
-		const raw = localStorage.getItem(LOCAL_LICENSES_CACHE_KEY);
-		return raw ? JSON.parse(raw) : [];
-	} catch {
-		return [];
-	}
-}
-function saveLocalLicenses(records) {
-	if (typeof window === "undefined") return;
-	try {
-		localStorage.setItem(LOCAL_LICENSES_CACHE_KEY, JSON.stringify(records));
-	} catch {}
-}
-/**
-* Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
-*/
-async function activateApp(key, proposedName) {
-	const currentDeviceId = getDeviceId();
-	if (!verifyActivationKey(currentDeviceId, key)) return {
-		success: false,
-		message: "Aktivacijski ključ nije ispravan za ovaj uređaj."
-	};
-	const formattedKey = generateActivationKey(currentDeviceId);
-	localStorage.setItem("ribo_activation_key", formattedKey);
-	localStorage.removeItem("ribo_license_revoked");
-	try {
-		const res = await safeFetchJson(getApiUrl("/api/license/register-or-verify"), {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				deviceId: currentDeviceId,
-				activationKey: formattedKey,
-				proposedName: proposedName || getUserName()
-			})
-		});
-		if (res.data) {
-			if (res.data.userName) setStoredUserName(res.data.userName);
-			if (res.data.status === "revoked") {
-				localStorage.setItem("ribo_license_revoked", "true");
-				return {
-					success: false,
-					message: "Vaša licenca je ukinuta od strane administratora."
-				};
-			}
-		}
-	} catch (err) {
-		console.warn("Poslužitelj trenutno nije dostupan, aktivacija spremljena lokalno.");
-	}
-	return { success: true };
-}
-/**
-* Provjerava valjanost licence na poslužitelju (provjera opoziva)
-*/
-async function verifyLicenseWithServer() {
-	const deviceId = getDeviceId();
-	const activationKey = getStoredActivationKey();
-	if (!activationKey) return {
-		valid: false,
-		status: "revoked",
-		userName: "",
-		message: "Aplikacija nije aktivirana."
-	};
-	try {
-		const res = await safeFetchJson(getApiUrl("/api/license/register-or-verify"), {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				deviceId,
-				activationKey,
-				proposedName: getUserName()
-			})
-		});
-		if (res.ok && res.data) {
-			if (res.data.userName) setStoredUserName(res.data.userName);
-			if (res.data.status === "revoked") {
-				localStorage.setItem("ribo_license_revoked", "true");
-				return {
-					valid: false,
-					status: "revoked",
-					userName: res.data.userName || "",
-					message: res.data.message
-				};
-			}
-			localStorage.removeItem("ribo_license_revoked");
-			return {
-				valid: true,
-				status: "active",
-				userName: res.data.userName || ""
-			};
-		}
-	} catch {}
-	return {
-		valid: verifyActivationKey(deviceId, activationKey),
-		status: "active",
-		userName: getUserName()
-	};
-}
-/**
-* Provjerava administratorski PIN za otvaranje generatora ključeva
-*/
-function checkAdminPin(pin) {
-	return pin.trim() === ADMIN_MASTER_PIN;
-}
-async function fetchAdminLicenses(pin) {
-	const localList = getLocalLicenses();
-	const res = await safeFetchJson(getApiUrl("/api/admin/licenses"), { headers: { "x-admin-pin": pin.trim() } });
-	if (res.ok && res.data?.licenses) {
-		const serverList = res.data.licenses;
-		const map = /* @__PURE__ */ new Map();
-		localList.forEach((item) => map.set(item.deviceId, item));
-		serverList.forEach((item) => map.set(item.deviceId, item));
-		const merged = Array.from(map.values()).sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime());
-		saveLocalLicenses(merged);
-		return merged;
-	}
-	return localList;
-}
-async function addAdminLicense(pin, payload) {
-	const cleanId = payload.deviceId.trim().toUpperCase();
-	const validKey = payload.activationKey?.trim().toUpperCase() || generateActivationKey(cleanId);
-	const cleanName = payload.userName?.trim() || `Ribič (${cleanId.slice(-4)})`;
-	const cleanStatus = payload.status === "revoked" ? "revoked" : "active";
-	const cleanChat = payload.chatEnabled !== false;
-	const localRecord = {
-		deviceId: cleanId,
-		activationKey: validKey,
-		userName: cleanName,
-		status: cleanStatus,
-		chatEnabled: cleanChat,
-		createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-		lastSeenAt: (/* @__PURE__ */ new Date()).toISOString(),
-		notes: payload.notes?.trim() || ""
-	};
-	const currentLocal = getLocalLicenses();
-	const existingIdx = currentLocal.findIndex((l) => l.deviceId === cleanId);
-	if (existingIdx >= 0) currentLocal[existingIdx] = {
-		...currentLocal[existingIdx],
-		...localRecord
-	};
-	else currentLocal.unshift(localRecord);
-	saveLocalLicenses(currentLocal);
-	const res = await safeFetchJson(getApiUrl("/api/admin/licenses/add"), {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"x-admin-pin": pin.trim()
-		},
-		body: JSON.stringify({
-			deviceId: cleanId,
-			userName: cleanName,
-			activationKey: validKey,
-			status: cleanStatus,
-			chatEnabled: cleanChat,
-			notes: payload.notes
-		})
-	});
-	if (res.ok && res.data?.license) {
-		saveLocalLicenses(getLocalLicenses().map((l) => l.deviceId === cleanId ? res.data.license : l));
-		return res.data.license;
-	}
-	return localRecord;
-}
-async function updateAdminLicense(pin, payload) {
-	const cleanId = payload.deviceId.trim().toUpperCase();
-	const currentLocal = getLocalLicenses();
-	const target = currentLocal.find((l) => l.deviceId === cleanId);
-	if (target) {
-		if (typeof payload.userName === "string") target.userName = payload.userName.trim();
-		if (payload.status) target.status = payload.status;
-		if (typeof payload.chatEnabled === "boolean") target.chatEnabled = payload.chatEnabled;
-		if (typeof payload.notes === "string") target.notes = payload.notes.trim();
-		saveLocalLicenses(currentLocal);
-	}
-	const res = await safeFetchJson(getApiUrl("/api/admin/licenses/update"), {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"x-admin-pin": pin.trim()
-		},
-		body: JSON.stringify(payload)
-	});
-	if (res.ok && res.data?.license) return res.data.license;
-	if (target) return target;
-	return {
-		deviceId: cleanId,
-		activationKey: generateActivationKey(cleanId),
-		userName: payload.userName || `Ribič (${cleanId.slice(-4)})`,
-		status: payload.status || "active",
-		chatEnabled: payload.chatEnabled !== false,
-		createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-		lastSeenAt: (/* @__PURE__ */ new Date()).toISOString(),
-		notes: payload.notes || ""
-	};
-}
-async function deleteAdminLicense(pin, deviceId) {
-	const cleanId = deviceId.trim().toUpperCase();
-	saveLocalLicenses(getLocalLicenses().filter((l) => l.deviceId !== cleanId));
-	try {
-		await safeFetchJson(getApiUrl(`/api/admin/licenses/${encodeURIComponent(cleanId)}`), {
-			method: "DELETE",
-			headers: { "x-admin-pin": pin.trim() }
-		});
-	} catch {}
-	return true;
-}
 //#endregion
 //#region src/components/ActivationLockScreen.tsx
 var ActivationLockScreen = ({ onActivated, onOpenAdminGenerator }) => {
@@ -16809,7 +16840,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 };
 //#endregion
 //#region node_modules/@capacitor/local-notifications/dist/esm/index.js
-var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-ClAlApva.js").then((m) => new m.LocalNotificationsWeb()), []) });
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-9Bp3YxS0.js").then((m) => new m.LocalNotificationsWeb()), []) });
 //#endregion
 //#region src/services/notificationService.ts
 /**
@@ -18855,106 +18886,102 @@ function App() {
 		} catch {}
 		return /* @__PURE__ */ new Date();
 	});
-	const [aljmasData, setAljmasData] = (0, import_react.useState)({
-		id: "aljmas",
-		name: "Dunav - Aljmaš (Ušće Drave)",
-		river: "Dunav",
-		sectorName: "Sektor 2 / Ušće Drave u Dunav (Šporanj)",
-		riverKm: "rkm 1380,300",
-		waterLevelCm: -76,
-		waterLevelTrend: "stagnira",
-		waterLevelChangeCm: 0,
-		timeOfMeasurement: "09:00",
-		dateOfMeasurement: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-		maxLevelCm: 820,
-		maxLevelDate: "25.06.1965.",
-		prepLevelCm: 400,
-		recentHistory: [
-			{
-				date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-				time: "09:00",
-				level: -76,
-				trendChange: 0
-			},
-			{
-				date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-				time: "08:00",
-				level: -76,
-				trendChange: 0
-			},
-			{
+	const [aljmasData, setAljmasData] = (0, import_react.useState)(() => {
+		const cached = getStoredAljmasData();
+		if (cached) return cached;
+		return {
+			id: "aljmas",
+			name: "Dunav - Aljmaš (Ušće Drave)",
+			river: "Dunav",
+			sectorName: "Sektor 2 / Ušće Drave u Dunav (Šporanj)",
+			riverKm: "rkm 1380,300",
+			waterLevelCm: -76,
+			waterLevelTrend: "stagnira",
+			waterLevelChangeCm: 0,
+			timeOfMeasurement: "09:00",
+			dateOfMeasurement: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
+			maxLevelCm: 820,
+			maxLevelDate: "25.06.1965.",
+			prepLevelCm: 400,
+			recentHistory: [
+				{
+					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
+					time: "09:00",
+					level: -76,
+					trendChange: 0
+				},
+				{
+					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
+					time: "08:00",
+					level: -76,
+					trendChange: 0
+				},
+				{
+					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
+					time: "07:00",
+					level: -76,
+					trendChange: 0
+				}
+			],
+			airPressureHpa: 1017,
+			airPressureTrend: "stabilan",
+			airTempC: 21,
+			waterTempC: 12.9,
+			windSpeedKmh: 12,
+			windSpeedMs: 3.3,
+			windDirection: "SZ",
+			weatherCondition: "djelomicno_oblacno",
+			sourceUrl: MVODOSTAJI_ALJMAS_URL,
+			sourceName: "mvodostaji.voda.hr (postaja 148)",
+			isLive: true
+		};
+	});
+	const [bogojevoData, setBogojevoData] = (0, import_react.useState)(() => {
+		const cached = getStoredBogojevoData();
+		if (cached) return cached;
+		return {
+			id: "bogojevo",
+			name: "Dunav - Bogojevo",
+			river: "Dunav",
+			sectorName: "Most Bogojevo - Erdut / Kameni špornjevi",
+			riverKm: "rkm 1367,000",
+			waterLevelCm: -83,
+			waterLevelTrend: "opada",
+			waterLevelChangeCm: -1,
+			flowM3s: 880,
+			forecastDays: [
+				-92,
+				-86,
+				-90,
+				-96
+			],
+			regularDefenseCm: 600,
+			emergencyDefenseCm: 700,
+			timeOfMeasurement: "07:00",
+			dateOfMeasurement: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
+			recentHistory: [{
 				date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
 				time: "07:00",
-				level: -76,
-				trendChange: 0
-			},
-			{
-				date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-				time: "06:00",
-				level: -76,
-				trendChange: 0
-			},
-			{
-				date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-				time: "05:00",
-				level: -76,
-				trendChange: 0
-			}
-		],
-		airPressureHpa: 1017,
-		airPressureTrend: "stabilan",
-		airTempC: 21,
-		waterTempC: 12.9,
-		windSpeedKmh: 12,
-		windSpeedMs: 3.3,
-		windDirection: "SZ",
-		weatherCondition: "djelomicno_oblacno",
-		sourceUrl: MVODOSTAJI_ALJMAS_URL,
-		sourceName: "mvodostaji.voda.hr (postaja 148)",
-		isLive: true
-	});
-	const [bogojevoData, setBogojevoData] = (0, import_react.useState)({
-		id: "bogojevo",
-		name: "Dunav - Bogojevo",
-		river: "Dunav",
-		sectorName: "Most Bogojevo - Erdut / Kameni špornjevi",
-		riverKm: "rkm 1367,000",
-		waterLevelCm: -83,
-		waterLevelTrend: "opada",
-		waterLevelChangeCm: -1,
-		flowM3s: 880,
-		forecastDays: [
-			-92,
-			-86,
-			-90,
-			-96
-		],
-		regularDefenseCm: 600,
-		emergencyDefenseCm: 700,
-		timeOfMeasurement: "07:00",
-		dateOfMeasurement: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-		recentHistory: [{
-			date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-			time: "07:00",
-			level: -83,
-			trendChange: -1
-		}, {
-			date: "Jučer",
-			time: "07:00",
-			level: -82,
-			trendChange: 4
-		}],
-		airPressureHpa: 1016,
-		airPressureTrend: "stabilan",
-		airTempC: 22,
-		waterTempC: 12.6,
-		windSpeedKmh: 10,
-		windSpeedMs: 2.8,
-		windDirection: "SZ",
-		weatherCondition: "djelomicno_oblacno",
-		sourceUrl: HIDMET_BOGOJEVO_URL,
-		sourceName: "hidmet.gov.rs (hm_id 42020)",
-		isLive: true
+				level: -83,
+				trendChange: -1
+			}, {
+				date: "Jučer",
+				time: "07:00",
+				level: -82,
+				trendChange: 4
+			}],
+			airPressureHpa: 1016,
+			airPressureTrend: "stabilan",
+			airTempC: 22,
+			waterTempC: 12.6,
+			windSpeedKmh: 10,
+			windSpeedMs: 2.8,
+			windDirection: "SZ",
+			weatherCondition: "djelomicno_oblacno",
+			sourceUrl: HIDMET_BOGOJEVO_URL,
+			sourceName: "hidmet.gov.rs (hm_id 42020)",
+			isLive: true
+		};
 	});
 	const [solunarData, setSolunarData] = (0, import_react.useState)(() => {
 		return getSolunarDataForDate(/* @__PURE__ */ new Date(), 1017, "stabilan");
@@ -19342,7 +19369,9 @@ function App() {
 						setViewMode("expert");
 						localStorage.setItem("ribo_app_view_mode", "expert");
 					}
-				}
+				},
+				onOpenChat: handleOpenChat,
+				unreadChatCount
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "max-w-7xl mx-auto px-4 w-full mt-4 mb-2 text-center",

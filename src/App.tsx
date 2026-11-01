@@ -11,6 +11,8 @@ import { StationWaterData, SolunarDayData } from './types/fishing';
 import { 
   fetchAljmasStationData, 
   fetchBogojevoStationData, 
+  getStoredAljmasData,
+  getStoredBogojevoData,
   getSolunarDataForDate,
   MVODOSTAJI_ALJMAS_URL,
   HIDMET_BOGOJEVO_URL
@@ -73,72 +75,78 @@ export default function App() {
     return new Date();
   });
 
-  // Početno stanje za Aljmaš (mvodostaji.voda.hr)
-  const [aljmasData, setAljmasData] = useState<StationWaterData>({
-    id: 'aljmas',
-    name: 'Dunav - Aljmaš (Ušće Drave)',
-    river: 'Dunav',
-    sectorName: 'Sektor 2 / Ušće Drave u Dunav (Šporanj)',
-    riverKm: 'rkm 1380,300',
-    waterLevelCm: -76,
-    waterLevelTrend: 'stagnira',
-    waterLevelChangeCm: 0,
-    timeOfMeasurement: '09:00',
-    dateOfMeasurement: new Date().toLocaleDateString('hr-HR'),
-    maxLevelCm: 820,
-    maxLevelDate: '25.06.1965.',
-    prepLevelCm: 400,
-    recentHistory: [
-      { date: new Date().toLocaleDateString('hr-HR'), time: '09:00', level: -76, trendChange: 0 },
-      { date: new Date().toLocaleDateString('hr-HR'), time: '08:00', level: -76, trendChange: 0 },
-      { date: new Date().toLocaleDateString('hr-HR'), time: '07:00', level: -76, trendChange: 0 },
-      { date: new Date().toLocaleDateString('hr-HR'), time: '06:00', level: -76, trendChange: 0 },
-      { date: new Date().toLocaleDateString('hr-HR'), time: '05:00', level: -76, trendChange: 0 }
-    ],
-    airPressureHpa: 1017,
-    airPressureTrend: 'stabilan',
-    airTempC: 21.0,
-    waterTempC: 12.9,
-    windSpeedKmh: 12,
-    windSpeedMs: 3.3,
-    windDirection: 'SZ',
-    weatherCondition: 'djelomicno_oblacno',
-    sourceUrl: MVODOSTAJI_ALJMAS_URL,
-    sourceName: 'mvodostaji.voda.hr (postaja 148)',
-    isLive: true
+  // Početno stanje za Aljmaš (mvodostaji.voda.hr) - učitava iz predmemorije za trenutnu usklađenost
+  const [aljmasData, setAljmasData] = useState<StationWaterData>(() => {
+    const cached = getStoredAljmasData();
+    if (cached) return cached;
+    return {
+      id: 'aljmas',
+      name: 'Dunav - Aljmaš (Ušće Drave)',
+      river: 'Dunav',
+      sectorName: 'Sektor 2 / Ušće Drave u Dunav (Šporanj)',
+      riverKm: 'rkm 1380,300',
+      waterLevelCm: -76,
+      waterLevelTrend: 'stagnira',
+      waterLevelChangeCm: 0,
+      timeOfMeasurement: '09:00',
+      dateOfMeasurement: new Date().toLocaleDateString('hr-HR'),
+      maxLevelCm: 820,
+      maxLevelDate: '25.06.1965.',
+      prepLevelCm: 400,
+      recentHistory: [
+        { date: new Date().toLocaleDateString('hr-HR'), time: '09:00', level: -76, trendChange: 0 },
+        { date: new Date().toLocaleDateString('hr-HR'), time: '08:00', level: -76, trendChange: 0 },
+        { date: new Date().toLocaleDateString('hr-HR'), time: '07:00', level: -76, trendChange: 0 }
+      ],
+      airPressureHpa: 1017,
+      airPressureTrend: 'stabilan',
+      airTempC: 21.0,
+      waterTempC: 12.9,
+      windSpeedKmh: 12,
+      windSpeedMs: 3.3,
+      windDirection: 'SZ',
+      weatherCondition: 'djelomicno_oblacno',
+      sourceUrl: MVODOSTAJI_ALJMAS_URL,
+      sourceName: 'mvodostaji.voda.hr (postaja 148)',
+      isLive: true
+    };
   });
 
-  // Početno stanje za Bogojevo (hidmet.gov.rs)
-  const [bogojevoData, setBogojevoData] = useState<StationWaterData>({
-    id: 'bogojevo',
-    name: 'Dunav - Bogojevo',
-    river: 'Dunav',
-    sectorName: 'Most Bogojevo - Erdut / Kameni špornjevi',
-    riverKm: 'rkm 1367,000',
-    waterLevelCm: -83,
-    waterLevelTrend: 'opada',
-    waterLevelChangeCm: -1,
-    flowM3s: 880,
-    forecastDays: [-92, -86, -90, -96],
-    regularDefenseCm: 600,
-    emergencyDefenseCm: 700,
-    timeOfMeasurement: '07:00',
-    dateOfMeasurement: new Date().toLocaleDateString('hr-HR'),
-    recentHistory: [
-      { date: new Date().toLocaleDateString('hr-HR'), time: '07:00', level: -83, trendChange: -1 },
-      { date: 'Jučer', time: '07:00', level: -82, trendChange: 4 }
-    ],
-    airPressureHpa: 1016,
-    airPressureTrend: 'stabilan',
-    airTempC: 22.0,
-    waterTempC: 12.6,
-    windSpeedKmh: 10,
-    windSpeedMs: 2.8,
-    windDirection: 'SZ',
-    weatherCondition: 'djelomicno_oblacno',
-    sourceUrl: HIDMET_BOGOJEVO_URL,
-    sourceName: 'hidmet.gov.rs (hm_id 42020)',
-    isLive: true
+  // Početno stanje za Bogojevo (hidmet.gov.rs) - učitava iz predmemorije za trenutnu usklađenost
+  const [bogojevoData, setBogojevoData] = useState<StationWaterData>(() => {
+    const cached = getStoredBogojevoData();
+    if (cached) return cached;
+    return {
+      id: 'bogojevo',
+      name: 'Dunav - Bogojevo',
+      river: 'Dunav',
+      sectorName: 'Most Bogojevo - Erdut / Kameni špornjevi',
+      riverKm: 'rkm 1367,000',
+      waterLevelCm: -83,
+      waterLevelTrend: 'opada',
+      waterLevelChangeCm: -1,
+      flowM3s: 880,
+      forecastDays: [-92, -86, -90, -96],
+      regularDefenseCm: 600,
+      emergencyDefenseCm: 700,
+      timeOfMeasurement: '07:00',
+      dateOfMeasurement: new Date().toLocaleDateString('hr-HR'),
+      recentHistory: [
+        { date: new Date().toLocaleDateString('hr-HR'), time: '07:00', level: -83, trendChange: -1 },
+        { date: 'Jučer', time: '07:00', level: -82, trendChange: 4 }
+      ],
+      airPressureHpa: 1016,
+      airPressureTrend: 'stabilan',
+      airTempC: 22.0,
+      waterTempC: 12.6,
+      windSpeedKmh: 10,
+      windSpeedMs: 2.8,
+      windDirection: 'SZ',
+      weatherCondition: 'djelomicno_oblacno',
+      sourceUrl: HIDMET_BOGOJEVO_URL,
+      sourceName: 'hidmet.gov.rs (hm_id 42020)',
+      isLive: true
+    };
   });
 
   // Solunarni rezultati za danas
@@ -626,7 +634,7 @@ export default function App() {
 
       </main>
 
-      {/* Android Native Bottom Navigation Bar for Mobile with direct 5 tabs */}
+      {/* Android Native Bottom Navigation Bar for Mobile */}
       <AndroidBottomNav
         activeTab={activeTab}
         onSelectTab={(tab) => {
@@ -636,6 +644,8 @@ export default function App() {
             localStorage.setItem('ribo_app_view_mode', 'expert');
           }
         }}
+        onOpenChat={handleOpenChat}
+        unreadChatCount={unreadChatCount}
       />
 
       {/* Podnožje: Donacije i podrška radu autora (premješteno s vrha u podnožje) */}
