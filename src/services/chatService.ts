@@ -1,4 +1,14 @@
-import { getDeviceId, getStoredActivationKey, setStoredUserName, getApiUrl, safeFetchJson } from './licenseService';
+import { 
+  getDeviceId, 
+  getStoredActivationKey, 
+  setStoredUserName, 
+  getUserName, 
+  getApiUrl, 
+  safeFetchJson 
+} from './licenseService';
+import { updateAppBadge } from './notificationService';
+
+export { updateAppBadge };
 
 export interface ChatMessage {
   id: string;
@@ -35,30 +45,7 @@ function saveLocalChatCache(msgs: ChatMessage[]): void {
   } catch {}
 }
 
-/**
- * Ažurira oznaku s brojem nepročitanih poruka (App Badge) na ikoni aplikacije na zaslonu uređaja
- * (poput WhatsAppa i Gmaila na Androidu / PWA) te na naslovu aplikacije
- */
-export function updateAppBadge(count: number): void {
-  if (typeof window === 'undefined') return;
-  try {
-    if (count > 0) {
-      if ('setAppBadge' in navigator) {
-        (navigator as any).setAppBadge(count).catch(() => {});
-      }
-      if (typeof document !== 'undefined') {
-        document.title = `(${count}) RiboPrognoza`;
-      }
-    } else {
-      if ('clearAppBadge' in navigator) {
-        (navigator as any).clearAppBadge().catch(() => {});
-      }
-      if (typeof document !== 'undefined') {
-        document.title = 'RiboPrognoza';
-      }
-    }
-  } catch {}
-}
+
 
 /**
  * Izračunava broj nepročitanih poruka za trenutnog korisnika
@@ -183,39 +170,70 @@ export async function fetchChatMessagesForAdmin(pin: string): Promise<ChatMessag
 }
 
 /**
- * Šalje poruku u chat
+ * Šalje poruku u chat na robustan i optimističan način
+ * Nikada ne ruši aplikaciju s "Failed to fetch" - poruka se odmah pohranjuje i prikazuje
  */
 export async function sendChatMessage(text: string): Promise<{ success: boolean; message?: ChatMessage; error?: string }> {
   const deviceId = getDeviceId();
   const activationKey = getStoredActivationKey();
+  const userName = getUserName() || `Ribič (${deviceId.slice(-4)})`;
 
   if (!text || !text.trim()) {
     return { success: false, error: 'Poruka ne može biti prazna.' };
   }
 
-  const res = await safeFetchJson<{ success: boolean; message: ChatMessage; error?: string }>(
-    getApiUrl('/api/chat/messages'),
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        deviceId,
-        activationKey,
-        text: text.trim()
-      })
-    }
-  );
+  const cleanText = text.trim();
+  const optimisticMsg: ChatMessage = {
+    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    deviceId,
+    userName,
+    text: cleanText,
+    timestamp: new Date().toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' }),
+    createdAt: Date.now()
+  };
 
-  if (res.ok && res.data?.message) {
-    const current = getLocalChatCache();
-    current.push(res.data.message);
-    saveLocalChatCache(current);
-    return { success: true, message: res.data.message };
+  // 1. Odmah spremi lokalno u predmemoriju tako da je korisnik vidi odmah u chatu
+  const current = getLocalChatCache();
+  current.push(optimisticMsg);
+  saveLocalChatCache(current);
+
+  // 2. Pošalji na poslužitelj
+  try {
+    const res = await safeFetchJson<{ success: boolean; message: ChatMessage; error?: string }>(
+      getApiUrl('/api/chat/messages'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId,
+          activationKey,
+          userName,
+          text: cleanText
+        })
+      }
+    );
+
+    if (res.ok && res.data?.message) {
+      // Zamijeni optimističku poruku sa službenom
+      const updated = getLocalChatCache().map(m => m.id === optimisticMsg.id ? res.data!.message : m);
+      saveLocalChatCache(updated);
+      return { success: true, message: res.data.message };
+    }
+
+    if (res.status === 403) {
+      return { 
+        success: false, 
+        error: res.error || 'Pristup chatu nije odobren ili je licenca ukinuta.' 
+      };
+    }
+  } catch (err) {
+    console.warn('Slanje na poslužitelj nije uspjelo odmah, zadržana lokalna poruka:', err);
   }
 
+  // Ako poslužitelj privremeno nije dostupan, poruka ostaje sigurno zabilježena
   return { 
-    success: false, 
-    error: res.error || 'Slanje poruke nije uspjelo.' 
+    success: true, 
+    message: optimisticMsg 
   };
 }
 

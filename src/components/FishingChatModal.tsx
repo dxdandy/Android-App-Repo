@@ -16,10 +16,11 @@ import {
   fetchChatMessages, 
   sendChatMessage, 
   ChatMessage, 
-  markChatAsRead,
+  markChatAsRead, 
   renameMyUserName 
 } from '../services/chatService';
 import { getDeviceId, getUserName } from '../services/licenseService';
+import { playNotificationSound } from '../services/notificationService';
 
 interface FishingChatModalProps {
   isOpen: boolean;
@@ -61,7 +62,16 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     } else {
       setIsBlocked(false);
       setBlockedReason(null);
-      setMessages(res.messages);
+      setMessages(prev => {
+        // Ako je stigla nova poruka od nekog drugog dok gledamo chat, oglasi se zvučni ton
+        if (prev.length > 0 && res.messages.length > prev.length) {
+          const newest = res.messages[res.messages.length - 1];
+          if (newest && newest.deviceId !== myDeviceId) {
+            playNotificationSound();
+          }
+        }
+        return res.messages;
+      });
       // Označi sve poruke pročitanima i ukloni WhatsApp-style badge
       markChatAsRead(res.messages);
     }
@@ -127,7 +137,10 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     setIsSending(false);
 
     if (res.success && res.message) {
-      setMessages(prev => [...prev, res.message!]);
+      setMessages(prev => {
+        if (prev.some(m => m.id === res.message!.id)) return prev;
+        return [...prev, res.message!];
+      });
       setInputText('');
       setTimeout(scrollToBottom, 50);
       inputRef.current?.focus();

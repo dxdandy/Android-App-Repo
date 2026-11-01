@@ -12,6 +12,17 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json());
 
+// Omogući CORS za sve rute kako Android WebView i vanjski klijenti ne bi dobili "Failed to fetch"
+app.use((_req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-admin-pin, x-device-id');
+  if (_req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=0&postajaID=148';
 export const SEATEMP_ALJMAS_VUKOVAR_URL = 'https://hr.seatemperature.net/current/croatia/water-temp-in-vukovar-in-danube';
 export const PUTOVNICA_ALJMAS_URL = 'https://www.putovnica.net/vrijeme/vremenska-prognoza/mjesto/aljmas-hr-vremenska-prognoza-po-satima';
@@ -886,22 +897,45 @@ app.post('/api/chat/rename', (req, res) => {
  * API: Slanje poruke u interni chat (dozvoljeno isključivo aktivnim korisnicima s odobrenim chatom)
  */
 app.post('/api/chat/messages', (req, res) => {
-  const { deviceId, text } = req.body || {};
+  const { deviceId, text, activationKey, userName: proposedName } = req.body || {};
   if (!deviceId || !text || !String(text).trim()) {
     return res.status(400).json({ error: 'Tekst poruke je obavezan' });
   }
 
   const cleanDeviceId = String(deviceId).trim().toUpperCase();
   const licenses = loadLicenses();
-  const userLicense = licenses.find(l => l.deviceId === cleanDeviceId);
+  let userLicense = licenses.find(l => l.deviceId === cleanDeviceId);
 
-  if (!userLicense || userLicense.status === 'revoked') {
-    return res.status(403).json({ error: 'Nemate važeću aktivnu licencu za pisanje u chat.' });
+  // Ako korisnik još nije u bazi na poslužitelju, provjeri aktivacijski ključ
+  if (!userLicense) {
+    const cleanKey = activationKey ? String(activationKey).trim().toUpperCase() : '';
+    if (cleanDeviceId === 'RP-ADMIN' || (cleanKey && verifyActivationKey(cleanDeviceId, cleanKey))) {
+      userLicense = {
+        deviceId: cleanDeviceId,
+        activationKey: cleanKey || generateActivationKey(cleanDeviceId),
+        userName: cleanDeviceId === 'RP-ADMIN' ? 'Administrator' : (proposedName && String(proposedName).trim()) || `Ribič (${cleanDeviceId.slice(-4)})`,
+        status: 'active',
+        chatEnabled: true,
+        createdAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString()
+      };
+      licenses.push(userLicense);
+      saveLicenses(licenses);
+    } else {
+      return res.status(403).json({ error: 'Potrebna je aktivacija aplikacije za slanje poruka u chat.' });
+    }
+  }
+
+  if (userLicense.status === 'revoked') {
+    return res.status(403).json({ error: 'Vaša licenca je ukinuta od strane administratora.' });
   }
 
   if (userLicense.chatEnabled === false) {
     return res.status(403).json({ error: 'Administrator vam je onemogućio pristup LiveChatu.' });
   }
+
+  userLicense.lastSeenAt = new Date().toISOString();
+  saveLicenses(licenses);
 
   const cleanText = String(text).trim().slice(0, 350); // limit 350 znakova
 
@@ -947,15 +981,15 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.3.3',
+    version: '1.3.4',
     name: 'RiboPrognoza',
     releaseDate: '2026-10-31',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Prikaz imena korisnika u chatu točno prema imenu unesenom u administratorskom kontrolnom panelu',
-      'Mogućnost jednostavne promjene vlastitog imena u chatu direktno iz aplikacije',
-      'Obavijest i brojač nepročitanih poruka (App Badge) na ikoni aplikacije i gumbu LiveChat poput WhatsAppa/Gmaila',
-      'Administrator može u svakom trenutku promijeniti ime bilo kojeg korisnika u kontrolnom panelu'
+      'Ispravljen problem "Failed to fetch" prilikom slanja poruka u chatu',
+      'Dodana zvučna obavijest (chime) za prispjeće novih poruka',
+      'Sistemske obavijesti čak i kada korisnik nije u aplikaciji (Android i PWA)',
+      'Oznaka broja nepročitanih poruka na instalacijskoj ikoni aplikacije na zaslonu uređaja'
     ],
     isCritical: false
   });

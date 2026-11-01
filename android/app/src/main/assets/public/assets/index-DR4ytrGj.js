@@ -15719,7 +15719,7 @@ function isAppActivated() {
 /**
 * Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
 */
-var CLOUD_BACKEND_URL = "https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app";
+var CLOUD_BACKEND_URL = "https://ais-dev-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app";
 var LOCAL_LICENSES_CACHE_KEY = "ribo_admin_licenses_cache";
 /**
 * Razrješava ispravan URL API rute ovisno o okruženju (Web preglednik vs. Android Capacitor)
@@ -15727,11 +15727,11 @@ var LOCAL_LICENSES_CACHE_KEY = "ribo_admin_licenses_cache";
 function getApiUrl(endpoint) {
 	if (typeof window === "undefined") return endpoint;
 	const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-	if (window.location.protocol === "capacitor:" || window.location.hostname === "localhost" && !window.location.port || typeof window.Capacitor !== "undefined" && window.Capacitor?.isNativePlatform?.()) return `${CLOUD_BACKEND_URL}${cleanEndpoint}`;
+	if (window.location.protocol === "capacitor:" || typeof window.Capacitor !== "undefined" && window.Capacitor?.isNativePlatform?.()) return `${CLOUD_BACKEND_URL}${cleanEndpoint}`;
 	return cleanEndpoint;
 }
 /**
-* Siguran dohvat JSON odgovora koji nikada ne ruši aplikaciju s greškom "Unexpected token <"
+* Siguran dohvat JSON odgovora koji nikada ne ruši aplikaciju s greškom "Unexpected token <" ili "Failed to fetch"
 */
 async function safeFetchJson(url, options) {
 	try {
@@ -15759,7 +15759,7 @@ async function safeFetchJson(url, options) {
 				ok: false,
 				status: res.status,
 				data: null,
-				error: `Poslužitelj je vratio HTML odgovor umjesto JSON podataka (kod: ${res.status}).`
+				error: `Poslužitelj privremeno nije vratio tražene podatke (kod: ${res.status}).`
 			};
 		}
 	} catch (err) {
@@ -15767,7 +15767,7 @@ async function safeFetchJson(url, options) {
 			ok: false,
 			status: 0,
 			data: null,
-			error: err?.message || "Greška u mrežnoj komunikaciji."
+			error: err?.message?.toLowerCase().includes("failed to fetch") ? "Komunikacija s poslužiteljem trenutno nije uspjela (provjerite internet)." : err?.message || "Greška u mrežnoj komunikaciji."
 		};
 	}
 }
@@ -16157,180 +16157,6 @@ var ActivationLockScreen = ({ onActivated, onOpenAdminGenerator }) => {
 		]
 	});
 };
-//#endregion
-//#region src/services/chatService.ts
-var LOCAL_CHAT_CACHE_KEY = "ribo_chat_messages_cache";
-var LAST_READ_CHAT_TIME_KEY = "ribo_last_read_chat_time";
-function getLocalChatCache() {
-	if (typeof window === "undefined") return [];
-	try {
-		const raw = localStorage.getItem(LOCAL_CHAT_CACHE_KEY);
-		return raw ? JSON.parse(raw) : [];
-	} catch {
-		return [];
-	}
-}
-function saveLocalChatCache(msgs) {
-	if (typeof window === "undefined") return;
-	try {
-		localStorage.setItem(LOCAL_CHAT_CACHE_KEY, JSON.stringify(msgs.slice(-60)));
-	} catch {}
-}
-/**
-* Ažurira oznaku s brojem nepročitanih poruka (App Badge) na ikoni aplikacije na zaslonu uređaja
-* (poput WhatsAppa i Gmaila na Androidu / PWA) te na naslovu aplikacije
-*/
-function updateAppBadge(count) {
-	if (typeof window === "undefined") return;
-	try {
-		if (count > 0) {
-			if ("setAppBadge" in navigator) navigator.setAppBadge(count).catch(() => {});
-			if (typeof document !== "undefined") document.title = `(${count}) RiboPrognoza`;
-		} else {
-			if ("clearAppBadge" in navigator) navigator.clearAppBadge().catch(() => {});
-			if (typeof document !== "undefined") document.title = "RiboPrognoza";
-		}
-	} catch {}
-}
-/**
-* Izračunava broj nepročitanih poruka za trenutnog korisnika
-*/
-function getUnreadChatCount(messages, currentDeviceId) {
-	if (typeof window === "undefined" || !Array.isArray(messages)) return 0;
-	try {
-		const raw = localStorage.getItem(LAST_READ_CHAT_TIME_KEY);
-		const lastReadTime = raw ? parseInt(raw, 10) : 0;
-		return messages.filter((m) => m.deviceId !== currentDeviceId && (m.createdAt || 0) > lastReadTime).length;
-	} catch {
-		return 0;
-	}
-}
-/**
-* Označava sve trenutne poruke pročitanima i uklanja obavijest s ikone
-*/
-function markChatAsRead(messages) {
-	if (typeof window === "undefined") return;
-	try {
-		let latestTime = Date.now();
-		if (messages && messages.length > 0) {
-			const maxMsgTime = Math.max(...messages.map((m) => m.createdAt || 0));
-			if (maxMsgTime > 0) latestTime = Math.max(latestTime, maxMsgTime);
-		}
-		localStorage.setItem(LAST_READ_CHAT_TIME_KEY, String(latestTime));
-		updateAppBadge(0);
-	} catch {}
-}
-/**
-* Mijenja vlastito ime korisnika u chatu i sinkronizira ga s poslužiteljem i bazom
-*/
-async function renameMyUserName(newName) {
-	const clean = newName.trim();
-	if (!clean) return {
-		success: false,
-		userName: "",
-		error: "Ime ne može biti prazno."
-	};
-	const deviceId = getDeviceId();
-	setStoredUserName(clean);
-	const res = await safeFetchJson(getApiUrl("/api/chat/rename"), {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			deviceId,
-			newName: clean
-		})
-	});
-	if (res.ok && res.data?.userName) {
-		setStoredUserName(res.data.userName);
-		return {
-			success: true,
-			userName: res.data.userName
-		};
-	}
-	return {
-		success: true,
-		userName: clean
-	};
-}
-/**
-* Dohvaća zadnje poruke iz chata (samo ako je korisnik odobren)
-*/
-async function fetchChatMessages(overrideDeviceId) {
-	const deviceId = overrideDeviceId || getDeviceId();
-	const res = await safeFetchJson(getApiUrl(`/api/chat/messages?deviceId=${encodeURIComponent(deviceId)}`), { headers: {
-		"Cache-Control": "no-cache",
-		"x-device-id": deviceId
-	} });
-	if (res.data?.chatBlocked || !res.ok && res.status === 403) return {
-		messages: [],
-		chatBlocked: true,
-		message: res.data?.message || res.error || "Pristup LiveChatu je onemogućen od strane administratora."
-	};
-	if (res.ok && res.data?.messages) {
-		saveLocalChatCache(res.data.messages);
-		return {
-			messages: res.data.messages,
-			chatBlocked: false
-		};
-	}
-	return {
-		messages: getLocalChatCache(),
-		chatBlocked: false
-	};
-}
-/**
-* Admin dohvat svih poruka chata
-*/
-async function fetchChatMessagesForAdmin(pin) {
-	const res = await safeFetchJson(getApiUrl("/api/chat/messages"), { headers: {
-		"Cache-Control": "no-cache",
-		"x-admin-pin": pin.trim()
-	} });
-	if (res.ok && res.data?.messages) return res.data.messages;
-	return getLocalChatCache();
-}
-/**
-* Šalje poruku u chat
-*/
-async function sendChatMessage(text) {
-	const deviceId = getDeviceId();
-	const activationKey = getStoredActivationKey();
-	if (!text || !text.trim()) return {
-		success: false,
-		error: "Poruka ne može biti prazna."
-	};
-	const res = await safeFetchJson(getApiUrl("/api/chat/messages"), {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			deviceId,
-			activationKey,
-			text: text.trim()
-		})
-	});
-	if (res.ok && res.data?.message) {
-		const current = getLocalChatCache();
-		current.push(res.data.message);
-		saveLocalChatCache(current);
-		return {
-			success: true,
-			message: res.data.message
-		};
-	}
-	return {
-		success: false,
-		error: res.error || "Slanje poruke nije uspjelo."
-	};
-}
-/**
-* Admin brisanje poruke
-*/
-async function deleteChatMessageAsAdmin(pin, messageId) {
-	return (await safeFetchJson(getApiUrl(`/api/admin/chat/messages/${encodeURIComponent(messageId)}`), {
-		method: "DELETE",
-		headers: { "x-admin-pin": pin.trim() }
-	})).ok;
-}
 //#endregion
 //#region node_modules/@capacitor/core/dist/index.js
 /*! Capacitor: https://capacitorjs.com/ - MIT License */
@@ -16842,13 +16668,443 @@ var SystemBarsPluginWeb = class extends WebPlugin {
 };
 registerPlugin("SystemBars", { web: () => new SystemBarsPluginWeb() });
 //#endregion
+//#region node_modules/@capacitor/local-notifications/dist/esm/definitions.js
+/**
+* Day of the week. Used for scheduling notifications on a particular weekday.
+*/
+var Weekday;
+(function(Weekday) {
+	Weekday[Weekday["Sunday"] = 1] = "Sunday";
+	Weekday[Weekday["Monday"] = 2] = "Monday";
+	Weekday[Weekday["Tuesday"] = 3] = "Tuesday";
+	Weekday[Weekday["Wednesday"] = 4] = "Wednesday";
+	Weekday[Weekday["Thursday"] = 5] = "Thursday";
+	Weekday[Weekday["Friday"] = 6] = "Friday";
+	Weekday[Weekday["Saturday"] = 7] = "Saturday";
+})(Weekday || (Weekday = {}));
+//#endregion
+//#region \0vite/preload-helper.js
+var scriptRel = "modulepreload";
+var assetsURL = function(dep) {
+	return "/" + dep;
+};
+var seen = {};
+var isCssPreloadUrl = function isCssPreloadUrl(url) {
+	return url.pathname.endsWith(".css");
+};
+var preloadOnce = function preloadOnce(seen, href, preload) {
+	if (href in seen) return seen[href];
+	const promise = preload();
+	if (!promise) {
+		seen[href] = void 0;
+		return;
+	}
+	const preloadPromise = promise.then(() => {
+		seen[href] = void 0;
+	}, (err) => {
+		seen[href] = void 0;
+		throw err;
+	});
+	seen[href] = preloadPromise;
+	return preloadPromise;
+};
+var __vitePreload = function preload(baseModule, deps, importerUrl) {
+	let promise = Promise.resolve();
+	if (deps && deps.length > 0) {
+		let preloadedHrefs;
+		const cspNonceMeta = document.querySelector("meta[property=csp-nonce]");
+		const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute("nonce");
+		function allSettled(promises) {
+			return Promise.all(promises.map((p) => Promise.resolve(p).then((value) => ({
+				status: "fulfilled",
+				value
+			}), (reason) => ({
+				status: "rejected",
+				reason
+			}))));
+		}
+		function importMetaResolve(specifier) {
+			if (import.meta.resolve) return new URL(import.meta.resolve(specifier));
+			return new URL(
+				specifier,
+				/** #__KEEP__ */
+				import.meta.url
+			);
+		}
+		promise = allSettled(deps.map((depString) => {
+			depString = assetsURL(depString, importerUrl);
+			const dep = importMetaResolve(depString);
+			const isCss = isCssPreloadUrl(dep);
+			return preloadOnce(seen, dep.href, () => {
+				if (preloadedHrefs === void 0) {
+					preloadedHrefs = {
+						all: /* @__PURE__ */ new Set(),
+						styles: /* @__PURE__ */ new Set()
+					};
+					const links = document.getElementsByTagName("link");
+					for (let i = links.length - 1; i >= 0; i--) {
+						const link = links[i];
+						preloadedHrefs.all.add(link.href);
+						if (link.rel === "stylesheet") preloadedHrefs.styles.add(link.href);
+					}
+				}
+				if ((isCss ? preloadedHrefs.styles : preloadedHrefs.all).has(dep.href)) return;
+				const link = document.createElement("link");
+				link.rel = isCss ? "stylesheet" : scriptRel;
+				if (!isCss) link.as = "script";
+				link.crossOrigin = "";
+				link.href = dep.href;
+				if (cspNonce) link.setAttribute("nonce", cspNonce);
+				document.head.appendChild(link);
+				if (isCss) return new Promise((res, rej) => {
+					link.addEventListener("load", res);
+					link.addEventListener("error", () => rej(/* @__PURE__ */ new Error(`Unable to preload CSS for ${dep}`)));
+				});
+			});
+		}).filter((p) => p !== void 0));
+	}
+	function handlePreloadError(err) {
+		const e = new Event("vite:preloadError", { cancelable: true });
+		e.payload = err;
+		window.dispatchEvent(e);
+		if (!e.defaultPrevented) throw err;
+	}
+	return promise.then((res) => {
+		for (const item of res || []) {
+			if (item.status !== "rejected") continue;
+			handlePreloadError(item.reason);
+		}
+		return baseModule().catch(handlePreloadError);
+	});
+};
+//#endregion
+//#region node_modules/@capacitor/local-notifications/dist/esm/index.js
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-D6y4ErGp.js").then((m) => new m.LocalNotificationsWeb()), []) });
+//#endregion
+//#region src/services/notificationService.ts
+/**
+* Zvučni sintetizator za obavijesti o novim porukama (Web Audio API)
+* Radi 100% pouzdano bez vanjskih datoteka na svim mobilnim i desktop uređajima
+*/
+var audioCtx = null;
+function getAudioContext() {
+	if (typeof window === "undefined") return null;
+	try {
+		const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+		if (AudioContextClass) {
+			if (!audioCtx || audioCtx.state === "closed") audioCtx = new AudioContextClass();
+			if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+			return audioCtx;
+		}
+	} catch (err) {
+		console.warn("AudioContext nije podržan:", err);
+	}
+	return null;
+}
+/**
+* Svira čist i ugodan dvotonski ribički chime (akord G5 -> C6) za novu poruku
+*/
+function playNotificationSound() {
+	try {
+		const ctx = getAudioContext();
+		if (!ctx) return;
+		const now = ctx.currentTime;
+		const osc1 = ctx.createOscillator();
+		const gain1 = ctx.createGain();
+		osc1.type = "sine";
+		osc1.frequency.setValueAtTime(784, now);
+		gain1.gain.setValueAtTime(.18, now);
+		gain1.gain.exponentialRampToValueAtTime(.001, now + .28);
+		osc1.connect(gain1);
+		gain1.connect(ctx.destination);
+		osc1.start(now);
+		osc1.stop(now + .3);
+		const osc2 = ctx.createOscillator();
+		const gain2 = ctx.createGain();
+		osc2.type = "sine";
+		osc2.frequency.setValueAtTime(1046.5, now + .12);
+		gain2.gain.setValueAtTime(0, now);
+		gain2.gain.setValueAtTime(.22, now + .12);
+		gain2.gain.exponentialRampToValueAtTime(.001, now + .48);
+		osc2.connect(gain2);
+		gain2.connect(ctx.destination);
+		osc2.start(now + .12);
+		osc2.stop(now + .5);
+	} catch (err) {
+		console.warn("Greška pri reprodukciji zvučne obavijesti:", err);
+	}
+}
+/**
+* Traži dozvolu za prikaz sistemskih i zvučnih obavijesti (Android + PWA/Web)
+*/
+async function requestNotificationPermission() {
+	let granted = false;
+	try {
+		if ((await LocalNotifications.checkPermissions()).display === "granted") granted = true;
+		else if ((await LocalNotifications.requestPermissions()).display === "granted") granted = true;
+	} catch {}
+	if (typeof window !== "undefined" && "Notification" in window) try {
+		if (Notification.permission === "granted") granted = true;
+		else if (Notification.permission !== "denied") {
+			if (await Notification.requestPermission() === "granted") granted = true;
+		}
+	} catch {}
+	getAudioContext();
+	return granted;
+}
+/**
+* Prikazuje sistemsku obavijest s tonom i vibracijom kada stigne nova poruka,
+* čak i kada korisnik nije u aplikaciji (u pozadini ili na drugom zaslonu)
+*/
+async function showIncomingMessageNotification(senderName, messageText, messageId) {
+	const title = `🎣 LiveChat: ${senderName}`;
+	const body = messageText.length > 70 ? messageText.slice(0, 67) + "..." : messageText;
+	playNotificationSound();
+	try {
+		const notifId = Math.floor(Math.random() * 1e5) + 1;
+		await LocalNotifications.schedule({ notifications: [{
+			id: notifId,
+			title,
+			body,
+			sound: "beep.wav",
+			actionTypeId: "",
+			extra: {
+				messageId,
+				senderName
+			}
+		}] });
+	} catch (err) {}
+	if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") try {
+		if ("serviceWorker" in navigator) {
+			const registration = await navigator.serviceWorker.getRegistration();
+			if (registration && registration.showNotification) {
+				registration.showNotification(title, {
+					body,
+					icon: "/pwa-192x192.png",
+					badge: "/pwa-192x192.png",
+					tag: messageId || "ribo-chat-msg",
+					vibrate: [
+						200,
+						100,
+						200
+					]
+				});
+				return;
+			}
+		}
+		new Notification(title, {
+			body,
+			icon: "/pwa-192x192.png",
+			tag: messageId || "ribo-chat-msg"
+		});
+	} catch {}
+}
+/**
+* Ažurira oznaku na instalacijskoj ikoni aplikacije na početnom zaslonu (App Badging API)
+* Prikazuje crveni krug s brojem nepročitanih poruka kao na WhatsAppu/Gmailu
+*/
+function updateAppBadge(count) {
+	if (typeof window === "undefined") return;
+	try {
+		if (count > 0) {
+			if ("setAppBadge" in navigator) navigator.setAppBadge(count).catch(() => {});
+			if (typeof document !== "undefined") document.title = `(${count}) RiboPrognoza`;
+		} else {
+			if ("clearAppBadge" in navigator) navigator.clearAppBadge().catch(() => {});
+			if (typeof document !== "undefined") document.title = "RiboPrognoza";
+		}
+	} catch {}
+}
+//#endregion
+//#region src/services/chatService.ts
+var LOCAL_CHAT_CACHE_KEY = "ribo_chat_messages_cache";
+var LAST_READ_CHAT_TIME_KEY = "ribo_last_read_chat_time";
+function getLocalChatCache() {
+	if (typeof window === "undefined") return [];
+	try {
+		const raw = localStorage.getItem(LOCAL_CHAT_CACHE_KEY);
+		return raw ? JSON.parse(raw) : [];
+	} catch {
+		return [];
+	}
+}
+function saveLocalChatCache(msgs) {
+	if (typeof window === "undefined") return;
+	try {
+		localStorage.setItem(LOCAL_CHAT_CACHE_KEY, JSON.stringify(msgs.slice(-60)));
+	} catch {}
+}
+/**
+* Izračunava broj nepročitanih poruka za trenutnog korisnika
+*/
+function getUnreadChatCount(messages, currentDeviceId) {
+	if (typeof window === "undefined" || !Array.isArray(messages)) return 0;
+	try {
+		const raw = localStorage.getItem(LAST_READ_CHAT_TIME_KEY);
+		const lastReadTime = raw ? parseInt(raw, 10) : 0;
+		return messages.filter((m) => m.deviceId !== currentDeviceId && (m.createdAt || 0) > lastReadTime).length;
+	} catch {
+		return 0;
+	}
+}
+/**
+* Označava sve trenutne poruke pročitanima i uklanja obavijest s ikone
+*/
+function markChatAsRead(messages) {
+	if (typeof window === "undefined") return;
+	try {
+		let latestTime = Date.now();
+		if (messages && messages.length > 0) {
+			const maxMsgTime = Math.max(...messages.map((m) => m.createdAt || 0));
+			if (maxMsgTime > 0) latestTime = Math.max(latestTime, maxMsgTime);
+		}
+		localStorage.setItem(LAST_READ_CHAT_TIME_KEY, String(latestTime));
+		updateAppBadge(0);
+	} catch {}
+}
+/**
+* Mijenja vlastito ime korisnika u chatu i sinkronizira ga s poslužiteljem i bazom
+*/
+async function renameMyUserName(newName) {
+	const clean = newName.trim();
+	if (!clean) return {
+		success: false,
+		userName: "",
+		error: "Ime ne može biti prazno."
+	};
+	const deviceId = getDeviceId();
+	setStoredUserName(clean);
+	const res = await safeFetchJson(getApiUrl("/api/chat/rename"), {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({
+			deviceId,
+			newName: clean
+		})
+	});
+	if (res.ok && res.data?.userName) {
+		setStoredUserName(res.data.userName);
+		return {
+			success: true,
+			userName: res.data.userName
+		};
+	}
+	return {
+		success: true,
+		userName: clean
+	};
+}
+/**
+* Dohvaća zadnje poruke iz chata (samo ako je korisnik odobren)
+*/
+async function fetchChatMessages(overrideDeviceId) {
+	const deviceId = overrideDeviceId || getDeviceId();
+	const res = await safeFetchJson(getApiUrl(`/api/chat/messages?deviceId=${encodeURIComponent(deviceId)}`), { headers: {
+		"Cache-Control": "no-cache",
+		"x-device-id": deviceId
+	} });
+	if (res.data?.chatBlocked || !res.ok && res.status === 403) return {
+		messages: [],
+		chatBlocked: true,
+		message: res.data?.message || res.error || "Pristup LiveChatu je onemogućen od strane administratora."
+	};
+	if (res.ok && res.data?.messages) {
+		saveLocalChatCache(res.data.messages);
+		return {
+			messages: res.data.messages,
+			chatBlocked: false
+		};
+	}
+	return {
+		messages: getLocalChatCache(),
+		chatBlocked: false
+	};
+}
+/**
+* Admin dohvat svih poruka chata
+*/
+async function fetchChatMessagesForAdmin(pin) {
+	const res = await safeFetchJson(getApiUrl("/api/chat/messages"), { headers: {
+		"Cache-Control": "no-cache",
+		"x-admin-pin": pin.trim()
+	} });
+	if (res.ok && res.data?.messages) return res.data.messages;
+	return getLocalChatCache();
+}
+/**
+* Šalje poruku u chat na robustan i optimističan način
+* Nikada ne ruši aplikaciju s "Failed to fetch" - poruka se odmah pohranjuje i prikazuje
+*/
+async function sendChatMessage(text) {
+	const deviceId = getDeviceId();
+	const activationKey = getStoredActivationKey();
+	const userName = getUserName() || `Ribič (${deviceId.slice(-4)})`;
+	if (!text || !text.trim()) return {
+		success: false,
+		error: "Poruka ne može biti prazna."
+	};
+	const cleanText = text.trim();
+	const optimisticMsg = {
+		id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+		deviceId,
+		userName,
+		text: cleanText,
+		timestamp: (/* @__PURE__ */ new Date()).toLocaleTimeString("hr-HR", {
+			hour: "2-digit",
+			minute: "2-digit"
+		}),
+		createdAt: Date.now()
+	};
+	const current = getLocalChatCache();
+	current.push(optimisticMsg);
+	saveLocalChatCache(current);
+	try {
+		const res = await safeFetchJson(getApiUrl("/api/chat/messages"), {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				deviceId,
+				activationKey,
+				userName,
+				text: cleanText
+			})
+		});
+		if (res.ok && res.data?.message) {
+			saveLocalChatCache(getLocalChatCache().map((m) => m.id === optimisticMsg.id ? res.data.message : m));
+			return {
+				success: true,
+				message: res.data.message
+			};
+		}
+		if (res.status === 403) return {
+			success: false,
+			error: res.error || "Pristup chatu nije odobren ili je licenca ukinuta."
+		};
+	} catch (err) {
+		console.warn("Slanje na poslužitelj nije uspjelo odmah, zadržana lokalna poruka:", err);
+	}
+	return {
+		success: true,
+		message: optimisticMsg
+	};
+}
+/**
+* Admin brisanje poruke
+*/
+async function deleteChatMessageAsAdmin(pin, messageId) {
+	return (await safeFetchJson(getApiUrl(`/api/admin/chat/messages/${encodeURIComponent(messageId)}`), {
+		method: "DELETE",
+		headers: { "x-admin-pin": pin.trim() }
+	})).ok;
+}
+//#endregion
 //#region src/services/updateService.ts
 /**
 * Sustav za provjeru i instalaciju novih verzija aplikacije (OTA In-App Updater)
 * Autor: Daniel Čizmar
 * GitHub: dxdandy/Android-App-Repo
 */
-var CURRENT_APP_VERSION = "1.3.3";
+var CURRENT_APP_VERSION = "1.3.4";
 /**
 * Uspoređuje dvije semantičke verzije (npr. '1.1.0' > '1.0.1')
 * Vraća true ako je remoteVer novija od currentVer
@@ -16962,7 +17218,7 @@ async function checkForAppUpdate(force = false) {
 		currentVersion: CURRENT_APP_VERSION,
 		errorMessage: lastErrorMsg
 	};
-	if (!isNewerVersion(latestData.version, "1.3.3")) return {
+	if (!isNewerVersion(latestData.version, "1.3.4")) return {
 		status: "up_to_date",
 		serverVersion: latestData.version,
 		currentVersion: CURRENT_APP_VERSION,
@@ -18147,7 +18403,13 @@ var FishingChatModal = ({ isOpen, onClose, onNameChanged }) => {
 		} else {
 			setIsBlocked(false);
 			setBlockedReason(null);
-			setMessages(res.messages);
+			setMessages((prev) => {
+				if (prev.length > 0 && res.messages.length > prev.length) {
+					const newest = res.messages[res.messages.length - 1];
+					if (newest && newest.deviceId !== myDeviceId) playNotificationSound();
+				}
+				return res.messages;
+			});
 			markChatAsRead(res.messages);
 		}
 	};
@@ -18194,7 +18456,10 @@ var FishingChatModal = ({ isOpen, onClose, onNameChanged }) => {
 		const res = await sendChatMessage(inputText.trim());
 		setIsSending(false);
 		if (res.success && res.message) {
-			setMessages((prev) => [...prev, res.message]);
+			setMessages((prev) => {
+				if (prev.some((m) => m.id === res.message.id)) return prev;
+				return [...prev, res.message];
+			});
 			setInputText("");
 			setTimeout(scrollToBottom, 50);
 			inputRef.current?.focus();
@@ -18578,6 +18843,10 @@ function App() {
 		const interval = setInterval(checkStatus, 35e3);
 		return () => clearInterval(interval);
 	}, [isActivated]);
+	const lastNotifiedMsgIdRef = (0, import_react.useRef)("");
+	(0, import_react.useEffect)(() => {
+		requestNotificationPermission().catch(() => {});
+	}, []);
 	(0, import_react.useEffect)(() => {
 		if (!isActivated) return;
 		const checkUnreadMessages = async () => {
@@ -18589,14 +18858,21 @@ function App() {
 			try {
 				const res = await fetchChatMessages();
 				if (!res.chatBlocked && Array.isArray(res.messages)) {
-					const count = getUnreadChatCount(res.messages, getDeviceId());
+					const myId = getDeviceId();
+					const count = getUnreadChatCount(res.messages, myId);
 					setUnreadChatCount(count);
 					updateAppBadge(count);
+					const messagesFromOthers = res.messages.filter((m) => m.deviceId !== myId);
+					const newestMsg = messagesFromOthers[messagesFromOthers.length - 1];
+					if (count > 0 && newestMsg && newestMsg.id !== lastNotifiedMsgIdRef.current) {
+						if (lastNotifiedMsgIdRef.current !== "") showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
+						lastNotifiedMsgIdRef.current = newestMsg.id;
+					}
 				}
 			} catch {}
 		};
 		checkUnreadMessages();
-		const chatInterval = setInterval(checkUnreadMessages, 12e3);
+		const chatInterval = setInterval(checkUnreadMessages, 8e3);
 		return () => clearInterval(chatInterval);
 	}, [isActivated, showChatModal]);
 	const handleOpenChat = () => {
@@ -18982,3 +19258,4 @@ function App() {
 //#region src/main.tsx
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App, {}));
 //#endregion
+export { WebPlugin as t };

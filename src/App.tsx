@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Waves, 
   Sparkles, 
@@ -32,9 +32,13 @@ import { isAppActivated, verifyLicenseWithServer, getDeviceId } from './services
 import { 
   fetchChatMessages, 
   getUnreadChatCount, 
-  markChatAsRead, 
-  updateAppBadge 
+  markChatAsRead 
 } from './services/chatService';
+import { 
+  showIncomingMessageNotification, 
+  requestNotificationPermission, 
+  updateAppBadge 
+} from './services/notificationService';
 import { 
   checkForAppUpdate, 
   AppVersionInfo, 
@@ -218,7 +222,15 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isActivated]);
 
-  // Provjera nepročitanih poruka za obavijest na ikoni aplikacije (App Badge) i na LiveChat gumbu
+  // Evidencija zadnje viđene poruke kako bi zvučna i sistemska obavijest svirale samo jednom za svaku novu poruku
+  const lastNotifiedMsgIdRef = useRef<string>('');
+
+  useEffect(() => {
+    // Inicijalno zatraži dozvolu za prikaz obavijesti i zvuk (Android + PWA)
+    requestNotificationPermission().catch(() => {});
+  }, []);
+
+  // Provjera nepročitanih poruka za zvučnu obavijest i obavijest na ikoni aplikacije (App Badge)
   useEffect(() => {
     if (!isActivated) return;
 
@@ -232,15 +244,29 @@ export default function App() {
       try {
         const res = await fetchChatMessages();
         if (!res.chatBlocked && Array.isArray(res.messages)) {
-          const count = getUnreadChatCount(res.messages, getDeviceId());
+          const myId = getDeviceId();
+          const count = getUnreadChatCount(res.messages, myId);
           setUnreadChatCount(count);
           updateAppBadge(count);
+
+          // Pronađi najnoviju pristiglu poruku koju je poslao netko drugi
+          const messagesFromOthers = res.messages.filter(m => m.deviceId !== myId);
+          const newestMsg = messagesFromOthers[messagesFromOthers.length - 1];
+
+          if (count > 0 && newestMsg && newestMsg.id !== lastNotifiedMsgIdRef.current) {
+            // Ako ovo nije prvi start već stvarna nova poruka ili ima novih nepročitanih
+            if (lastNotifiedMsgIdRef.current !== '') {
+              // Zvuk i sistemska obavijest (Android i Web)
+              showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
+            }
+            lastNotifiedMsgIdRef.current = newestMsg.id;
+          }
         }
       } catch {}
     };
 
     checkUnreadMessages();
-    const chatInterval = setInterval(checkUnreadMessages, 12000);
+    const chatInterval = setInterval(checkUnreadMessages, 8000);
     return () => clearInterval(chatInterval);
   }, [isActivated, showChatModal]);
 

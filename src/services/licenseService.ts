@@ -137,7 +137,7 @@ export function isAppActivated(): boolean {
  * Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
  */
 // Cloud backend URL kada se aplikacija pokreće unutar Android Capacitor WebViewa
-export const CLOUD_BACKEND_URL = 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
+export const CLOUD_BACKEND_URL = 'https://ais-dev-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
 const LOCAL_LICENSES_CACHE_KEY = 'ribo_admin_licenses_cache';
 
 /**
@@ -148,13 +148,13 @@ export function getApiUrl(endpoint: string): string {
   
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   
-  // Detekcija Android Capacitor nativnog okruženja (gdje localhost nema lokalni node poslužitelj)
-  const isCapacitor = 
+  // U svim web preglednicima (desktop, mobitel, iframe) uvijek koristi relativnu putanju
+  // kako ne bi došlo do CORS ili "Failed to fetch" blokada
+  const isCapacitorNative = 
     window.location.protocol === 'capacitor:' ||
-    (window.location.hostname === 'localhost' && !window.location.port) ||
     (typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.());
 
-  if (isCapacitor) {
+  if (isCapacitorNative) {
     return `${CLOUD_BACKEND_URL}${cleanEndpoint}`;
   }
   
@@ -162,7 +162,7 @@ export function getApiUrl(endpoint: string): string {
 }
 
 /**
- * Siguran dohvat JSON odgovora koji nikada ne ruši aplikaciju s greškom "Unexpected token <"
+ * Siguran dohvat JSON odgovora koji nikada ne ruši aplikaciju s greškom "Unexpected token <" ili "Failed to fetch"
  */
 export async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
   try {
@@ -184,11 +184,14 @@ export async function safeFetchJson<T>(url: string, options?: RequestInit): Prom
         ok: false, 
         status: res.status, 
         data: null, 
-        error: `Poslužitelj je vratio HTML odgovor umjesto JSON podataka (kod: ${res.status}).` 
+        error: `Poslužitelj privremeno nije vratio tražene podatke (kod: ${res.status}).` 
       };
     }
   } catch (err: any) {
-    return { ok: false, status: 0, data: null, error: err?.message || 'Greška u mrežnoj komunikaciji.' };
+    const errMsg = err?.message?.toLowerCase().includes('failed to fetch')
+      ? 'Komunikacija s poslužiteljem trenutno nije uspjela (provjerite internet).'
+      : (err?.message || 'Greška u mrežnoj komunikaciji.');
+    return { ok: false, status: 0, data: null, error: errMsg };
   }
 }
 

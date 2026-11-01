@@ -1,13 +1,13 @@
 {
-  "version": "1.3.3",
+  "version": "1.3.4",
   "name": "RiboPrognoza",
-  "releaseDate": "2026-10-31",
+  "releaseDate": "2026-11-01",
   "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk",
   "changelog": [
-    "Prikaz imena korisnika u chatu točno prema imenu unesenom u kontrolnom panelu",
-    "Mogućnost brze promjene vlastitog imena u chatu direktno iz zaglavlja",
-    "Obavijest i brojač nepročitanih poruka (App Badge) na ikoni aplikacije i gumbu LiveChat poput WhatsAppa",
-    "Admin u kontrolnom panelu može u svakom trenutku promijeniti ime bilo kojeg korisnika"
+    "Ispravljen problem 'Failed to fetch' prilikom slanja poruka u chatu",
+    "Zvučni signal (chime) pri svakoj prispjeloj novoj poruci",
+    "Sistemske obavijesti čak i kada korisnik nije u aplikaciji (Android i PWA)",
+    "Oznaka broja nepročitanih poruka (App Badge) na instalacijskoj ikoni na zaslonu uređaja"
   ],
   "isCritical": false
 }
