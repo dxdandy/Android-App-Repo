@@ -14,6 +14,8 @@ export const CACHE_BOGOJEVO_KEY = 'ribo_cache_bogojevo_station_data';
 
 export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=0&postajaID=148';
 export const HIDMET_BOGOJEVO_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42020';
+export const VENTUSKY_ALJMAS_URL = 'https://www.ventusky.com/45.529;18.95';
+export const VENTUSKY_BOGOJEVO_URL = 'https://www.ventusky.com/45.53;19.13';
 
 export function getWindDirectionLabel(degrees?: number): string {
   if (degrees === undefined) return 'Promjenjiv';
@@ -489,7 +491,7 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
     sourceUrl: MVODOSTAJI_ALJMAS_URL,
     sourceName: 'mvodostaji.voda.hr (postaja 148)',
     isLive,
-    notes: 'Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s putovnica.net (Aljmaš).'
+    notes: 'Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s Ventusky (45.529;18.95).'
   };
 
   try {
@@ -583,7 +585,7 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
     sourceUrl: HIDMET_BOGOJEVO_URL,
     sourceName: 'hidmet.gov.rs (hm_id 42020)',
     isLive,
-    notes: 'Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s vojvodinameteo.rs (Bogojevo).'
+    notes: 'Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s Ventusky (45.53;19.13).'
   };
 
   try {

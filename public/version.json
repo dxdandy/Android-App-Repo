@@ -1,12 +1,12 @@
 {
-  "version": "1.3.8",
+  "version": "1.3.9",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-02",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.8.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.9.apk",
   "changelog": [
-    "Ispravljen prikaz naziva SOLUNAR u osnovnom modu u vertikalnom položaju - puni naziv se prikazuje u cjelini",
-    "Ikona mjesečeve mijene precizno pozicionirana unutar okvira gumba bez prelaženja ili dodirivanja ruba",
-    "Dodatna usklađivanja širine i responzivnosti kartica"
+    "Dohvat tlaka zraka za Aljmaš direktno sa službene Ventusky stranice (45.529;18.95)",
+    "Dohvat tlaka zraka za Bogojevo direktno sa službene Ventusky stranice (45.53;19.13)",
+    "Puni prikaz naziva SOLUNAR i optimiziran raspored mjesečeve ikone"
   ],
   "isCritical": false
 }

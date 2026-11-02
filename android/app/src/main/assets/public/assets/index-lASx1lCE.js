@@ -13412,7 +13412,7 @@ async function fetchAljmasStationData() {
 		sourceUrl: MVODOSTAJI_ALJMAS_URL,
 		sourceName: "mvodostaji.voda.hr (postaja 148)",
 		isLive,
-		notes: "Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s putovnica.net (Aljmaš)."
+		notes: "Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s Ventusky (45.529;18.95)."
 	};
 	try {
 		if (typeof window !== "undefined") localStorage.setItem(CACHE_ALJMAS_KEY, JSON.stringify(result));
@@ -13515,7 +13515,7 @@ async function fetchBogojevoStationData() {
 		sourceUrl: HIDMET_BOGOJEVO_URL,
 		sourceName: "hidmet.gov.rs (hm_id 42020)",
 		isLive,
-		notes: "Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s vojvodinameteo.rs (Bogojevo)."
+		notes: "Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s Ventusky (45.53;19.13)."
 	};
 	try {
 		if (typeof window !== "undefined") localStorage.setItem(CACHE_BOGOJEVO_KEY, JSON.stringify(result));
@@ -16841,7 +16841,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 };
 //#endregion
 //#region node_modules/@capacitor/local-notifications/dist/esm/index.js
-var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-CaTgK-s1.js").then((m) => new m.LocalNotificationsWeb()), []) });
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-CJbU4EmZ.js").then((m) => new m.LocalNotificationsWeb()), []) });
 //#endregion
 //#region src/services/notificationService.ts
 /**
@@ -17186,7 +17186,7 @@ async function deleteChatMessageAsAdmin(pin, messageId) {
 * Autor: Daniel Čizmar
 * GitHub: dxdandy/Android-App-Repo
 */
-var CURRENT_APP_VERSION = "1.3.8";
+var CURRENT_APP_VERSION = "1.3.9";
 /**
 * Uspoređuje dvije semantičke verzije (npr. '1.1.0' > '1.0.1')
 * Vraća true ako je remoteVer novija od currentVer
@@ -17300,7 +17300,7 @@ async function checkForAppUpdate(force = false) {
 		currentVersion: CURRENT_APP_VERSION,
 		errorMessage: lastErrorMsg
 	};
-	if (!isNewerVersion(latestData.version, "1.3.8")) return {
+	if (!isNewerVersion(latestData.version, "1.3.9")) return {
 		status: "up_to_date",
 		serverVersion: latestData.version,
 		currentVersion: CURRENT_APP_VERSION,

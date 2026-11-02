@@ -25,80 +25,50 @@ app.use((_req, res, next) => {
 
 export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=0&postajaID=148';
 export const SEATEMP_ALJMAS_VUKOVAR_URL = 'https://hr.seatemperature.net/current/croatia/water-temp-in-vukovar-in-danube';
-export const PUTOVNICA_ALJMAS_URL = 'https://www.putovnica.net/vrijeme/vremenska-prognoza/mjesto/aljmas-hr-vremenska-prognoza-po-satima';
+export const VENTUSKY_ALJMAS_URL = 'https://www.ventusky.com/45.529;18.95';
 
 export const HIDMET_BOGOJEVO_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42020';
 export const HIDMET_BOGOJEVO_TEMP_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42015';
-export const VOJVODINAMETEO_BOGOJEVO_URL = 'https://vojvodinameteo.rs/vremenska-prognoza-bogojevo/';
+export const VENTUSKY_BOGOJEVO_URL = 'https://www.ventusky.com/45.53;19.13';
 
 /**
- * Dohvat tlaka zraka za Aljmaš (primarno s putovnica.net, fallback na live barometar Aljmaš)
+ * Dohvat tlaka zraka za Aljmaš s Ventusky (https://www.ventusky.com/45.529;18.95)
  */
 async function fetchAljmasAirPressure(): Promise<number> {
   try {
-    const res = await fetch(PUTOVNICA_ALJMAS_URL, {
+    const res = await fetch(VENTUSKY_ALJMAS_URL, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'hr-HR,hr;q=0.9,en-US;q=0.8,en;q=0.7'
-      },
-      signal: AbortSignal.timeout(4500)
-    });
-    if (res.ok) {
-      const html = await res.text();
-      const match = html.match(/tlak[^\d]*(\d{3,4})\s*hPa/i) || html.match(/(\d{3,4})\s*hPa/i);
-      if (match && match[1]) {
-        const val = parseInt(match[1], 10);
-        if (val >= 950 && val <= 1060) return val;
-      }
-    }
-  } catch (err) {
-    console.warn('Greška pri dohvatu tlaka zraka s putovnica.net:', err);
-  }
-
-  // Točan live MSL barometar za koordinate Aljmaša
-  try {
-    const mRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=45.5269&longitude=18.9489&current=surface_pressure,pressure_msl&timezone=Europe%2FZagreb', {
-      signal: AbortSignal.timeout(4000)
-    });
-    if (mRes.ok) {
-      const mData = await mRes.json();
-      const p = mData.current?.pressure_msl || mData.current?.surface_pressure;
-      if (p) return Math.round(p);
-    }
-  } catch {}
-  return 1025;
-}
-
-/**
- * Dohvat tlaka zraka za Bogojevo (s vojvodinameteo.rs)
- */
-async function fetchBogojevoAirPressure(): Promise<number> {
-  try {
-    const res = await fetch(VOJVODINAMETEO_BOGOJEVO_URL, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        'Accept-Language': 'hr-HR,hr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cookie': 'units=m; p=hpa;'
       },
       signal: AbortSignal.timeout(5000)
     });
     if (res.ok) {
       const html = await res.text();
-      const match = html.match(/<dt>[^<]*pritisak[^<]*<\/dt>\s*<dd>[^<]*\/\s*([+-]?\d+)\s*hPa/i)
-                 || html.match(/scope="col">Pritisak<\/th>[\s\S]*?(\d{3,4})\s*hPa/i)
-                 || html.match(/(\d{3,4})\s*hPa/i);
-      if (match && match[1]) {
-        const val = parseInt(match[1], 10);
-        if (val >= 950 && val <= 1060) return val;
+      // Izvuci točnu vrijednost tlaka iz tablice Ventusky
+      const tableMatch = html.match(/(?:Tlak zraka|Air pressure|Pressure)[^<]*<\/td>\s*<td[^>]*>\s*<b>\s*(\d{3,4})\s*(?:&nbsp;|\s)*hPa/i)
+        || html.match(/<b>\s*(\d{3,4})\s*(?:&nbsp;|\s)*hPa\s*<\/b>/i)
+        || html.match(/(\d{3,4})\s*(?:&nbsp;|\s)*hPa/i);
+      if (tableMatch && tableMatch[1]) {
+        const val = parseInt(tableMatch[1], 10);
+        if (val >= 940 && val <= 1065) return val;
+      }
+      // Provjera ako je u inHg jedinicama
+      const inHgMatch = html.match(/(?:Tlak zraka|Air pressure)[^<]*<\/td>\s*<td[^>]*>\s*<b>\s*(\d+(?:\.\d+)?)\s*(?:&nbsp;|\s)*inHg/i);
+      if (inHgMatch && inHgMatch[1]) {
+        const inhg = parseFloat(inHgMatch[1]);
+        if (!isNaN(inhg)) return Math.round(inhg * 33.8639);
       }
     }
   } catch (err) {
-    console.warn('Greška pri dohvatu tlaka zraka za Bogojevo (vojvodinameteo.rs):', err);
+    console.warn('Greška pri dohvatu tlaka zraka s Ventusky (Aljmaš):', err);
   }
 
-  // Točan live MSL barometar za koordinate Bogojeva
+  // Točan live MSL barometar za koordinate Aljmaša kao automatski fallback
   try {
-    const mRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=45.5342&longitude=19.1231&current=surface_pressure,pressure_msl&timezone=Europe%2FZagreb', {
+    const mRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=45.529&longitude=18.95&current=surface_pressure,pressure_msl&timezone=Europe%2FZagreb', {
       signal: AbortSignal.timeout(4000)
     });
     if (mRes.ok) {
@@ -107,7 +77,56 @@ async function fetchBogojevoAirPressure(): Promise<number> {
       if (p) return Math.round(p);
     }
   } catch {}
-  return 1025;
+  return 1021;
+}
+
+/**
+ * Dohvat tlaka zraka za Bogojevo s Ventusky (https://www.ventusky.com/45.53;19.13)
+ */
+async function fetchBogojevoAirPressure(): Promise<number> {
+  try {
+    const res = await fetch(VENTUSKY_BOGOJEVO_URL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'hr-HR,hr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cookie': 'units=m; p=hpa;'
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const html = await res.text();
+      // Izvuci točnu vrijednost tlaka iz tablice Ventusky
+      const tableMatch = html.match(/(?:Tlak zraka|Air pressure|Pressure)[^<]*<\/td>\s*<td[^>]*>\s*<b>\s*(\d{3,4})\s*(?:&nbsp;|\s)*hPa/i)
+        || html.match(/<b>\s*(\d{3,4})\s*(?:&nbsp;|\s)*hPa\s*<\/b>/i)
+        || html.match(/(\d{3,4})\s*(?:&nbsp;|\s)*hPa/i);
+      if (tableMatch && tableMatch[1]) {
+        const val = parseInt(tableMatch[1], 10);
+        if (val >= 940 && val <= 1065) return val;
+      }
+      // Provjera ako je u inHg jedinicama
+      const inHgMatch = html.match(/(?:Tlak zraka|Air pressure)[^<]*<\/td>\s*<td[^>]*>\s*<b>\s*(\d+(?:\.\d+)?)\s*(?:&nbsp;|\s)*inHg/i);
+      if (inHgMatch && inHgMatch[1]) {
+        const inhg = parseFloat(inHgMatch[1]);
+        if (!isNaN(inhg)) return Math.round(inhg * 33.8639);
+      }
+    }
+  } catch (err) {
+    console.warn('Greška pri dohvatu tlaka zraka s Ventusky (Bogojevo):', err);
+  }
+
+  // Točan live MSL barometar za koordinate Bogojeva kao automatski fallback
+  try {
+    const mRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=45.53&longitude=19.13&current=surface_pressure,pressure_msl&timezone=Europe%2FZagreb', {
+      signal: AbortSignal.timeout(4000)
+    });
+    if (mRes.ok) {
+      const mData = await mRes.json();
+      const p = mData.current?.pressure_msl || mData.current?.surface_pressure;
+      if (p) return Math.round(p);
+    }
+  } catch {}
+  return 1022;
 }
 
 /**
@@ -270,7 +289,7 @@ app.get('/api/water/aljmas', async (_req, res) => {
       recentHours: rows.slice(0, 10),
       sourceUrl: MVODOSTAJI_ALJMAS_URL,
       waterTempSourceUrl: SEATEMP_ALJMAS_VUKOVAR_URL,
-      airPressureSourceUrl: PUTOVNICA_ALJMAS_URL,
+      airPressureSourceUrl: VENTUSKY_ALJMAS_URL,
       isLive: true
     });
   } catch (error) {
@@ -290,7 +309,7 @@ app.get('/api/water/aljmas', async (_req, res) => {
       prepLevelCm: 400,
       sourceUrl: MVODOSTAJI_ALJMAS_URL,
       waterTempSourceUrl: SEATEMP_ALJMAS_VUKOVAR_URL,
-      airPressureSourceUrl: PUTOVNICA_ALJMAS_URL,
+      airPressureSourceUrl: VENTUSKY_ALJMAS_URL,
       isLive: false,
       message: 'Učitani zadnji važeći podaci mjerne stanice Aljmaš.'
     });
@@ -368,7 +387,7 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       emergencyDefenseCm: 700,
       sourceUrl: HIDMET_BOGOJEVO_URL,
       waterTempSourceUrl: HIDMET_BOGOJEVO_TEMP_URL,
-      airPressureSourceUrl: VOJVODINAMETEO_BOGOJEVO_URL,
+      airPressureSourceUrl: VENTUSKY_BOGOJEVO_URL,
       isLive: true
     });
   } catch (error) {
@@ -388,7 +407,7 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       emergencyDefenseCm: 700,
       sourceUrl: HIDMET_BOGOJEVO_URL,
       waterTempSourceUrl: HIDMET_BOGOJEVO_TEMP_URL,
-      airPressureSourceUrl: VOJVODINAMETEO_BOGOJEVO_URL,
+      airPressureSourceUrl: VENTUSKY_BOGOJEVO_URL,
       isLive: false,
       message: 'Učitani zadnji važeći podaci mjerne stanice Bogojevo.'
     });
@@ -1037,14 +1056,14 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.3.8',
+    version: '1.3.9',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-02',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.8.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.9.apk',
     changelog: [
-      'Ispravljen prikaz naziva SOLUNAR u osnovnom modu u vertikalnom položaju - puni naziv se prikazuje u cjelini',
-      'Ikona mjesečeve mijene precizno pozicionirana unutar okvira gumba bez prelaženja ili dodirivanja ruba',
-      'Dodatna usklađivanja širine i responzivnosti kartica'
+      'Dohvat tlaka zraka za Aljmaš direktno sa službene Ventusky stranice (45.529;18.95)',
+      'Dohvat tlaka zraka za Bogojevo direktno sa službene Ventusky stranice (45.53;19.13)',
+      'Puni prikaz naziva SOLUNAR i optimiziran raspored mjesečeve ikone'
     ],
     isCritical: false
   });

@@ -1,4 +1,4 @@
-import { t as WebPlugin } from "./index-BCN4IiPV.js";
+import { t as WebPlugin } from "./index-lASx1lCE.js";
 //#region node_modules/@capacitor/local-notifications/dist/esm/web.js
 var LocalNotificationsWeb = class extends WebPlugin {
 	constructor() {

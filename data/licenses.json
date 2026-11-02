@@ -17,5 +17,14 @@
     "createdAt": "2026-10-31T10:52:37.170Z",
     "lastSeenAt": "2026-10-31T21:00:52.674Z",
     "chatEnabled": true
+  },
+  {
+    "deviceId": "RP-B4AP-X4FH",
+    "activationKey": "AKT-R3L9-GFDY",
+    "userName": "Ribič (X4FH)",
+    "status": "active",
+    "chatEnabled": true,
+    "createdAt": "2026-11-02T13:09:18.492Z",
+    "lastSeenAt": "2026-11-02T13:13:58.512Z"
   }
 ]
