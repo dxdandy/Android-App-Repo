@@ -12,10 +12,12 @@ import { getApiUrl, safeFetchJson } from './licenseService';
 export const CACHE_ALJMAS_KEY = 'ribo_cache_aljmas_station_data';
 export const CACHE_BOGOJEVO_KEY = 'ribo_cache_bogojevo_station_data';
 
-export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=0&postajaID=148';
+export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=34&postajaID=148';
 export const HIDMET_BOGOJEVO_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42020';
 export const VENTUSKY_ALJMAS_URL = 'https://www.ventusky.com/45.529;18.95';
 export const VENTUSKY_BOGOJEVO_URL = 'https://www.ventusky.com/45.53;19.13';
+export const YR_ALJMAS_URL = 'https://www.yr.no/en/forecast/daily-table/2-3244159/Croatia/Vukovar-Srijem%20County/Aljmas';
+export const YR_BOGOJEVO_URL = 'https://www.yr.no/en/forecast/daily-table/2-12503703/Serbia/Vojvodina/West%20Ba%C4%8Dka%20District/Bogojevo%20border%20checkpoint';
 
 export function getWindDirectionLabel(degrees?: number): string {
   if (degrees === undefined) return 'Promjenjiv';
@@ -371,7 +373,7 @@ export async function fetchMeteoForCoords(lat: number, lon: number): Promise<{
     return {
       airPressureHpa: 1017,
       airPressureTrend: 'stabilan',
-      airTempC: 21.0,
+      airTempC: 10.0,
       windSpeedKmh: 12,
       windSpeedMs: 3.3,
       windDirection: 'SZ',
@@ -415,7 +417,8 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
   let maxLevelCm = cached?.maxLevelCm || 820;
   let maxLevelDate = cached?.maxLevelDate || '25.06.1965.';
   let prepLevelCm = cached?.prepLevelCm || 400;
-  let waterTempC = cached?.waterTempC || 12.9;
+  let airTempC = cached?.airTempC ?? 9.9;
+  let waterTempC = cached?.waterTempC || 11.4;
   let isLive = Boolean(cached?.isLive);
   let history: WaterLevelHistoryItem[] = cached?.recentHistory && cached.recentHistory.length > 0
     ? cached.recentHistory
@@ -441,6 +444,9 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
         maxLevelCm = data.maxLevelCm || 820;
         maxLevelDate = data.maxLevelDate || maxLevelDate;
         prepLevelCm = data.prepLevelCm || 400;
+        if (data.airTempC !== undefined) {
+          airTempC = data.airTempC;
+        }
         if (data.waterTempC !== undefined) {
           waterTempC = data.waterTempC;
         }
@@ -482,7 +488,7 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
     recentHistory: history,
     airPressureHpa,
     airPressureTrend,
-    airTempC: meteo.airTempC,
+    airTempC,
     waterTempC,
     windSpeedKmh: meteo.windSpeedKmh,
     windSpeedMs: meteo.windSpeedMs,
@@ -491,7 +497,7 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
     sourceUrl: MVODOSTAJI_ALJMAS_URL,
     sourceName: 'mvodostaji.voda.hr (postaja 148)',
     isLive,
-    notes: 'Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s Ventusky (45.529;18.95).'
+    notes: 'Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s Ventusky (45.529;18.95), temperatura s Yr.no.'
   };
 
   try {
@@ -517,7 +523,8 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
   let forecastDays: number[] = cached?.forecastDays || [-92, -86, -90, -96];
   let regularDefenseCm = cached?.regularDefenseCm || 600;
   let emergencyDefenseCm = cached?.emergencyDefenseCm || 700;
-  let waterTempC = cached?.waterTempC !== undefined ? cached.waterTempC : 12.6;
+  let airTempC = cached?.airTempC ?? 10.4;
+  let waterTempC = cached?.waterTempC !== undefined ? cached.waterTempC : 11.6;
   let isLive = Boolean(cached?.isLive);
   let timeOfMeasurement = cached?.timeOfMeasurement || '07:00';
   let dateOfMeasurement = cached?.dateOfMeasurement || new Date().toLocaleDateString('hr-HR');
@@ -536,7 +543,12 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
         forecastDays = data.forecastDays || forecastDays;
         regularDefenseCm = data.regularDefenseCm || 600;
         emergencyDefenseCm = data.emergencyDefenseCm || 700;
-        waterTempC = data.waterTempC !== undefined ? data.waterTempC : 12.6;
+        if (data.airTempC !== undefined) {
+          airTempC = data.airTempC;
+        }
+        if (data.waterTempC !== undefined) {
+          waterTempC = data.waterTempC;
+        }
         if (data.airPressureHpa !== undefined) {
           airPressureHpa = data.airPressureHpa;
           if (airPressureHpa > 1019) airPressureTrend = 'rast';
@@ -576,7 +588,7 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
     recentHistory: history,
     airPressureHpa,
     airPressureTrend,
-    airTempC: meteo.airTempC,
+    airTempC,
     waterTempC,
     windSpeedKmh: meteo.windSpeedKmh,
     windSpeedMs: meteo.windSpeedMs,
@@ -585,7 +597,7 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
     sourceUrl: HIDMET_BOGOJEVO_URL,
     sourceName: 'hidmet.gov.rs (hm_id 42020)',
     isLive,
-    notes: 'Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s Ventusky (45.53;19.13).'
+    notes: 'Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s Ventusky (45.53;19.13), temperatura s Yr.no.'
   };
 
   try {

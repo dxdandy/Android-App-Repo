@@ -1,12 +1,13 @@
 {
-  "version": "1.3.9",
+  "version": "1.4.0",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-02",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.9.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.0.apk",
   "changelog": [
-    "Dohvat tlaka zraka za Aljmaš direktno sa službene Ventusky stranice (45.529;18.95)",
-    "Dohvat tlaka zraka za Bogojevo direktno sa službene Ventusky stranice (45.53;19.13)",
-    "Puni prikaz naziva SOLUNAR i optimiziran raspored mjesečeve ikone"
+    "Ažuriran službeni izvor za vodostaj Aljmaš (mvodostaji.voda.hr sektor 2, postaja 148, vrh tablice)",
+    "Ažuriran službeni izvor za vodostaj Bogojevo (hidmet.gov.rs postaja 42020)",
+    "Dohvat temperature zraka s Yr.no za Aljmaš i Bogojevo border checkpoint",
+    "Otklonjen problem sa skokovima temperature kod uzastopnog ažuriranja"
   ],
   "isCritical": false
 }

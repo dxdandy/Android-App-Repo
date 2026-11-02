@@ -23,13 +23,99 @@ app.use((_req, res, next) => {
   next();
 });
 
-export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=0&postajaID=148';
+export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=34&postajaID=148';
 export const SEATEMP_ALJMAS_VUKOVAR_URL = 'https://hr.seatemperature.net/current/croatia/water-temp-in-vukovar-in-danube';
 export const VENTUSKY_ALJMAS_URL = 'https://www.ventusky.com/45.529;18.95';
+export const YR_ALJMAS_URL = 'https://www.yr.no/en/forecast/daily-table/2-3244159/Croatia/Vukovar-Srijem%20County/Aljmas';
 
 export const HIDMET_BOGOJEVO_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42020';
 export const HIDMET_BOGOJEVO_TEMP_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42015';
 export const VENTUSKY_BOGOJEVO_URL = 'https://www.ventusky.com/45.53;19.13';
+export const YR_BOGOJEVO_URL = 'https://www.yr.no/en/forecast/daily-table/2-12503703/Serbia/Vojvodina/West%20Ba%C4%8Dka%20District/Bogojevo%20border%20checkpoint';
+
+/**
+ * Dohvat temperature zraka za Aljmaš s Yr.no (lokacija 2-3244159)
+ */
+async function fetchAljmasAirTemp(): Promise<number> {
+  try {
+    const res = await fetch('https://www.yr.no/api/v0/locations/2-3244159/forecast', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.shortIntervals) && data.shortIntervals.length > 0) {
+        const val = data.shortIntervals[0].temperature?.value;
+        if (typeof val === 'number') return Math.round(val * 10) / 10;
+      }
+      if (Array.isArray(data.dayIntervals) && data.dayIntervals.length > 0) {
+        const val = data.dayIntervals[0].temperature?.value;
+        if (typeof val === 'number') return Math.round(val * 10) / 10;
+      }
+    }
+  } catch (err) {
+    console.warn('Greška pri dohvatu temperature s Yr.no (Aljmaš):', err);
+  }
+
+  // Službeni Met.no model kao pouzdan fallback
+  try {
+    const mRes = await fetch('https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=45.5269&lon=18.9489', {
+      headers: { 'User-Agent': 'RiboPrognozaDunav/1.4 github.com/dxdandy' },
+      signal: AbortSignal.timeout(4000)
+    });
+    if (mRes.ok) {
+      const mData = await mRes.json();
+      const val = mData.properties?.timeseries?.[0]?.data?.instant?.details?.air_temperature;
+      if (typeof val === 'number') return Math.round(val * 10) / 10;
+    }
+  } catch {}
+  return 9.9;
+}
+
+/**
+ * Dohvat temperature zraka za Bogojevo s Yr.no (lokacija 2-12503703)
+ */
+async function fetchBogojevoAirTemp(): Promise<number> {
+  try {
+    const res = await fetch('https://www.yr.no/api/v0/locations/2-12503703/forecast', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.shortIntervals) && data.shortIntervals.length > 0) {
+        const val = data.shortIntervals[0].temperature?.value;
+        if (typeof val === 'number') return Math.round(val * 10) / 10;
+      }
+      if (Array.isArray(data.dayIntervals) && data.dayIntervals.length > 0) {
+        const val = data.dayIntervals[0].temperature?.value;
+        if (typeof val === 'number') return Math.round(val * 10) / 10;
+      }
+    }
+  } catch (err) {
+    console.warn('Greška pri dohvatu temperature s Yr.no (Bogojevo):', err);
+  }
+
+  // Službeni Met.no model kao pouzdan fallback
+  try {
+    const mRes = await fetch('https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=45.5342&lon=19.1231', {
+      headers: { 'User-Agent': 'RiboPrognozaDunav/1.4 github.com/dxdandy' },
+      signal: AbortSignal.timeout(4000)
+    });
+    if (mRes.ok) {
+      const mData = await mRes.json();
+      const val = mData.properties?.timeseries?.[0]?.data?.instant?.details?.air_temperature;
+      if (typeof val === 'number') return Math.round(val * 10) / 10;
+    }
+  } catch {}
+  return 10.4;
+}
 
 /**
  * Dohvat tlaka zraka za Aljmaš s Ventusky (https://www.ventusky.com/45.529;18.95)
@@ -271,6 +357,7 @@ app.get('/api/water/aljmas', async (_req, res) => {
 
     const waterTemp = await fetchAljmasWaterTemp();
     const airPressureHpa = await fetchAljmasAirPressure();
+    const airTemp = await fetchAljmasAirTemp();
 
     res.json({
       success: true,
@@ -281,6 +368,7 @@ app.get('/api/water/aljmas', async (_req, res) => {
       waterLevelChangeCm: latest.trendChange,
       timeOfMeasurement: latest.time,
       dateOfMeasurement: latest.date,
+      airTempC: airTemp,
       waterTempC: waterTemp,
       airPressureHpa,
       maxLevelCm: maxMatch ? parseInt(maxMatch[1], 10) : 820,
@@ -290,6 +378,7 @@ app.get('/api/water/aljmas', async (_req, res) => {
       sourceUrl: MVODOSTAJI_ALJMAS_URL,
       waterTempSourceUrl: SEATEMP_ALJMAS_VUKOVAR_URL,
       airPressureSourceUrl: VENTUSKY_ALJMAS_URL,
+      airTempSourceUrl: YR_ALJMAS_URL,
       isLive: true
     });
   } catch (error) {
@@ -349,9 +438,8 @@ app.get('/api/water/bogojevo', async (_req, res) => {
 
     // Temperatura vode za Bogojevo s https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42015
     const waterTemp = await fetchBogojevoWaterTemp();
-
-    // Tlak zraka za Bogojevo s https://vojvodinameteo.rs/vremenska-prognoza-bogojevo/
     const airPressureHpa = await fetchBogojevoAirPressure();
+    const airTemp = await fetchBogojevoAirTemp();
 
     let parsedTrend: 'u_porastu' | 'opada' | 'stagnira' = 'opada';
     if (trendMatch) {
@@ -379,6 +467,7 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       waterLevelCm: parsedLevel,
       waterLevelChangeCm: parsedChange,
       waterLevelTrend: parsedTrend,
+      airTempC: airTemp,
       waterTempC: waterTemp,
       airPressureHpa,
       flowM3s: parsedFlow,
@@ -388,6 +477,7 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       sourceUrl: HIDMET_BOGOJEVO_URL,
       waterTempSourceUrl: HIDMET_BOGOJEVO_TEMP_URL,
       airPressureSourceUrl: VENTUSKY_BOGOJEVO_URL,
+      airTempSourceUrl: YR_BOGOJEVO_URL,
       isLive: true
     });
   } catch (error) {
@@ -1056,14 +1146,15 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.3.9',
+    version: '1.4.0',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-02',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.9.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.0.apk',
     changelog: [
-      'Dohvat tlaka zraka za Aljmaš direktno sa službene Ventusky stranice (45.529;18.95)',
-      'Dohvat tlaka zraka za Bogojevo direktno sa službene Ventusky stranice (45.53;19.13)',
-      'Puni prikaz naziva SOLUNAR i optimiziran raspored mjesečeve ikone'
+      'Ažuriran službeni izvor za vodostaj Aljmaš (mvodostaji.voda.hr sektor 2, postaja 148, vrh tablice)',
+      'Ažuriran službeni izvor za vodostaj Bogojevo (hidmet.gov.rs postaja 42020)',
+      'Dohvat temperature zraka s Yr.no za Aljmaš i Bogojevo border checkpoint',
+      'Otklonjen problem sa skokovima temperature kod uzastopnog ažuriranja'
     ],
     isCritical: false
   });

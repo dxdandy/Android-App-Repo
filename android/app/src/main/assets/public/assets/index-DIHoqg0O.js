@@ -13004,7 +13004,7 @@ async function deleteAdminLicense(pin, deviceId) {
 //#region src/services/weatherService.ts
 var CACHE_ALJMAS_KEY = "ribo_cache_aljmas_station_data";
 var CACHE_BOGOJEVO_KEY = "ribo_cache_bogojevo_station_data";
-var MVODOSTAJI_ALJMAS_URL = "https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=0&postajaID=148";
+var MVODOSTAJI_ALJMAS_URL = "https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=34&postajaID=148";
 var HIDMET_BOGOJEVO_URL = "https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42020";
 function getWindDirectionLabel(degrees) {
 	if (degrees === void 0) return "Promjenjiv";
@@ -13290,7 +13290,7 @@ async function fetchMeteoForCoords(lat, lon) {
 		return {
 			airPressureHpa: 1017,
 			airPressureTrend: "stabilan",
-			airTempC: 21,
+			airTempC: 10,
 			windSpeedKmh: 12,
 			windSpeedMs: 3.3,
 			windDirection: "SZ",
@@ -13330,7 +13330,8 @@ async function fetchAljmasStationData() {
 	let maxLevelCm = cached?.maxLevelCm || 820;
 	let maxLevelDate = cached?.maxLevelDate || "25.06.1965.";
 	let prepLevelCm = cached?.prepLevelCm || 400;
-	let waterTempC = cached?.waterTempC || 12.9;
+	let airTempC = cached?.airTempC ?? 9.9;
+	let waterTempC = cached?.waterTempC || 11.4;
 	let isLive = Boolean(cached?.isLive);
 	let history = cached?.recentHistory && cached.recentHistory.length > 0 ? cached.recentHistory : [
 		{
@@ -13367,6 +13368,7 @@ async function fetchAljmasStationData() {
 				maxLevelCm = data.maxLevelCm || 820;
 				maxLevelDate = data.maxLevelDate || maxLevelDate;
 				prepLevelCm = data.prepLevelCm || 400;
+				if (data.airTempC !== void 0) airTempC = data.airTempC;
 				if (data.waterTempC !== void 0) waterTempC = data.waterTempC;
 				if (data.airPressureHpa !== void 0) {
 					airPressureHpa = data.airPressureHpa;
@@ -13403,7 +13405,7 @@ async function fetchAljmasStationData() {
 		recentHistory: history,
 		airPressureHpa,
 		airPressureTrend,
-		airTempC: meteo.airTempC,
+		airTempC,
 		waterTempC,
 		windSpeedKmh: meteo.windSpeedKmh,
 		windSpeedMs: meteo.windSpeedMs,
@@ -13412,7 +13414,7 @@ async function fetchAljmasStationData() {
 		sourceUrl: MVODOSTAJI_ALJMAS_URL,
 		sourceName: "mvodostaji.voda.hr (postaja 148)",
 		isLive,
-		notes: "Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s Ventusky (45.529;18.95)."
+		notes: "Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s Ventusky (45.529;18.95), temperatura s Yr.no."
 	};
 	try {
 		if (typeof window !== "undefined") localStorage.setItem(CACHE_ALJMAS_KEY, JSON.stringify(result));
@@ -13437,7 +13439,8 @@ async function fetchBogojevoStationData() {
 	];
 	let regularDefenseCm = cached?.regularDefenseCm || 600;
 	let emergencyDefenseCm = cached?.emergencyDefenseCm || 700;
-	let waterTempC = cached?.waterTempC !== void 0 ? cached.waterTempC : 12.6;
+	let airTempC = cached?.airTempC ?? 10.4;
+	let waterTempC = cached?.waterTempC !== void 0 ? cached.waterTempC : 11.6;
 	let isLive = Boolean(cached?.isLive);
 	let timeOfMeasurement = cached?.timeOfMeasurement || "07:00";
 	let dateOfMeasurement = cached?.dateOfMeasurement || (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR");
@@ -13455,7 +13458,8 @@ async function fetchBogojevoStationData() {
 				forecastDays = data.forecastDays || forecastDays;
 				regularDefenseCm = data.regularDefenseCm || 600;
 				emergencyDefenseCm = data.emergencyDefenseCm || 700;
-				waterTempC = data.waterTempC !== void 0 ? data.waterTempC : 12.6;
+				if (data.airTempC !== void 0) airTempC = data.airTempC;
+				if (data.waterTempC !== void 0) waterTempC = data.waterTempC;
 				if (data.airPressureHpa !== void 0) {
 					airPressureHpa = data.airPressureHpa;
 					if (airPressureHpa > 1019) airPressureTrend = "rast";
@@ -13506,7 +13510,7 @@ async function fetchBogojevoStationData() {
 		recentHistory: history,
 		airPressureHpa,
 		airPressureTrend,
-		airTempC: meteo.airTempC,
+		airTempC,
 		waterTempC,
 		windSpeedKmh: meteo.windSpeedKmh,
 		windSpeedMs: meteo.windSpeedMs,
@@ -13515,7 +13519,7 @@ async function fetchBogojevoStationData() {
 		sourceUrl: HIDMET_BOGOJEVO_URL,
 		sourceName: "hidmet.gov.rs (hm_id 42020)",
 		isLive,
-		notes: "Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s Ventusky (45.53;19.13)."
+		notes: "Službena RHMZ postaja s prognozom, protokom i granicama obrane od poplava. Tlak zraka s Ventusky (45.53;19.13), temperatura s Yr.no."
 	};
 	try {
 		if (typeof window !== "undefined") localStorage.setItem(CACHE_BOGOJEVO_KEY, JSON.stringify(result));
@@ -16841,7 +16845,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 };
 //#endregion
 //#region node_modules/@capacitor/local-notifications/dist/esm/index.js
-var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-CJbU4EmZ.js").then((m) => new m.LocalNotificationsWeb()), []) });
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-TlumhXFz.js").then((m) => new m.LocalNotificationsWeb()), []) });
 //#endregion
 //#region src/services/notificationService.ts
 /**
@@ -17186,7 +17190,7 @@ async function deleteChatMessageAsAdmin(pin, messageId) {
 * Autor: Daniel Čizmar
 * GitHub: dxdandy/Android-App-Repo
 */
-var CURRENT_APP_VERSION = "1.3.9";
+var CURRENT_APP_VERSION = "1.4.0";
 /**
 * Uspoređuje dvije semantičke verzije (npr. '1.1.0' > '1.0.1')
 * Vraća true ako je remoteVer novija od currentVer
@@ -17300,7 +17304,7 @@ async function checkForAppUpdate(force = false) {
 		currentVersion: CURRENT_APP_VERSION,
 		errorMessage: lastErrorMsg
 	};
-	if (!isNewerVersion(latestData.version, "1.3.9")) return {
+	if (!isNewerVersion(latestData.version, "1.4.0")) return {
 		status: "up_to_date",
 		serverVersion: latestData.version,
 		currentVersion: CURRENT_APP_VERSION,
@@ -18896,10 +18900,10 @@ function App() {
 			river: "Dunav",
 			sectorName: "Sektor 2 / Ušće Drave u Dunav (Šporanj)",
 			riverKm: "rkm 1380,300",
-			waterLevelCm: -76,
+			waterLevelCm: -42,
 			waterLevelTrend: "stagnira",
 			waterLevelChangeCm: 0,
-			timeOfMeasurement: "09:00",
+			timeOfMeasurement: "14:00",
 			dateOfMeasurement: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
 			maxLevelCm: 820,
 			maxLevelDate: "25.06.1965.",
@@ -18907,27 +18911,27 @@ function App() {
 			recentHistory: [
 				{
 					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-					time: "09:00",
-					level: -76,
+					time: "14:00",
+					level: -41,
+					trendChange: 1
+				},
+				{
+					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
+					time: "13:00",
+					level: -42,
 					trendChange: 0
 				},
 				{
 					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-					time: "08:00",
-					level: -76,
-					trendChange: 0
-				},
-				{
-					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-					time: "07:00",
-					level: -76,
+					time: "12:00",
+					level: -42,
 					trendChange: 0
 				}
 			],
-			airPressureHpa: 1017,
+			airPressureHpa: 1021,
 			airPressureTrend: "stabilan",
-			airTempC: 21,
-			waterTempC: 12.9,
+			airTempC: 9.9,
+			waterTempC: 11.4,
 			windSpeedKmh: 12,
 			windSpeedMs: 3.3,
 			windDirection: "SZ",
@@ -18946,15 +18950,15 @@ function App() {
 			river: "Dunav",
 			sectorName: "Most Bogojevo - Erdut / Kameni špornjevi",
 			riverKm: "rkm 1367,000",
-			waterLevelCm: -83,
-			waterLevelTrend: "opada",
-			waterLevelChangeCm: -1,
-			flowM3s: 880,
+			waterLevelCm: -54,
+			waterLevelTrend: "u_porastu",
+			waterLevelChangeCm: 15,
+			flowM3s: 1170,
 			forecastDays: [
-				-92,
-				-86,
-				-90,
-				-96
+				-44,
+				-41,
+				-43,
+				-50
 			],
 			regularDefenseCm: 600,
 			emergencyDefenseCm: 700,
@@ -18963,18 +18967,18 @@ function App() {
 			recentHistory: [{
 				date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
 				time: "07:00",
-				level: -83,
-				trendChange: -1
+				level: -54,
+				trendChange: 15
 			}, {
 				date: "Jučer",
 				time: "07:00",
-				level: -82,
+				level: -69,
 				trendChange: 4
 			}],
-			airPressureHpa: 1016,
+			airPressureHpa: 1022,
 			airPressureTrend: "stabilan",
-			airTempC: 22,
-			waterTempC: 12.6,
+			airTempC: 10.4,
+			waterTempC: 11.6,
 			windSpeedKmh: 10,
 			windSpeedMs: 2.8,
 			windDirection: "SZ",
