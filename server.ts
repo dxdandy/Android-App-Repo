@@ -1037,14 +1037,14 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.3.6',
+    version: '1.3.7',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-01',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.6.apk',
+    releaseDate: '2026-11-02',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.3.7.apk',
     changelog: [
-      'Poboljšana GitHub CI/CD skripta za automatsku pripremu RiboPrognoza_v1.3.6.apk i RiboPrognoza.apk',
-      'Prikaz tko je pročitao poruku u chatu sa zabilježenim vremenom čitanja za sve korisnike',
-      'Optimizacije zvučnih i sistemskih obavijesti'
+      'Optimiziran responzivni prikaz gornjeg zaglavlja i gumba za ažuriranje na svim širinama mobitela',
+      'Dodana ikona za LiveChat u donju navigacijsku traku s oznakom nepročitanih poruka',
+      'Usklađenost prikaza vodostaja i hidrometeo podataka uz pametno predmemoriranje'
     ],
     isCritical: false
   });

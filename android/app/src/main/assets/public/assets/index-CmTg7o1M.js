@@ -16840,7 +16840,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 };
 //#endregion
 //#region node_modules/@capacitor/local-notifications/dist/esm/index.js
-var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-9Bp3YxS0.js").then((m) => new m.LocalNotificationsWeb()), []) });
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-DfDLGW3-.js").then((m) => new m.LocalNotificationsWeb()), []) });
 //#endregion
 //#region src/services/notificationService.ts
 /**
@@ -17185,7 +17185,7 @@ async function deleteChatMessageAsAdmin(pin, messageId) {
 * Autor: Daniel Čizmar
 * GitHub: dxdandy/Android-App-Repo
 */
-var CURRENT_APP_VERSION = "1.3.6";
+var CURRENT_APP_VERSION = "1.3.7";
 /**
 * Uspoređuje dvije semantičke verzije (npr. '1.1.0' > '1.0.1')
 * Vraća true ako je remoteVer novija od currentVer
@@ -17299,7 +17299,7 @@ async function checkForAppUpdate(force = false) {
 		currentVersion: CURRENT_APP_VERSION,
 		errorMessage: lastErrorMsg
 	};
-	if (!isNewerVersion(latestData.version, "1.3.6")) return {
+	if (!isNewerVersion(latestData.version, "1.3.7")) return {
 		status: "up_to_date",
 		serverVersion: latestData.version,
 		currentVersion: CURRENT_APP_VERSION,
