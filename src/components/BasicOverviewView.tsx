@@ -121,7 +121,7 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           type="button"
           onClick={() => onOpenExpertSection('sekcija-aljmas')}
           className={`${
-            isLandscape ? 'w-32 sm:w-36 md:w-44' : 'w-[92px] sm:w-32 md:w-36'
+            isLandscape ? 'w-32 sm:w-36 md:w-44' : 'w-[98px] sm:w-32 md:w-36'
           } shrink-0 bg-gradient-to-br from-teal-950 via-slate-900 to-slate-900/95 border border-teal-500/50 hover:border-teal-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`}
           title="Otvori detaljni Aljmaš u Ekspertnom modu"
         >
@@ -332,7 +332,7 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           type="button"
           onClick={() => onOpenExpertSection('sekcija-bogojevo')}
           className={`${
-            isLandscape ? 'w-32 sm:w-36 md:w-44' : 'w-[92px] sm:w-32 md:w-36'
+            isLandscape ? 'w-32 sm:w-36 md:w-44' : 'w-[98px] sm:w-32 md:w-36'
           } shrink-0 bg-gradient-to-br from-cyan-950 via-slate-900 to-slate-900/95 border border-cyan-500/50 hover:border-cyan-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`}
           title="Otvori detaljno Bogojevo u Ekspertnom modu"
         >
@@ -546,15 +546,15 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           type="button"
           onClick={() => onOpenExpertSection('sekcija-solunar')}
           className={`${
-            isLandscape ? 'w-32 sm:w-36 md:w-44' : 'w-[92px] sm:w-32 md:w-36'
+            isLandscape ? 'w-32 sm:w-36 md:w-44' : 'w-[98px] sm:w-32 md:w-36'
           } shrink-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-900/95 border border-indigo-500/50 hover:border-indigo-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`}
           title="Otvori detaljni Solunarni centar u Ekspertnom modu"
         >
-          <div className="w-full flex items-center justify-between">
-            <span className="font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm md:text-base tracking-wider uppercase truncate">
+          <div className="w-full flex items-center justify-between min-w-0 pr-0.5">
+            <span className="font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm md:text-base uppercase whitespace-nowrap leading-none">
               SOLUNAR
             </span>
-            <span className="text-xs sm:text-sm shrink-0 ml-1">
+            <span className="text-xs sm:text-sm shrink-0 leading-none select-none pl-1" title={solunar.moonPhaseName}>
               {getMoonEmoji(solunar.moonPhase)}
             </span>
           </div>

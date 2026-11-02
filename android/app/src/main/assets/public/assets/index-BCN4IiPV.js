@@ -15028,7 +15028,7 @@ var BasicOverviewView = ({ aljmas, bogojevo, solunar, isLoading, onOpenExpertSec
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 						type: "button",
 						onClick: () => onOpenExpertSection("sekcija-aljmas"),
-						className: `${isLandscape ? "w-32 sm:w-36 md:w-44" : "w-[92px] sm:w-32 md:w-36"} shrink-0 bg-gradient-to-br from-teal-950 via-slate-900 to-slate-900/95 border border-teal-500/50 hover:border-teal-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`,
+						className: `${isLandscape ? "w-32 sm:w-36 md:w-44" : "w-[98px] sm:w-32 md:w-36"} shrink-0 bg-gradient-to-br from-teal-950 via-slate-900 to-slate-900/95 border border-teal-500/50 hover:border-teal-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`,
 						title: "Otvori detaljni Aljmaš u Ekspertnom modu",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -15315,7 +15315,7 @@ var BasicOverviewView = ({ aljmas, bogojevo, solunar, isLoading, onOpenExpertSec
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 						type: "button",
 						onClick: () => onOpenExpertSection("sekcija-bogojevo"),
-						className: `${isLandscape ? "w-32 sm:w-36 md:w-44" : "w-[92px] sm:w-32 md:w-36"} shrink-0 bg-gradient-to-br from-cyan-950 via-slate-900 to-slate-900/95 border border-cyan-500/50 hover:border-cyan-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`,
+						className: `${isLandscape ? "w-32 sm:w-36 md:w-44" : "w-[98px] sm:w-32 md:w-36"} shrink-0 bg-gradient-to-br from-cyan-950 via-slate-900 to-slate-900/95 border border-cyan-500/50 hover:border-cyan-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`,
 						title: "Otvori detaljno Bogojevo u Ekspertnom modu",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -15609,16 +15609,17 @@ var BasicOverviewView = ({ aljmas, bogojevo, solunar, isLoading, onOpenExpertSec
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 						type: "button",
 						onClick: () => onOpenExpertSection("sekcija-solunar"),
-						className: `${isLandscape ? "w-32 sm:w-36 md:w-44" : "w-[92px] sm:w-32 md:w-36"} shrink-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-900/95 border border-indigo-500/50 hover:border-indigo-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`,
+						className: `${isLandscape ? "w-32 sm:w-36 md:w-44" : "w-[98px] sm:w-32 md:w-36"} shrink-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-900/95 border border-indigo-500/50 hover:border-indigo-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`,
 						title: "Otvori detaljni Solunarni centar u Ekspertnom modu",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "w-full flex items-center justify-between",
+								className: "w-full flex items-center justify-between min-w-0 pr-0.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm md:text-base tracking-wider uppercase truncate",
+									className: "font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm md:text-base uppercase whitespace-nowrap leading-none",
 									children: "SOLUNAR"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs sm:text-sm shrink-0 ml-1",
+									className: "text-xs sm:text-sm shrink-0 leading-none select-none pl-1",
+									title: solunar.moonPhaseName,
 									children: getMoonEmoji(solunar.moonPhase)
 								})]
 							}),
@@ -16840,7 +16841,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 };
 //#endregion
 //#region node_modules/@capacitor/local-notifications/dist/esm/index.js
-var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-DfDLGW3-.js").then((m) => new m.LocalNotificationsWeb()), []) });
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-CaTgK-s1.js").then((m) => new m.LocalNotificationsWeb()), []) });
 //#endregion
 //#region src/services/notificationService.ts
 /**
@@ -17185,7 +17186,7 @@ async function deleteChatMessageAsAdmin(pin, messageId) {
 * Autor: Daniel Čizmar
 * GitHub: dxdandy/Android-App-Repo
 */
-var CURRENT_APP_VERSION = "1.3.7";
+var CURRENT_APP_VERSION = "1.3.8";
 /**
 * Uspoređuje dvije semantičke verzije (npr. '1.1.0' > '1.0.1')
 * Vraća true ako je remoteVer novija od currentVer
@@ -17299,7 +17300,7 @@ async function checkForAppUpdate(force = false) {
 		currentVersion: CURRENT_APP_VERSION,
 		errorMessage: lastErrorMsg
 	};
-	if (!isNewerVersion(latestData.version, "1.3.7")) return {
+	if (!isNewerVersion(latestData.version, "1.3.8")) return {
 		status: "up_to_date",
 		serverVersion: latestData.version,
 		currentVersion: CURRENT_APP_VERSION,
@@ -19249,7 +19250,7 @@ function App() {
 								className: "bg-slate-900/90 hover:bg-slate-850 border border-indigo-500/40 hover:border-indigo-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group",
 								title: "Klikni za skok na poglavlje Solunarni rezultati",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "w-full text-center sm:text-left font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm tracking-wider uppercase truncate",
+									className: "w-full text-center sm:text-left font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm uppercase whitespace-nowrap leading-none",
 									children: "SOLUNAR"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "mt-1 w-full",

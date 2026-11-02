@@ -486,7 +486,7 @@ export default function App() {
                 className="bg-slate-900/90 hover:bg-slate-850 border border-indigo-500/40 hover:border-indigo-400 active:scale-95 transition-all rounded-2xl p-2 sm:p-3 flex flex-col items-center sm:items-start text-center sm:text-left justify-between shadow-md min-w-0 cursor-pointer group"
                 title="Klikni za skok na poglavlje Solunarni rezultati"
               >
-                <span className="w-full text-center sm:text-left font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm tracking-wider uppercase truncate">
+                <span className="w-full text-center sm:text-left font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm uppercase whitespace-nowrap leading-none">
                   SOLUNAR
                 </span>
                 <div className="mt-1 w-full">
