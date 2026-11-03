@@ -33,6 +33,7 @@ import { FishingChatModal } from './components/FishingChatModal';
 import { isAppActivated, verifyLicenseWithServer, getDeviceId } from './services/licenseService';
 import { 
   fetchChatMessages, 
+  subscribeToChatMessages,
   getUnreadChatCount, 
   markChatAsRead 
 } from './services/chatService';
@@ -238,44 +239,49 @@ export default function App() {
     requestNotificationPermission().catch(() => {});
   }, []);
 
-  // Provjera nepročitanih poruka za zvučnu obavijest i obavijest na ikoni aplikacije (App Badge)
+  // Pretplata na poruke u stvarnom vremenu za zvučnu obavijest, obavijest na traci i ikoni aplikacije (App Badge)
   useEffect(() => {
     if (!isActivated) return;
 
-    const checkUnreadMessages = async () => {
-      // Ako je modal chata otvoren, nema nepročitanih
-      if (showChatModal) {
+    if (showChatModal) {
+      setUnreadChatCount(0);
+      updateAppBadge(0);
+      return;
+    }
+
+    const myId = getDeviceId();
+    let initialSyncDone = false;
+
+    const unsubscribe = subscribeToChatMessages((res) => {
+      if (res.chatBlocked) {
         setUnreadChatCount(0);
         updateAppBadge(0);
         return;
       }
-      try {
-        const res = await fetchChatMessages();
-        if (!res.chatBlocked && Array.isArray(res.messages)) {
-          const myId = getDeviceId();
-          const count = getUnreadChatCount(res.messages, myId);
-          setUnreadChatCount(count);
-          updateAppBadge(count);
 
-          // Pronađi najnoviju pristiglu poruku koju je poslao netko drugi
-          const messagesFromOthers = res.messages.filter(m => m.deviceId !== myId);
-          const newestMsg = messagesFromOthers[messagesFromOthers.length - 1];
+      if (Array.isArray(res.messages)) {
+        const count = getUnreadChatCount(res.messages, myId);
+        setUnreadChatCount(count);
+        updateAppBadge(count);
 
-          if (count > 0 && newestMsg && newestMsg.id !== lastNotifiedMsgIdRef.current) {
-            // Ako ovo nije prvi start već stvarna nova poruka ili ima novih nepročitanih
-            if (lastNotifiedMsgIdRef.current !== '') {
-              // Zvuk i sistemska obavijest (Android i Web)
-              showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
-            }
+        // Pronađi najnoviju pristiglu poruku koju je poslao netko drugi
+        const messagesFromOthers = res.messages.filter(m => m.deviceId !== myId);
+        const newestMsg = messagesFromOthers[messagesFromOthers.length - 1];
+
+        if (newestMsg) {
+          if (initialSyncDone && count > 0 && newestMsg.id !== lastNotifiedMsgIdRef.current) {
+            // Zvuk i sistemska skočna obavijest na mobitelu (Android i Web)
+            showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
+            lastNotifiedMsgIdRef.current = newestMsg.id;
+          } else if (!lastNotifiedMsgIdRef.current) {
             lastNotifiedMsgIdRef.current = newestMsg.id;
           }
         }
-      } catch {}
-    };
+      }
+      initialSyncDone = true;
+    });
 
-    checkUnreadMessages();
-    const chatInterval = setInterval(checkUnreadMessages, 8000);
-    return () => clearInterval(chatInterval);
+    return () => unsubscribe();
   }, [isActivated, showChatModal]);
 
   const handleOpenChat = () => {

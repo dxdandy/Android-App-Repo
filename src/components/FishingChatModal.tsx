@@ -16,6 +16,10 @@ import {
 import { 
   fetchChatMessages, 
   sendChatMessage, 
+  subscribeToChatMessages,
+  subscribeToTypingStatus,
+  setMyTypingStatus,
+  TypingUser,
   ChatMessage, 
   markChatAsRead, 
   renameMyUserName 
@@ -40,6 +44,11 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
+  // Stanje tko trenutno tipka u chatu
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [dotCount, setDotCount] = useState<number>(1);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Stanje za pregled tko je pročitao poruku (dostupno svima klikom na poruku)
   const [selectedMessageForInfo, setSelectedMessageForInfo] = useState<ChatMessage | null>(null);
 
@@ -57,35 +66,78 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const loadMessages = async () => {
-    const res = await fetchChatMessages();
-    if (res.chatBlocked) {
-      setIsBlocked(true);
-      setBlockedReason(res.message || 'Pristup LiveChatu je onemogućen.');
-      setMessages([]);
-    } else {
-      setIsBlocked(false);
-      setBlockedReason(null);
-      setMessages(prev => {
-        // Ako je stigla nova poruka od nekog drugog dok gledamo chat, oglasi se zvučni ton
-        if (prev.length > 0 && res.messages.length > prev.length) {
-          const newest = res.messages[res.messages.length - 1];
-          if (newest && newest.deviceId !== myDeviceId) {
-            playNotificationSound();
-          }
-        }
-        return res.messages;
-      });
-      // Ako je otvoren pregled detalja tko je pročitao poruku, ažuriraj ga
-      setSelectedMessageForInfo(prevSelected => {
-        if (!prevSelected) return null;
-        return res.messages.find(m => m.id === prevSelected.id) || prevSelected;
-      });
+  // Ciklus animacije 3 točkice za status tipkanja: 1 točka -> 2 točke -> 3 točke -> ugašeno sve 3 -> ispočetka
+  useEffect(() => {
+    if (typingUsers.length === 0) return;
+    const dotInterval = setInterval(() => {
+      setDotCount(prev => (prev >= 3 ? 0 : prev + 1));
+    }, 450);
+    return () => clearInterval(dotInterval);
+  }, [typingUsers.length]);
 
-      // Označi sve poruke pročitanima i ukloni WhatsApp-style badge
-      markChatAsRead(res.messages);
+  // Pretplata na poruke i status tipkanja u stvarnom vremenu preko Firestorea
+  useEffect(() => {
+    if (!isOpen) {
+      setMyTypingStatus(false).catch(() => {});
+      return;
     }
-  };
+
+    setIsLoading(true);
+    let initialLoaded = false;
+
+    // 1. Pretplata na poruke
+    const unsubscribeChat = subscribeToChatMessages((res) => {
+      setIsLoading(false);
+      if (res.chatBlocked) {
+        setIsBlocked(true);
+        setBlockedReason(res.message || 'Pristup LiveChatu je onemogućen.');
+        setMessages([]);
+      } else {
+        setIsBlocked(false);
+        setBlockedReason(null);
+        setMessages(prev => {
+          // Ako je stigla nova poruka od nekog drugog dok gledamo chat, oglasi se zvučni ton
+          if (initialLoaded && prev.length > 0 && res.messages.length > prev.length) {
+            const newest = res.messages[res.messages.length - 1];
+            if (newest && newest.deviceId !== myDeviceId) {
+              playNotificationSound();
+            }
+          }
+          return res.messages;
+        });
+
+        // Ažuriraj modal tko je pročitao poruku ako je otvoren
+        setSelectedMessageForInfo(prevSelected => {
+          if (!prevSelected) return null;
+          return res.messages.find(m => m.id === prevSelected.id) || prevSelected;
+        });
+
+        // Označi poruke pročitanima
+        markChatAsRead(res.messages);
+      }
+      initialLoaded = true;
+      setTimeout(scrollToBottom, 80);
+    });
+
+    // 2. Pretplata na aktivno tipkanje drugih korisnika
+    const unsubscribeTyping = subscribeToTypingStatus((activeTypers) => {
+      setTypingUsers(activeTypers);
+    });
+
+    return () => {
+      unsubscribeChat();
+      unsubscribeTyping();
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      setMyTypingStatus(false).catch(() => {});
+    };
+  }, [isOpen]);
+
+  // Pomak na dno kada se promijeni broj poruka ili netko počne tipkati
+  useEffect(() => {
+    if (isOpen) {
+      scrollToBottom();
+    }
+  }, [messages.length, typingUsers.length, isOpen]);
 
   const handleSaveMyName = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,7 +151,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
         setMyUserName(res.userName);
         setIsEditingMyName(false);
         if (onNameChanged) onNameChanged(res.userName);
-        await loadMessages();
       } else {
         setErrorMessage(res.error || 'Neuspješna promjena imena.');
       }
@@ -110,35 +161,30 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     }
   };
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputText(val);
 
-    setIsLoading(true);
-    loadMessages().finally(() => {
-      setIsLoading(false);
-      setTimeout(scrollToBottom, 100);
-    });
-
-    // Polling za nove poruke svakih 3.5 sekunde dok je modal otvoren
-    const interval = setInterval(() => {
-      loadMessages();
-    }, 3500);
-
-    return () => clearInterval(interval);
-  }, [isOpen]);
-
-  // Pomak na dno kada se promijeni broj poruka
-  useEffect(() => {
-    if (isOpen) {
-      scrollToBottom();
+    if (!isBlocked) {
+      if (val.trim().length > 0) {
+        setMyTypingStatus(true).catch(() => {});
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => {
+          setMyTypingStatus(false).catch(() => {});
+        }, 3500);
+      } else {
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        setMyTypingStatus(false).catch(() => {});
+      }
     }
-  }, [messages.length, isOpen]);
-
-  if (!isOpen) return null;
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || isSending) return;
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    setMyTypingStatus(false).catch(() => {});
 
     setIsSending(true);
     setErrorMessage(null);
@@ -147,10 +193,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     setIsSending(false);
 
     if (res.success && res.message) {
-      setMessages(prev => {
-        if (prev.some(m => m.id === res.message!.id)) return prev;
-        return [...prev, res.message!];
-      });
       setInputText('');
       setTimeout(scrollToBottom, 50);
       inputRef.current?.focus();
@@ -162,6 +204,13 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const handleAddEmoji = (emoji: string) => {
     setInputText(prev => prev + emoji);
     inputRef.current?.focus();
+    if (!isBlocked) {
+      setMyTypingStatus(true).catch(() => {});
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        setMyTypingStatus(false).catch(() => {});
+      }, 3000);
+    }
   };
 
   return (
@@ -183,9 +232,9 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                   Dunavski Ribički LiveChat
                 </h2>
                 {!isBlocked && (
-                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-                    Uživo
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Online
                   </span>
                 )}
               </div>
@@ -338,6 +387,27 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 );
               })
             )}
+            
+            {/* Indikator kada drugi korisnik tipka: [Ime] nešto piše ... (tri točkice koje se pale redom 1, 2, 3 pa ugase sve tri i ispočetka) */}
+            {typingUsers.length > 0 && (
+              <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-800/95 border border-teal-500/40 text-xs text-teal-300 w-fit max-w-[90%] shadow-lg animate-fadeIn select-none">
+                <div className="w-5 h-5 rounded-lg bg-teal-500/20 text-teal-300 flex items-center justify-center shrink-0">
+                  <User className="w-3 h-3" />
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-white">
+                    {typingUsers.map(u => u.userName).join(', ')}
+                  </span>
+                  <span className="text-slate-300">nešto piše</span>
+                  <span className="inline-flex items-center gap-0.5 font-black text-sm tracking-widest text-teal-400 select-none">
+                    <span className={`inline-block w-1.5 text-center transition-opacity duration-150 ${dotCount >= 1 ? 'opacity-100 text-teal-300 font-extrabold' : 'opacity-0'}`}>.</span>
+                    <span className={`inline-block w-1.5 text-center transition-opacity duration-150 ${dotCount >= 2 ? 'opacity-100 text-teal-300 font-extrabold' : 'opacity-0'}`}>.</span>
+                    <span className={`inline-block w-1.5 text-center transition-opacity duration-150 ${dotCount >= 3 ? 'opacity-100 text-teal-300 font-extrabold' : 'opacity-0'}`}>.</span>
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -385,7 +455,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
               ref={inputRef}
               type="text"
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={handleInputChange}
               placeholder="Napiši poruku s Dunava..."
               maxLength={350}
               className="flex-1 bg-slate-900 border border-slate-700/80 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition-all"

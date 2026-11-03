@@ -2,6 +2,8 @@
  * Sustav licenci i zaštite aplikacije (Hardverski ID uređaja + Centralni registar i opoziv)
  * Autor: Daniel Čizmar
  */
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
+import { db } from './firebase';
 
 const SECRET_SALT = 'DUNAV_ZANDER_DANIEL_CIZMAR_2026_PROTECT_KEY';
 export const ADMIN_MASTER_PIN = '2026'; // PIN za pristup Danielovom generatoru i admin panelu
@@ -216,7 +218,7 @@ export function saveLocalLicenses(records: LicenseRecord[]): void {
 }
 
 /**
- * Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
+ * Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju i u Firestore bazi
  */
 export async function activateApp(key: string, proposedName?: string): Promise<{ success: boolean; message?: string }> {
   const currentDeviceId = getDeviceId();
@@ -228,7 +230,36 @@ export async function activateApp(key: string, proposedName?: string): Promise<{
   localStorage.setItem('ribo_activation_key', formattedKey);
   localStorage.removeItem('ribo_license_revoked');
 
-  // Registriraj ili provjeri na poslužitelju (koristi getApiUrl za Capacitor)
+  const resolvedName = proposedName?.trim() || getUserName();
+
+  // 1. Registriraj ili ažuriraj u Firestore oblaku (direktno dostupno administratoru)
+  try {
+    const licenseDocRef = doc(db, 'licenses', currentDeviceId);
+    const snap = await getDoc(licenseDocRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data?.userName) setStoredUserName(data.userName);
+      if (data?.status === 'revoked') {
+        localStorage.setItem('ribo_license_revoked', 'true');
+        return { success: false, message: 'Vaša licenca je ukinuta od strane administratora.' };
+      }
+      await setDoc(licenseDocRef, { lastSeenAt: new Date().toISOString() }, { merge: true });
+    } else {
+      await setDoc(licenseDocRef, {
+        deviceId: currentDeviceId,
+        activationKey: formattedKey,
+        userName: resolvedName,
+        status: 'active',
+        chatEnabled: true,
+        createdAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  } catch (e) {
+    console.warn('Firestore aktivacija fallback:', e);
+  }
+
+  // 2. Također pošalji poslužitelju (radi na PC/lokalno)
   try {
     const res = await safeFetchJson<any>(getApiUrl('/api/license/register-or-verify'), {
       method: 'POST',
@@ -236,7 +267,7 @@ export async function activateApp(key: string, proposedName?: string): Promise<{
       body: JSON.stringify({
         deviceId: currentDeviceId,
         activationKey: formattedKey,
-        proposedName: proposedName || getUserName()
+        proposedName: resolvedName
       })
     });
     
@@ -249,15 +280,13 @@ export async function activateApp(key: string, proposedName?: string): Promise<{
         return { success: false, message: 'Vaša licenca je ukinuta od strane administratora.' };
       }
     }
-  } catch (err) {
-    console.warn('Poslužitelj trenutno nije dostupan, aktivacija spremljena lokalno.');
-  }
+  } catch {}
 
   return { success: true };
 }
 
 /**
- * Provjerava valjanost licence na poslužitelju (provjera opoziva)
+ * Provjerava valjanost licence u Firestore bazi i na poslužitelju (provjera opoziva i odobrenja chata)
  */
 export async function verifyLicenseWithServer(): Promise<{ valid: boolean; status: 'active' | 'revoked'; userName: string; message?: string }> {
   const deviceId = getDeviceId();
@@ -267,6 +296,26 @@ export async function verifyLicenseWithServer(): Promise<{ valid: boolean; statu
     return { valid: false, status: 'revoked', userName: '', message: 'Aplikacija nije aktivirana.' };
   }
 
+  // 1. Provjera u Firestore oblaku (radi na svim mobitelima diljem svijeta)
+  try {
+    const snap = await getDoc(doc(db, 'licenses', deviceId));
+    if (snap.exists()) {
+      const data = snap.data() as LicenseRecord;
+      if (data.userName) {
+        setStoredUserName(data.userName);
+      }
+      if (data.status === 'revoked') {
+        localStorage.setItem('ribo_license_revoked', 'true');
+        return { valid: false, status: 'revoked', userName: data.userName || '', message: 'Vaša licenca je ukinuta od strane administratora.' };
+      }
+      localStorage.removeItem('ribo_license_revoked');
+      // Tiho zabilježi aktivnost
+      setDoc(doc(db, 'licenses', deviceId), { lastSeenAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+      return { valid: true, status: 'active', userName: data.userName || '' };
+    }
+  } catch {}
+
+  // 2. Provjera na poslužitelju
   try {
     const res = await safeFetchJson<any>(getApiUrl('/api/license/register-or-verify'), {
       method: 'POST',
@@ -287,7 +336,7 @@ export async function verifyLicenseWithServer(): Promise<{ valid: boolean; statu
     }
   } catch {}
 
-  // Ako nema interneta ili poslužitelj vrati grešku, vjerujemo lokalnoj matematičkoj provjeri
+  // 3. Matematička provjera offline
   const localValid = verifyActivationKey(deviceId, activationKey);
   return { valid: localValid, status: 'active', userName: getUserName() };
 }
@@ -314,6 +363,30 @@ export function checkAdminPin(pin: string): boolean {
 export async function fetchAdminLicenses(pin: string): Promise<LicenseRecord[]> {
   const localList = getLocalLicenses();
   
+  // 1. Prvo provjeri Firestore oblak (sinkronizirano među svim uređajima)
+  try {
+    const snap = await getDocs(collection(db, 'licenses'));
+    if (!snap.empty) {
+      const firestoreList: LicenseRecord[] = [];
+      snap.forEach(docSnap => {
+        firestoreList.push(docSnap.data() as LicenseRecord);
+      });
+      if (firestoreList.length > 0) {
+        const map = new Map<string, LicenseRecord>();
+        localList.forEach(item => map.set(item.deviceId, item));
+        firestoreList.forEach(item => map.set(item.deviceId, item));
+        const merged = Array.from(map.values()).sort(
+          (a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime()
+        );
+        saveLocalLicenses(merged);
+        return merged;
+      }
+    }
+  } catch (e) {
+    console.warn('Firestore dohvat licenci fallback:', e);
+  }
+
+  // 2. Poslužiteljski API
   const res = await safeFetchJson<{ success: boolean; licenses: LicenseRecord[] }>(
     getApiUrl('/api/admin/licenses'),
     {
@@ -323,7 +396,6 @@ export async function fetchAdminLicenses(pin: string): Promise<LicenseRecord[]> 
 
   if (res.ok && res.data?.licenses) {
     const serverList = res.data.licenses;
-    // Spoji zapise tako da server i lokalni podaci ostanu sinkronizirani
     const map = new Map<string, LicenseRecord>();
     localList.forEach(item => map.set(item.deviceId, item));
     serverList.forEach(item => map.set(item.deviceId, item));
@@ -376,34 +448,35 @@ export async function addAdminLicense(
   }
   saveLocalLicenses(currentLocal);
 
-  // 2. Pošalji na poslužitelj putem sigurne rute bez rušenja na HTML
-  const res = await safeFetchJson<{ success: boolean; license: LicenseRecord }>(
-    getApiUrl('/api/admin/licenses/add'),
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-admin-pin': pin.trim()
-      },
-      body: JSON.stringify({
-        deviceId: cleanId,
-        userName: cleanName,
-        activationKey: validKey,
-        status: cleanStatus,
-        chatEnabled: cleanChat,
-        notes: payload.notes
-      })
-    }
-  );
-
-  if (res.ok && res.data?.license) {
-    // Ažuriraj lokalnu bazu sa poslužiteljskim podacima
-    const updated = getLocalLicenses().map(l => l.deviceId === cleanId ? res.data!.license : l);
-    saveLocalLicenses(updated);
-    return res.data.license;
+  // 2. Odmah spremi u Firestore bazu za trenutačnu sinkronizaciju među korisničkim uređajima
+  try {
+    await setDoc(doc(db, 'licenses', cleanId), localRecord, { merge: true });
+  } catch (e) {
+    console.warn('Firestore spremanje licence greška:', e);
   }
 
-  // Vrati lokalno kreiran i potvrđen zapis čak i ako poslužitelj nije vratio JSON
+  // 3. Pošalji i poslužitelju
+  try {
+    await safeFetchJson<{ success: boolean; license: LicenseRecord }>(
+      getApiUrl('/api/admin/licenses/add'),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-pin': pin.trim()
+        },
+        body: JSON.stringify({
+          deviceId: cleanId,
+          userName: cleanName,
+          activationKey: validKey,
+          status: cleanStatus,
+          chatEnabled: cleanChat,
+          notes: payload.notes
+        })
+      }
+    );
+  } catch {}
+
   return localRecord;
 }
 
@@ -430,26 +503,30 @@ export async function updateAdminLicense(
     saveLocalLicenses(currentLocal);
   }
 
-  // 2. Pošalji na poslužitelj sigurno
-  const res = await safeFetchJson<{ success: boolean; license: LicenseRecord }>(
-    getApiUrl('/api/admin/licenses/update'),
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-admin-pin': pin.trim()
-      },
-      body: JSON.stringify(payload)
-    }
-  );
-
-  if (res.ok && res.data?.license) {
-    return res.data.license;
+  // 2. Ažuriraj u Firestore oblaku (korisnik na svom mobitelu odmah prima novo stanje)
+  try {
+    await setDoc(doc(db, 'licenses', cleanId), payload, { merge: true });
+  } catch (e) {
+    console.warn('Firestore ažuriranje licence greška:', e);
   }
+
+  // 3. Pošalji na poslužitelj
+  try {
+    await safeFetchJson<{ success: boolean; license: LicenseRecord }>(
+      getApiUrl('/api/admin/licenses/update'),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-pin': pin.trim()
+        },
+        body: JSON.stringify(payload)
+      }
+    );
+  } catch {}
 
   if (target) return target;
 
-  // Fallback ako još nije postojao u lokalnoj bazi
   return {
     deviceId: cleanId,
     activationKey: generateActivationKey(cleanId),
@@ -468,6 +545,11 @@ export async function deleteAdminLicense(pin: string, deviceId: string): Promise
   // Ukloni lokalno odmah
   const updated = getLocalLicenses().filter(l => l.deviceId !== cleanId);
   saveLocalLicenses(updated);
+
+  // Ukloni iz Firestore
+  try {
+    await deleteDoc(doc(db, 'licenses', cleanId));
+  } catch {}
 
   try {
     await safeFetchJson(getApiUrl(`/api/admin/licenses/${encodeURIComponent(cleanId)}`), {

@@ -1146,15 +1146,16 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.4.2',
+    version: '1.4.3',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-03',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.2.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.3.apk',
     changelog: [
-      'Ispravljen dohvat tlaka zraka na mobilnim uređajima (korištenje točnog MSL barometarskog tlaka prema Ventuskyju)',
-      'Uklonjena razlika između prikaza tlaka na računalu i mobilnom uređaju',
-      'Povezivanje barometra s Yr.no i Ventusky izvorima uz automatsku sinkronizaciju',
-      'Automatsko čišćenje neusklađenih vrijednosti tlaka iz predmemorije'
+      'Potpuna sinkronizacija LiveChata putem Firestore baze u stvarnom vremenu',
+      'Svi odobreni korisnici odmah vide međusobne poruke bez zastoja',
+      'Prikaz kada drugi korisnik piše poruku s animiranim trostrukim točkicama',
+      'Aktivni Online status u LiveChatu',
+      'Trenutne zvučne obavijesti i skočne obavijesti na zaslonu mobitela za nove poruke'
     ],
     isCritical: false
   });

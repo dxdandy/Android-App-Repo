@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Poruka u internom ribičkom chatu uživo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "deviceId": { "type": "string" },
+        "userName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "readBy": { "type": "array" }
+      },
+      "required": ["id", "deviceId", "userName", "text", "createdAt"]
+    },
+    "ChatTyping": {
+      "title": "ChatTyping",
+      "description": "Status korisnika koji trenutno piše u chatu",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string" },
+        "userName": { "type": "string" },
+        "isTyping": { "type": "boolean" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["deviceId", "userName", "isTyping", "updatedAt"]
+    },
+    "License": {
+      "title": "License",
+      "description": "Zapis o korisničkoj licenci i ovlastima za LiveChat",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string" },
+        "activationKey": { "type": "string" },
+        "userName": { "type": "string" },
+        "status": { "type": "string" },
+        "chatEnabled": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "lastSeenAt": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["deviceId", "userName", "status"]
+    }
+  },
+  "firestore": {
+    "/chat_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Kolekcija svih poruka u LiveChatu"
+    },
+    "/chat_typing/{deviceId}": {
+      "schema": { "$ref": "#/entities/ChatTyping" },
+      "description": "Status tipkanja pojedinog korisnika"
+    },
+    "/licenses/{deviceId}": {
+      "schema": { "$ref": "#/entities/License" },
+      "description": "Licence i prava pristupa korisnika"
+    }
+  }
+}

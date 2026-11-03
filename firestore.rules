@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Kolekcija poruka u chatu
+    match /chat_messages/{messageId} {
+      allow read: if true;
+      allow create: if request.resource.data.text is string && request.resource.data.deviceId is string;
+      allow update, delete: if true;
+    }
+
+    // Status tipkanja u stvarnom vremenu
+    match /chat_typing/{deviceId} {
+      allow read, write: if true;
+    }
+
+    // Licence i autorizacije
+    match /licenses/{deviceId} {
+      allow read, write: if true;
+    }
+  }
+}
