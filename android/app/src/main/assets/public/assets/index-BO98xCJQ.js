@@ -13001,6 +13001,516 @@ async function deleteAdminLicense(pin, deviceId) {
 	return true;
 }
 //#endregion
+//#region node_modules/@capacitor/core/dist/index.js
+/*! Capacitor: https://capacitorjs.com/ - MIT License */
+var ExceptionCode;
+(function(ExceptionCode) {
+	/**
+	* API is not implemented.
+	*
+	* This usually means the API can't be used because it is not implemented for
+	* the current platform.
+	*/
+	ExceptionCode["Unimplemented"] = "UNIMPLEMENTED";
+	/**
+	* API is not available.
+	*
+	* This means the API can't be used right now because:
+	*   - it is currently missing a prerequisite, such as network connectivity
+	*   - it requires a particular platform or browser version
+	*/
+	ExceptionCode["Unavailable"] = "UNAVAILABLE";
+})(ExceptionCode || (ExceptionCode = {}));
+var CapacitorException = class extends Error {
+	constructor(message, code, data) {
+		super(message);
+		this.message = message;
+		this.code = code;
+		this.data = data;
+	}
+};
+var getPlatformId = (win) => {
+	var _a, _b;
+	if (win === null || win === void 0 ? void 0 : win.androidBridge) return "android";
+	else if ((_b = (_a = win === null || win === void 0 ? void 0 : win.webkit) === null || _a === void 0 ? void 0 : _a.messageHandlers) === null || _b === void 0 ? void 0 : _b.bridge) return "ios";
+	else return "web";
+};
+var createCapacitor = (win) => {
+	const capCustomPlatform = win.CapacitorCustomPlatform || null;
+	const cap = win.Capacitor || {};
+	const Plugins = cap.Plugins = cap.Plugins || {};
+	const getPlatform = () => {
+		return capCustomPlatform !== null ? capCustomPlatform.name : getPlatformId(win);
+	};
+	const isNativePlatform = () => getPlatform() !== "web";
+	const isPluginAvailable = (pluginName) => {
+		const plugin = registeredPlugins.get(pluginName);
+		if (plugin === null || plugin === void 0 ? void 0 : plugin.platforms.has(getPlatform())) return true;
+		if (getPluginHeader(pluginName)) return true;
+		return false;
+	};
+	const getPluginHeader = (pluginName) => {
+		var _a;
+		return (_a = cap.PluginHeaders) === null || _a === void 0 ? void 0 : _a.find((h) => h.name === pluginName);
+	};
+	const handleError = (err) => win.console.error(err);
+	const registeredPlugins = /* @__PURE__ */ new Map();
+	const registerPlugin = (pluginName, jsImplementations = {}) => {
+		const registeredPlugin = registeredPlugins.get(pluginName);
+		if (registeredPlugin) {
+			console.warn(`Capacitor plugin "${pluginName}" already registered. Cannot register plugins twice.`);
+			return registeredPlugin.proxy;
+		}
+		const platform = getPlatform();
+		const pluginHeader = getPluginHeader(pluginName);
+		let jsImplementation;
+		const loadPluginImplementation = async () => {
+			if (!jsImplementation && platform in jsImplementations) jsImplementation = typeof jsImplementations[platform] === "function" ? jsImplementation = await jsImplementations[platform]() : jsImplementation = jsImplementations[platform];
+			else if (capCustomPlatform !== null && !jsImplementation && "web" in jsImplementations) jsImplementation = typeof jsImplementations["web"] === "function" ? jsImplementation = await jsImplementations["web"]() : jsImplementation = jsImplementations["web"];
+			return jsImplementation;
+		};
+		const createPluginMethod = (impl, prop) => {
+			var _a, _b;
+			if (pluginHeader) {
+				const methodHeader = pluginHeader === null || pluginHeader === void 0 ? void 0 : pluginHeader.methods.find((m) => prop === m.name);
+				if (methodHeader) {
+					if (methodHeader.rtype === "promise") return (options) => cap.nativePromise(pluginName, prop.toString(), options);
+					else return (options, callback) => cap.nativeCallback(pluginName, prop.toString(), options, callback);
+				} else if (impl) return (_a = impl[prop]) === null || _a === void 0 ? void 0 : _a.bind(impl);
+			} else if (impl) return (_b = impl[prop]) === null || _b === void 0 ? void 0 : _b.bind(impl);
+			else throw new CapacitorException(`"${pluginName}" plugin is not implemented on ${platform}`, ExceptionCode.Unimplemented);
+		};
+		const createPluginMethodWrapper = (prop) => {
+			let remove;
+			const wrapper = (...args) => {
+				const p = loadPluginImplementation().then((impl) => {
+					const fn = createPluginMethod(impl, prop);
+					if (fn) {
+						const p = fn(...args);
+						remove = p === null || p === void 0 ? void 0 : p.remove;
+						return p;
+					} else throw new CapacitorException(`"${pluginName}.${prop}()" is not implemented on ${platform}`, ExceptionCode.Unimplemented);
+				});
+				if (prop === "addListener") p.remove = async () => remove();
+				return p;
+			};
+			wrapper.toString = () => `${prop.toString()}() { [capacitor code] }`;
+			Object.defineProperty(wrapper, "name", {
+				value: prop,
+				writable: false,
+				configurable: false
+			});
+			return wrapper;
+		};
+		const addListener = createPluginMethodWrapper("addListener");
+		const removeListener = createPluginMethodWrapper("removeListener");
+		const addListenerNative = (eventName, callback) => {
+			const call = addListener({ eventName }, callback);
+			const remove = async () => {
+				const callbackId = await call;
+				removeListener({
+					eventName,
+					callbackId
+				}, callback);
+			};
+			const p = new Promise((resolve) => call.then(() => resolve({ remove })));
+			p.remove = async () => {
+				console.warn(`Using addListener() without 'await' is deprecated.`);
+				await remove();
+			};
+			return p;
+		};
+		const proxy = new Proxy({}, { get(_, prop) {
+			switch (prop) {
+				case "$$typeof": return;
+				case "toJSON": return () => ({});
+				case "addListener": return pluginHeader ? addListenerNative : addListener;
+				case "removeListener": return removeListener;
+				default: return createPluginMethodWrapper(prop);
+			}
+		} });
+		Plugins[pluginName] = proxy;
+		registeredPlugins.set(pluginName, {
+			name: pluginName,
+			proxy,
+			platforms: /* @__PURE__ */ new Set([...Object.keys(jsImplementations), ...pluginHeader ? [platform] : []])
+		});
+		return proxy;
+	};
+	if (!cap.convertFileSrc) cap.convertFileSrc = (filePath) => filePath;
+	cap.getPlatform = getPlatform;
+	cap.handleError = handleError;
+	cap.isNativePlatform = isNativePlatform;
+	cap.isPluginAvailable = isPluginAvailable;
+	cap.registerPlugin = registerPlugin;
+	cap.Exception = CapacitorException;
+	cap.DEBUG = !!cap.DEBUG;
+	cap.isLoggingEnabled = !!cap.isLoggingEnabled;
+	return cap;
+};
+var initCapacitorGlobal = (win) => win.Capacitor = createCapacitor(win);
+var Capacitor = /*#__PURE__*/ initCapacitorGlobal(typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : {});
+var registerPlugin = Capacitor.registerPlugin;
+/**
+* Base class web plugins should extend.
+*/
+var WebPlugin = class {
+	constructor() {
+		this.listeners = {};
+		this.retainedEventArguments = {};
+		this.windowListeners = {};
+	}
+	addListener(eventName, listenerFunc) {
+		let firstListener = false;
+		if (!this.listeners[eventName]) {
+			this.listeners[eventName] = [];
+			firstListener = true;
+		}
+		this.listeners[eventName].push(listenerFunc);
+		const windowListener = this.windowListeners[eventName];
+		if (windowListener && !windowListener.registered) this.addWindowListener(windowListener);
+		if (firstListener) this.sendRetainedArgumentsForEvent(eventName);
+		const remove = async () => this.removeListener(eventName, listenerFunc);
+		return Promise.resolve({ remove });
+	}
+	async removeAllListeners() {
+		this.listeners = {};
+		for (const listener in this.windowListeners) this.removeWindowListener(this.windowListeners[listener]);
+		this.windowListeners = {};
+	}
+	notifyListeners(eventName, data, retainUntilConsumed) {
+		const listeners = this.listeners[eventName];
+		if (!listeners) {
+			if (retainUntilConsumed) {
+				let args = this.retainedEventArguments[eventName];
+				if (!args) args = [];
+				args.push(data);
+				this.retainedEventArguments[eventName] = args;
+			}
+			return;
+		}
+		listeners.forEach((listener) => listener(data));
+	}
+	hasListeners(eventName) {
+		var _a;
+		return !!((_a = this.listeners[eventName]) === null || _a === void 0 ? void 0 : _a.length);
+	}
+	registerWindowListener(windowEventName, pluginEventName) {
+		this.windowListeners[pluginEventName] = {
+			registered: false,
+			windowEventName,
+			pluginEventName,
+			handler: (event) => {
+				this.notifyListeners(pluginEventName, event);
+			}
+		};
+	}
+	unimplemented(msg = "not implemented") {
+		return new Capacitor.Exception(msg, ExceptionCode.Unimplemented);
+	}
+	unavailable(msg = "not available") {
+		return new Capacitor.Exception(msg, ExceptionCode.Unavailable);
+	}
+	async removeListener(eventName, listenerFunc) {
+		const listeners = this.listeners[eventName];
+		if (!listeners) return;
+		const index = listeners.indexOf(listenerFunc);
+		if (index !== -1) this.listeners[eventName].splice(index, 1);
+		if (!this.listeners[eventName].length) this.removeWindowListener(this.windowListeners[eventName]);
+	}
+	addWindowListener(handle) {
+		window.addEventListener(handle.windowEventName, handle.handler);
+		handle.registered = true;
+	}
+	removeWindowListener(handle) {
+		if (!handle) return;
+		window.removeEventListener(handle.windowEventName, handle.handler);
+		handle.registered = false;
+	}
+	sendRetainedArgumentsForEvent(eventName) {
+		const args = this.retainedEventArguments[eventName];
+		if (!args) return;
+		delete this.retainedEventArguments[eventName];
+		args.forEach((arg) => {
+			this.notifyListeners(eventName, arg);
+		});
+	}
+};
+/******** END WEB VIEW PLUGIN ********/
+/******** COOKIES PLUGIN ********/
+/**
+* Safely web encode a string value (inspired by js-cookie)
+* @param str The string value to encode
+*/
+var encode = (str) => encodeURIComponent(str).replace(/%(2[346B]|5E|60|7C)/g, decodeURIComponent).replace(/[()]/g, escape);
+/**
+* Safely web decode a string value (inspired by js-cookie)
+* @param str The string value to decode
+*/
+var decode = (str) => str.replace(/(%[\dA-F]{2})+/gi, decodeURIComponent);
+var CapacitorCookiesPluginWeb = class extends WebPlugin {
+	async getCookies() {
+		const cookies = document.cookie;
+		const cookieMap = {};
+		cookies.split(";").forEach((cookie) => {
+			if (cookie.length <= 0) return;
+			let [key, value] = cookie.replace(/=/, "CAP_COOKIE").split("CAP_COOKIE");
+			key = decode(key).trim();
+			value = decode(value).trim();
+			cookieMap[key] = value;
+		});
+		return cookieMap;
+	}
+	async setCookie(options) {
+		try {
+			const encodedKey = encode(options.key);
+			const encodedValue = encode(options.value);
+			const expires = options.expires ? `; expires=${options.expires.replace("expires=", "")}` : "";
+			const path = (options.path || "/").replace("path=", "");
+			const domain = options.url != null && options.url.length > 0 ? `domain=${options.url}` : "";
+			document.cookie = `${encodedKey}=${encodedValue || ""}${expires}; path=${path}; ${domain};`;
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+	async deleteCookie(options) {
+		try {
+			document.cookie = `${options.key}=; Max-Age=0`;
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+	async clearCookies() {
+		try {
+			const cookies = document.cookie.split(";") || [];
+			for (const cookie of cookies) document.cookie = cookie.replace(/^ +/, "").replace(/=.*/, `=;expires=${(/* @__PURE__ */ new Date()).toUTCString()};path=/`);
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+	async clearAllCookies() {
+		try {
+			await this.clearCookies();
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+};
+registerPlugin("CapacitorCookies", { web: () => new CapacitorCookiesPluginWeb() });
+/**
+* Read in a Blob value and return it as a base64 string
+* @param blob The blob value to convert to a base64 string
+*/
+var readBlobAsBase64 = async (blob) => new Promise((resolve, reject) => {
+	const reader = new FileReader();
+	reader.onload = () => {
+		const base64String = reader.result;
+		resolve(base64String.indexOf(",") >= 0 ? base64String.split(",")[1] : base64String);
+	};
+	reader.onerror = (error) => reject(error);
+	reader.readAsDataURL(blob);
+});
+/**
+* Normalize an HttpHeaders map by lowercasing all of the values
+* @param headers The HttpHeaders object to normalize
+*/
+var normalizeHttpHeaders = (headers = {}) => {
+	const originalKeys = Object.keys(headers);
+	return Object.keys(headers).map((k) => k.toLocaleLowerCase()).reduce((acc, key, index) => {
+		acc[key] = headers[originalKeys[index]];
+		return acc;
+	}, {});
+};
+/**
+* Builds a string of url parameters that
+* @param params A map of url parameters
+* @param shouldEncode true if you should encodeURIComponent() the values (true by default)
+*/
+var buildUrlParams = (params, shouldEncode = true) => {
+	if (!params) return null;
+	return Object.entries(params).reduce((accumulator, entry) => {
+		const [key, value] = entry;
+		let encodedValue;
+		let item;
+		if (Array.isArray(value)) {
+			item = "";
+			value.forEach((str) => {
+				encodedValue = shouldEncode ? encodeURIComponent(str) : str;
+				item += `${key}=${encodedValue}&`;
+			});
+			item.slice(0, -1);
+		} else {
+			encodedValue = shouldEncode ? encodeURIComponent(value) : value;
+			item = `${key}=${encodedValue}`;
+		}
+		return `${accumulator}&${item}`;
+	}, "").substr(1);
+};
+/**
+* Build the RequestInit object based on the options passed into the initial request
+* @param options The Http plugin options
+* @param extra Any extra RequestInit values
+*/
+var buildRequestInit = (options, extra = {}) => {
+	const output = Object.assign({
+		method: options.method || "GET",
+		headers: options.headers
+	}, extra);
+	const type = normalizeHttpHeaders(options.headers)["content-type"] || "";
+	if (typeof options.data === "string") output.body = options.data;
+	else if (type.includes("application/x-www-form-urlencoded")) {
+		const params = new URLSearchParams();
+		for (const [key, value] of Object.entries(options.data || {})) params.set(key, value);
+		output.body = params.toString();
+	} else if (type.includes("multipart/form-data") || options.data instanceof FormData) {
+		const form = new FormData();
+		if (options.data instanceof FormData) options.data.forEach((value, key) => {
+			form.append(key, value);
+		});
+		else for (const key of Object.keys(options.data)) form.append(key, options.data[key]);
+		output.body = form;
+		const headers = new Headers(output.headers);
+		headers.delete("content-type");
+		output.headers = headers;
+	} else if (type.includes("application/json") || typeof options.data === "object") output.body = JSON.stringify(options.data);
+	return output;
+};
+var CapacitorHttpPluginWeb = class extends WebPlugin {
+	/**
+	* Perform an Http request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async request(options) {
+		const requestInit = buildRequestInit(options, options.webFetchExtra);
+		const urlParams = buildUrlParams(options.params, options.shouldEncodeUrlParams);
+		const url = urlParams ? `${options.url}?${urlParams}` : options.url;
+		const response = await fetch(url, requestInit);
+		const contentType = response.headers.get("content-type") || "";
+		let { responseType = "text" } = response.ok ? options : {};
+		if (contentType.includes("application/json")) responseType = "json";
+		let data;
+		let blob;
+		switch (responseType) {
+			case "arraybuffer":
+			case "blob":
+				blob = await response.blob();
+				data = await readBlobAsBase64(blob);
+				break;
+			case "json":
+				data = await response.json();
+				break;
+			default: data = await response.text();
+		}
+		const headers = {};
+		response.headers.forEach((value, key) => {
+			headers[key] = value;
+		});
+		return {
+			data,
+			headers,
+			status: response.status,
+			url: response.url
+		};
+	}
+	/**
+	* Perform an Http GET request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async get(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "GET" }));
+	}
+	/**
+	* Perform an Http POST request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async post(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "POST" }));
+	}
+	/**
+	* Perform an Http PUT request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async put(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "PUT" }));
+	}
+	/**
+	* Perform an Http PATCH request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async patch(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "PATCH" }));
+	}
+	/**
+	* Perform an Http DELETE request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async delete(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "DELETE" }));
+	}
+};
+var CapacitorHttp = registerPlugin("CapacitorHttp", { web: () => new CapacitorHttpPluginWeb() });
+/******** END HTTP PLUGIN ********/
+/******** SYSTEM BARS PLUGIN ********/
+/**
+* Available status bar styles.
+*/
+var SystemBarsStyle;
+(function(SystemBarsStyle) {
+	/**
+	* Light system bar content on a dark background.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarsStyle["Dark"] = "DARK";
+	/**
+	* For dark system bar content on a light background.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarsStyle["Light"] = "LIGHT";
+	/**
+	* The style is based on the device appearance or the underlying content.
+	* If the device is using Dark mode, the system bars content will be light.
+	* If the device is using Light mode, the system bars content will be dark.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarsStyle["Default"] = "DEFAULT";
+})(SystemBarsStyle || (SystemBarsStyle = {}));
+/**
+* Available system bar types.
+*/
+var SystemBarType;
+(function(SystemBarType) {
+	/**
+	* The top status bar on both Android and iOS.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarType["StatusBar"] = "StatusBar";
+	/**
+	* The navigation bar (or gesture bar on iOS) on both Android and iOS.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarType["NavigationBar"] = "NavigationBar";
+})(SystemBarType || (SystemBarType = {}));
+var SystemBarsPluginWeb = class extends WebPlugin {
+	async setStyle() {
+		this.unavailable("not available for web");
+	}
+	async setAnimation() {
+		this.unavailable("not available for web");
+	}
+	async show() {
+		this.unavailable("not available for web");
+	}
+	async hide() {
+		this.unavailable("not available for web");
+	}
+};
+registerPlugin("SystemBars", { web: () => new SystemBarsPluginWeb() });
+//#endregion
 //#region src/services/weatherService.ts
 var CACHE_ALJMAS_KEY = "ribo_cache_aljmas_station_data";
 var CACHE_BOGOJEVO_KEY = "ribo_cache_bogojevo_station_data";
@@ -13298,11 +13808,212 @@ async function fetchMeteoForCoords(lat, lon) {
 		};
 	}
 }
+/**
+* Univerzalni dohvat sirovog HTML/tekst sadržaja.
+* Na Android uređaju koristi native CapacitorHttp (bypassa sve CORS i kolačiće).
+* U web pregledniku koristi standardni fetch uz automatski fallback na CORS proxy.
+*/
+async function fetchUniversalText(url, timeoutMs = 8e3) {
+	if (typeof Capacitor !== "undefined" && Capacitor.isNativePlatform()) try {
+		const response = await CapacitorHttp.get({
+			url,
+			headers: {
+				"User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+				"Cookie": "units=m; p=hpa;"
+			},
+			connectTimeout: timeoutMs,
+			readTimeout: timeoutMs
+		});
+		if (response && response.status === 200 && response.data) return typeof response.data === "string" ? response.data : JSON.stringify(response.data);
+	} catch (e) {
+		console.warn(`CapacitorHttp native fetch failed for ${url}:`, e);
+	}
+	try {
+		const res = await fetch(url, {
+			signal: AbortSignal.timeout(timeoutMs),
+			headers: { "Accept": "text/html,application/xhtml+xml,application/xml,*/*" }
+		});
+		if (res.ok) return await res.text();
+	} catch {}
+	const proxies = [(u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`, (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`];
+	for (const proxyGen of proxies) try {
+		const proxyUrl = proxyGen(url);
+		const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(timeoutMs) });
+		if (res.ok) return await res.text();
+	} catch {}
+	return null;
+}
+/**
+* Univerzalni dohvat JSON podataka (Capacitor native ili web fetch)
+*/
+async function fetchUniversalJson(url, timeoutMs = 6e3) {
+	if (typeof Capacitor !== "undefined" && Capacitor.isNativePlatform()) try {
+		const response = await CapacitorHttp.get({
+			url,
+			headers: {
+				"User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36",
+				"Accept": "application/json"
+			},
+			connectTimeout: timeoutMs,
+			readTimeout: timeoutMs
+		});
+		if (response && response.status === 200 && response.data) {
+			if (typeof response.data === "object" && response.data !== null) return response.data;
+			if (typeof response.data === "string") return JSON.parse(response.data);
+		}
+	} catch (e) {
+		console.warn(`CapacitorHttp native json failed for ${url}:`, e);
+	}
+	try {
+		const res = await fetch(url, {
+			signal: AbortSignal.timeout(timeoutMs),
+			headers: { "Accept": "application/json" }
+		});
+		if (res.ok) return await res.json();
+	} catch {}
+	return null;
+}
+/**
+* Parsiranje HTML-a sa stranice mvodostaji.voda.hr (Aljmaš - podatak sa samog vrha tablice)
+*/
+function parseAljmasHtml(html) {
+	const trMatches = html.match(/<tr[\s\S]*?<\/tr>/gi) || [];
+	const rows = [];
+	for (const tr of trMatches) {
+		if (tr.includes("<th") || tr.includes("headline_postaja") || tr.includes("Maksimum:")) continue;
+		const tds = tr.match(/<td[\s\S]*?<\/td>/gi);
+		if (tds && tds.length >= 4) {
+			const cleanTexts = tds.map((td) => td.replace(/<[^>]+>/g, "").trim());
+			let dateVal = "";
+			let timeVal = "";
+			let levelVal = null;
+			let changeVal = 0;
+			for (const txt of cleanTexts) if (!dateVal && /^\d{2}\.\d{2}\.\d{2}\.?$/.test(txt)) dateVal = txt;
+			else if (!timeVal && /^\d{2}:\d{2}$/.test(txt)) timeVal = txt;
+			else if (levelVal === null && /^[+-]?\d+$/.test(txt)) levelVal = parseInt(txt, 10);
+			else if (levelVal !== null && /^[+-]?\d+$/.test(txt)) changeVal = parseInt(txt, 10);
+			if (dateVal && timeVal && levelVal !== null) {
+				rows.push({
+					date: dateVal,
+					time: timeVal,
+					level: levelVal,
+					trendChange: changeVal
+				});
+				if (rows.length >= 24) break;
+			}
+		}
+	}
+	if (rows.length === 0) return null;
+	const maxMatch = html.match(/Maksimum:\s*([+-]?\d+)\s*cm(?:,\s*([^.<]+))?/i);
+	const prepMatch = html.match(/Pripremno stanje\s*:\s*([+-]?\d+)/i);
+	const latest = rows[0];
+	let trend = "stagnira";
+	if (latest.trendChange > 0) trend = "u_porastu";
+	else if (latest.trendChange < 0) trend = "opada";
+	return {
+		waterLevelCm: latest.level,
+		waterLevelTrend: trend,
+		waterLevelChangeCm: latest.trendChange,
+		timeOfMeasurement: latest.time,
+		dateOfMeasurement: latest.date,
+		maxLevelCm: maxMatch ? parseInt(maxMatch[1], 10) : 820,
+		maxLevelDate: maxMatch && maxMatch[2] ? maxMatch[2].trim() : "25.06.1965.",
+		prepLevelCm: prepMatch ? parseInt(prepMatch[1], 10) : 400,
+		recentHistory: rows.slice(0, 10).map((r) => ({
+			date: r.date,
+			time: r.time,
+			level: r.level,
+			trendChange: r.trendChange
+		}))
+	};
+}
+/**
+* Parsiranje HTML-a sa stranice hidmet.gov.rs (Bogojevo)
+*/
+function parseBogojevoHtml(html) {
+	const levelMatch = html.match(/nivo\.gif[^>]*\/>(?:&nbsp;|\s)*([+-]?\d+)/i);
+	const changeMatch = html.match(/promena\.gif[^>]*\/>(?:&nbsp;|\s)*([+-]?\d+)/i);
+	const flowMatch = html.match(/([+-]?\d+)\s*(?:&nbsp;)?<img[^>]*protok\.gif/i) || html.match(/protok\.gif[^>]*\/>(?:&nbsp;|\s)*([+-]?\d+)/i) || html.match(/([+-]?\d+)<img src="[^"]*protok\.gif/i);
+	const trendMatch = html.match(/ikonice\/interf\/(rast|pad|stagn|opad)/i);
+	const forecastMatch = html.match(/Vodostaj&nbsp;\(cm\):\s*<\/td>(.*?)(?:<\/tr>|Dijagrami)/s);
+	if (!levelMatch) return null;
+	const parsedLevel = parseInt(levelMatch[1], 10);
+	const parsedChange = changeMatch ? parseInt(changeMatch[1], 10) : 0;
+	const parsedFlow = flowMatch ? parseInt(flowMatch[1], 10) : 1200;
+	let parsedTrend = "opada";
+	if (trendMatch) {
+		const t = trendMatch[1].toLowerCase();
+		if (t.includes("rast")) parsedTrend = "u_porastu";
+		else if (t.includes("opad") || t.includes("pad")) parsedTrend = "opada";
+		else parsedTrend = "stagnira";
+	} else if (parsedChange > 0) parsedTrend = "u_porastu";
+	else if (parsedChange < 0) parsedTrend = "opada";
+	else parsedTrend = "stagnira";
+	let forecastDays = [];
+	if (forecastMatch && forecastMatch[1]) {
+		const numbers = forecastMatch[1].match(/>([+-]?\d+)</g);
+		if (numbers) forecastDays = numbers.map((n) => parseInt(n.replace(/[><]/g, ""), 10)).filter((n) => !isNaN(n));
+	}
+	return {
+		waterLevelCm: parsedLevel,
+		waterLevelChangeCm: parsedChange,
+		waterLevelTrend: parsedTrend,
+		flowM3s: parsedFlow,
+		forecastDays: forecastDays.length > 0 ? forecastDays : [
+			-44,
+			-41,
+			-43,
+			-50
+		]
+	};
+}
+/**
+* Izravan dohvat temperature zraka s Yr.no
+*/
+async function fetchDirectYrNoTemp(locationId) {
+	try {
+		const data = await fetchUniversalJson(`https://www.yr.no/api/v0/locations/${locationId}/forecast`);
+		if (data) {
+			if (Array.isArray(data.shortIntervals) && data.shortIntervals.length > 0) {
+				const val = data.shortIntervals[0].temperature?.value;
+				if (typeof val === "number") return Math.round(val * 10) / 10;
+			}
+			if (Array.isArray(data.dayIntervals) && data.dayIntervals.length > 0) {
+				const val = data.dayIntervals[0].temperature?.value;
+				if (typeof val === "number") return Math.round(val * 10) / 10;
+			}
+		}
+	} catch {}
+	return null;
+}
+/**
+* Izravan dohvat tlaka zraka s Ventusky
+*/
+async function fetchDirectVentuskyPressure(lat, lon) {
+	try {
+		const html = await fetchUniversalText(`https://www.ventusky.com/${lat};${lon}`);
+		if (html) {
+			const tableMatch = html.match(/(?:Tlak zraka|Air pressure|Pressure)[^<]*<\/td>\s*<td[^>]*>\s*<b>\s*(\d{3,4})\s*(?:&nbsp;|\s)*hPa/i) || html.match(/<b>\s*(\d{3,4})\s*(?:&nbsp;|\s)*hPa\s*<\/b>/i) || html.match(/(\d{3,4})\s*(?:&nbsp;|\s)*hPa/i);
+			if (tableMatch && tableMatch[1]) {
+				const val = parseInt(tableMatch[1], 10);
+				if (val >= 940 && val <= 1065) return val;
+			}
+		}
+	} catch {}
+	return null;
+}
 function getStoredAljmasData() {
 	if (typeof window === "undefined") return null;
 	try {
 		const raw = localStorage.getItem(CACHE_ALJMAS_KEY);
-		return raw ? JSON.parse(raw) : null;
+		if (!raw) return null;
+		const parsed = JSON.parse(raw);
+		if (parsed && (parsed.waterLevelCm === -76 || typeof parsed.waterLevelCm !== "number")) {
+			localStorage.removeItem(CACHE_ALJMAS_KEY);
+			return null;
+		}
+		return parsed;
 	} catch {
 		return null;
 	}
@@ -13311,82 +14022,121 @@ function getStoredBogojevoData() {
 	if (typeof window === "undefined") return null;
 	try {
 		const raw = localStorage.getItem(CACHE_BOGOJEVO_KEY);
-		return raw ? JSON.parse(raw) : null;
+		if (!raw) return null;
+		const parsed = JSON.parse(raw);
+		if (parsed && (parsed.waterLevelCm === -83 || typeof parsed.waterLevelCm !== "number")) {
+			localStorage.removeItem(CACHE_BOGOJEVO_KEY);
+			return null;
+		}
+		return parsed;
 	} catch {
 		return null;
 	}
 }
 /**
-* Dohvat službenih podataka za Aljmaš (mvodostaji.voda.hr + meteo Vinkovci/Aljmaš)
+* Dohvat službenih podataka za Aljmaš (mvodostaji.voda.hr + meteo Aljmaš + Yr.no + Ventusky)
 */
 async function fetchAljmasStationData() {
 	const meteo = await fetchMeteoForCoords(45.5269, 18.9489);
 	const cached = getStoredAljmasData();
-	let waterLevelCm = cached ? cached.waterLevelCm : -76;
+	let waterLevelCm = cached ? cached.waterLevelCm : -35;
 	let waterLevelTrend = cached ? cached.waterLevelTrend : "stagnira";
 	let waterLevelChangeCm = cached ? cached.waterLevelChangeCm : 0;
-	let timeOfMeasurement = cached ? cached.timeOfMeasurement : "09:00";
+	let timeOfMeasurement = cached ? cached.timeOfMeasurement : "08:00";
 	let dateOfMeasurement = cached ? cached.dateOfMeasurement : (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR");
 	let maxLevelCm = cached?.maxLevelCm || 820;
 	let maxLevelDate = cached?.maxLevelDate || "25.06.1965.";
 	let prepLevelCm = cached?.prepLevelCm || 400;
-	let airTempC = cached?.airTempC ?? 9.9;
+	let airTempC = cached?.airTempC ?? 8.4;
 	let waterTempC = cached?.waterTempC || 11.4;
 	let isLive = Boolean(cached?.isLive);
 	let history = cached?.recentHistory && cached.recentHistory.length > 0 ? cached.recentHistory : [
 		{
 			date: dateOfMeasurement,
-			time: "09:00",
-			level: waterLevelCm,
-			trendChange: 0
-		},
-		{
-			date: dateOfMeasurement,
 			time: "08:00",
-			level: waterLevelCm,
+			level: -35,
 			trendChange: 0
 		},
 		{
 			date: dateOfMeasurement,
 			time: "07:00",
-			level: waterLevelCm,
+			level: -35,
+			trendChange: 0
+		},
+		{
+			date: dateOfMeasurement,
+			time: "06:00",
+			level: -35,
 			trendChange: 0
 		}
 	];
 	let airPressureHpa = meteo.airPressureHpa;
 	let airPressureTrend = meteo.airPressureTrend;
+	let fetchedFromBackend = false;
 	try {
 		const res = await safeFetchJson(getApiUrl("/api/water/aljmas"));
-		if (res.ok && res.data) {
+		if (res.ok && res.data && res.data.waterLevelCm !== void 0 && res.data.waterLevelCm !== -76) {
 			const data = res.data;
-			if (data.waterLevelCm !== void 0) {
-				waterLevelCm = data.waterLevelCm;
-				waterLevelTrend = data.waterLevelTrend || "stagnira";
-				waterLevelChangeCm = data.waterLevelChangeCm || 0;
-				timeOfMeasurement = data.timeOfMeasurement || timeOfMeasurement;
-				dateOfMeasurement = data.dateOfMeasurement || dateOfMeasurement;
-				maxLevelCm = data.maxLevelCm || 820;
-				maxLevelDate = data.maxLevelDate || maxLevelDate;
-				prepLevelCm = data.prepLevelCm || 400;
-				if (data.airTempC !== void 0) airTempC = data.airTempC;
-				if (data.waterTempC !== void 0) waterTempC = data.waterTempC;
-				if (data.airPressureHpa !== void 0) {
-					airPressureHpa = data.airPressureHpa;
-					if (airPressureHpa > 1019) airPressureTrend = "rast";
-					else if (airPressureHpa < 1012) airPressureTrend = "pad";
-					else airPressureTrend = "stabilan";
-				}
-				isLive = Boolean(data.isLive);
-				if (Array.isArray(data.recentHours) && data.recentHours.length > 0) history = data.recentHours.map((r) => ({
-					date: r.date,
-					time: r.time,
-					level: r.level,
-					trendChange: r.trendChange
-				}));
+			waterLevelCm = data.waterLevelCm;
+			waterLevelTrend = data.waterLevelTrend || "stagnira";
+			waterLevelChangeCm = data.waterLevelChangeCm || 0;
+			timeOfMeasurement = data.timeOfMeasurement || timeOfMeasurement;
+			dateOfMeasurement = data.dateOfMeasurement || dateOfMeasurement;
+			maxLevelCm = data.maxLevelCm || 820;
+			maxLevelDate = data.maxLevelDate || maxLevelDate;
+			prepLevelCm = data.prepLevelCm || 400;
+			if (data.airTempC !== void 0) airTempC = data.airTempC;
+			if (data.waterTempC !== void 0) waterTempC = data.waterTempC;
+			if (data.airPressureHpa !== void 0) {
+				airPressureHpa = data.airPressureHpa;
+				if (airPressureHpa > 1019) airPressureTrend = "rast";
+				else if (airPressureHpa < 1012) airPressureTrend = "pad";
+				else airPressureTrend = "stabilan";
 			}
+			isLive = Boolean(data.isLive);
+			if (Array.isArray(data.recentHours) && data.recentHours.length > 0) history = data.recentHours.map((r) => ({
+				date: r.date,
+				time: r.time,
+				level: r.level,
+				trendChange: r.trendChange
+			}));
+			fetchedFromBackend = true;
 		}
-	} catch (err) {
-		console.warn("Dohvat podataka za Aljmaš poslužio iz predmemorije:", err);
+	} catch {}
+	if (!fetchedFromBackend) {
+		try {
+			const directHtml = await fetchUniversalText(MVODOSTAJI_ALJMAS_URL);
+			if (directHtml) {
+				const parsed = parseAljmasHtml(directHtml);
+				if (parsed) {
+					waterLevelCm = parsed.waterLevelCm;
+					waterLevelTrend = parsed.waterLevelTrend;
+					waterLevelChangeCm = parsed.waterLevelChangeCm;
+					timeOfMeasurement = parsed.timeOfMeasurement;
+					dateOfMeasurement = parsed.dateOfMeasurement;
+					maxLevelCm = parsed.maxLevelCm;
+					maxLevelDate = parsed.maxLevelDate;
+					prepLevelCm = parsed.prepLevelCm;
+					history = parsed.recentHistory;
+					isLive = true;
+				}
+			}
+		} catch (err) {
+			console.warn("Greška pri izravnom dohvatu Aljmaš stranice:", err);
+		}
+		try {
+			const yrTemp = await fetchDirectYrNoTemp("2-3244159");
+			if (typeof yrTemp === "number") airTempC = yrTemp;
+		} catch {}
+		try {
+			const vPressure = await fetchDirectVentuskyPressure(45.529, 18.95);
+			if (typeof vPressure === "number") {
+				airPressureHpa = vPressure;
+				if (airPressureHpa > 1019) airPressureTrend = "rast";
+				else if (airPressureHpa < 1012) airPressureTrend = "pad";
+				else airPressureTrend = "stabilan";
+			}
+		} catch {}
 	}
 	const result = {
 		id: "aljmas",
@@ -13422,55 +14172,84 @@ async function fetchAljmasStationData() {
 	return result;
 }
 /**
-* Dohvat službenih podataka za Bogojevo (hidmet.gov.rs + meteo Bogojevo)
+* Dohvat službenih podataka za Bogojevo (hidmet.gov.rs + meteo Bogojevo + Yr.no + Ventusky)
 */
 async function fetchBogojevoStationData() {
 	const meteo = await fetchMeteoForCoords(45.5342, 19.1231);
 	const cached = getStoredBogojevoData();
-	let waterLevelCm = cached ? cached.waterLevelCm : -83;
-	let waterLevelTrend = cached ? cached.waterLevelTrend : "opada";
-	let waterLevelChangeCm = cached ? cached.waterLevelChangeCm : -1;
-	let flowM3s = cached?.flowM3s !== void 0 ? cached.flowM3s : 985;
+	let waterLevelCm = cached ? cached.waterLevelCm : -44;
+	let waterLevelTrend = cached ? cached.waterLevelTrend : "u_porastu";
+	let waterLevelChangeCm = cached ? cached.waterLevelChangeCm : 10;
+	let flowM3s = cached?.flowM3s !== void 0 ? cached.flowM3s : 1200;
 	let forecastDays = cached?.forecastDays || [
-		-92,
-		-86,
-		-90,
-		-96
+		-44,
+		-41,
+		-43,
+		-50
 	];
 	let regularDefenseCm = cached?.regularDefenseCm || 600;
 	let emergencyDefenseCm = cached?.emergencyDefenseCm || 700;
-	let airTempC = cached?.airTempC ?? 10.4;
+	let airTempC = cached?.airTempC ?? 8.6;
 	let waterTempC = cached?.waterTempC !== void 0 ? cached.waterTempC : 11.6;
 	let isLive = Boolean(cached?.isLive);
 	let timeOfMeasurement = cached?.timeOfMeasurement || "07:00";
 	let dateOfMeasurement = cached?.dateOfMeasurement || (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR");
 	let airPressureHpa = meteo.airPressureHpa;
 	let airPressureTrend = meteo.airPressureTrend;
+	let fetchedFromBackend = false;
 	try {
 		const res = await safeFetchJson(getApiUrl("/api/water/bogojevo"));
-		if (res.ok && res.data) {
+		if (res.ok && res.data && res.data.waterLevelCm !== void 0 && res.data.waterLevelCm !== -83) {
 			const data = res.data;
-			if (data.waterLevelCm !== void 0) {
-				waterLevelCm = data.waterLevelCm;
-				waterLevelChangeCm = data.waterLevelChangeCm !== void 0 ? data.waterLevelChangeCm : -1;
-				waterLevelTrend = data.waterLevelTrend || "opada";
-				flowM3s = data.flowM3s !== void 0 ? data.flowM3s : 985;
-				forecastDays = data.forecastDays || forecastDays;
-				regularDefenseCm = data.regularDefenseCm || 600;
-				emergencyDefenseCm = data.emergencyDefenseCm || 700;
-				if (data.airTempC !== void 0) airTempC = data.airTempC;
-				if (data.waterTempC !== void 0) waterTempC = data.waterTempC;
-				if (data.airPressureHpa !== void 0) {
-					airPressureHpa = data.airPressureHpa;
-					if (airPressureHpa > 1019) airPressureTrend = "rast";
-					else if (airPressureHpa < 1012) airPressureTrend = "pad";
-					else airPressureTrend = "stabilan";
-				}
-				isLive = Boolean(data.isLive);
+			waterLevelCm = data.waterLevelCm;
+			waterLevelChangeCm = data.waterLevelChangeCm !== void 0 ? data.waterLevelChangeCm : waterLevelChangeCm;
+			waterLevelTrend = data.waterLevelTrend || "u_porastu";
+			flowM3s = data.flowM3s !== void 0 ? data.flowM3s : 1200;
+			forecastDays = data.forecastDays || forecastDays;
+			regularDefenseCm = data.regularDefenseCm || 600;
+			emergencyDefenseCm = data.emergencyDefenseCm || 700;
+			if (data.airTempC !== void 0) airTempC = data.airTempC;
+			if (data.waterTempC !== void 0) waterTempC = data.waterTempC;
+			if (data.airPressureHpa !== void 0) {
+				airPressureHpa = data.airPressureHpa;
+				if (airPressureHpa > 1019) airPressureTrend = "rast";
+				else if (airPressureHpa < 1012) airPressureTrend = "pad";
+				else airPressureTrend = "stabilan";
 			}
+			isLive = Boolean(data.isLive);
+			fetchedFromBackend = true;
 		}
-	} catch (err) {
-		console.warn("Dohvat podataka za Bogojevo poslužio iz predmemorije:", err);
+	} catch {}
+	if (!fetchedFromBackend) {
+		try {
+			const directHtml = await fetchUniversalText(HIDMET_BOGOJEVO_URL);
+			if (directHtml) {
+				const parsed = parseBogojevoHtml(directHtml);
+				if (parsed) {
+					waterLevelCm = parsed.waterLevelCm;
+					waterLevelChangeCm = parsed.waterLevelChangeCm;
+					waterLevelTrend = parsed.waterLevelTrend;
+					flowM3s = parsed.flowM3s;
+					forecastDays = parsed.forecastDays;
+					isLive = true;
+				}
+			}
+		} catch (err) {
+			console.warn("Greška pri izravnom dohvatu Bogojevo stranice:", err);
+		}
+		try {
+			const yrTemp = await fetchDirectYrNoTemp("2-12503703");
+			if (typeof yrTemp === "number") airTempC = yrTemp;
+		} catch {}
+		try {
+			const vPressure = await fetchDirectVentuskyPressure(45.53, 19.13);
+			if (typeof vPressure === "number") {
+				airPressureHpa = vPressure;
+				if (airPressureHpa > 1019) airPressureTrend = "rast";
+				else if (airPressureHpa < 1012) airPressureTrend = "pad";
+				else airPressureTrend = "stabilan";
+			}
+		} catch {}
 	}
 	const history = cached?.recentHistory && cached.recentHistory.length > 0 ? cached.recentHistory : [
 		{
@@ -16224,516 +17003,6 @@ var ActivationLockScreen = ({ onActivated, onOpenAdminGenerator }) => {
 	});
 };
 //#endregion
-//#region node_modules/@capacitor/core/dist/index.js
-/*! Capacitor: https://capacitorjs.com/ - MIT License */
-var ExceptionCode;
-(function(ExceptionCode) {
-	/**
-	* API is not implemented.
-	*
-	* This usually means the API can't be used because it is not implemented for
-	* the current platform.
-	*/
-	ExceptionCode["Unimplemented"] = "UNIMPLEMENTED";
-	/**
-	* API is not available.
-	*
-	* This means the API can't be used right now because:
-	*   - it is currently missing a prerequisite, such as network connectivity
-	*   - it requires a particular platform or browser version
-	*/
-	ExceptionCode["Unavailable"] = "UNAVAILABLE";
-})(ExceptionCode || (ExceptionCode = {}));
-var CapacitorException = class extends Error {
-	constructor(message, code, data) {
-		super(message);
-		this.message = message;
-		this.code = code;
-		this.data = data;
-	}
-};
-var getPlatformId = (win) => {
-	var _a, _b;
-	if (win === null || win === void 0 ? void 0 : win.androidBridge) return "android";
-	else if ((_b = (_a = win === null || win === void 0 ? void 0 : win.webkit) === null || _a === void 0 ? void 0 : _a.messageHandlers) === null || _b === void 0 ? void 0 : _b.bridge) return "ios";
-	else return "web";
-};
-var createCapacitor = (win) => {
-	const capCustomPlatform = win.CapacitorCustomPlatform || null;
-	const cap = win.Capacitor || {};
-	const Plugins = cap.Plugins = cap.Plugins || {};
-	const getPlatform = () => {
-		return capCustomPlatform !== null ? capCustomPlatform.name : getPlatformId(win);
-	};
-	const isNativePlatform = () => getPlatform() !== "web";
-	const isPluginAvailable = (pluginName) => {
-		const plugin = registeredPlugins.get(pluginName);
-		if (plugin === null || plugin === void 0 ? void 0 : plugin.platforms.has(getPlatform())) return true;
-		if (getPluginHeader(pluginName)) return true;
-		return false;
-	};
-	const getPluginHeader = (pluginName) => {
-		var _a;
-		return (_a = cap.PluginHeaders) === null || _a === void 0 ? void 0 : _a.find((h) => h.name === pluginName);
-	};
-	const handleError = (err) => win.console.error(err);
-	const registeredPlugins = /* @__PURE__ */ new Map();
-	const registerPlugin = (pluginName, jsImplementations = {}) => {
-		const registeredPlugin = registeredPlugins.get(pluginName);
-		if (registeredPlugin) {
-			console.warn(`Capacitor plugin "${pluginName}" already registered. Cannot register plugins twice.`);
-			return registeredPlugin.proxy;
-		}
-		const platform = getPlatform();
-		const pluginHeader = getPluginHeader(pluginName);
-		let jsImplementation;
-		const loadPluginImplementation = async () => {
-			if (!jsImplementation && platform in jsImplementations) jsImplementation = typeof jsImplementations[platform] === "function" ? jsImplementation = await jsImplementations[platform]() : jsImplementation = jsImplementations[platform];
-			else if (capCustomPlatform !== null && !jsImplementation && "web" in jsImplementations) jsImplementation = typeof jsImplementations["web"] === "function" ? jsImplementation = await jsImplementations["web"]() : jsImplementation = jsImplementations["web"];
-			return jsImplementation;
-		};
-		const createPluginMethod = (impl, prop) => {
-			var _a, _b;
-			if (pluginHeader) {
-				const methodHeader = pluginHeader === null || pluginHeader === void 0 ? void 0 : pluginHeader.methods.find((m) => prop === m.name);
-				if (methodHeader) {
-					if (methodHeader.rtype === "promise") return (options) => cap.nativePromise(pluginName, prop.toString(), options);
-					else return (options, callback) => cap.nativeCallback(pluginName, prop.toString(), options, callback);
-				} else if (impl) return (_a = impl[prop]) === null || _a === void 0 ? void 0 : _a.bind(impl);
-			} else if (impl) return (_b = impl[prop]) === null || _b === void 0 ? void 0 : _b.bind(impl);
-			else throw new CapacitorException(`"${pluginName}" plugin is not implemented on ${platform}`, ExceptionCode.Unimplemented);
-		};
-		const createPluginMethodWrapper = (prop) => {
-			let remove;
-			const wrapper = (...args) => {
-				const p = loadPluginImplementation().then((impl) => {
-					const fn = createPluginMethod(impl, prop);
-					if (fn) {
-						const p = fn(...args);
-						remove = p === null || p === void 0 ? void 0 : p.remove;
-						return p;
-					} else throw new CapacitorException(`"${pluginName}.${prop}()" is not implemented on ${platform}`, ExceptionCode.Unimplemented);
-				});
-				if (prop === "addListener") p.remove = async () => remove();
-				return p;
-			};
-			wrapper.toString = () => `${prop.toString()}() { [capacitor code] }`;
-			Object.defineProperty(wrapper, "name", {
-				value: prop,
-				writable: false,
-				configurable: false
-			});
-			return wrapper;
-		};
-		const addListener = createPluginMethodWrapper("addListener");
-		const removeListener = createPluginMethodWrapper("removeListener");
-		const addListenerNative = (eventName, callback) => {
-			const call = addListener({ eventName }, callback);
-			const remove = async () => {
-				const callbackId = await call;
-				removeListener({
-					eventName,
-					callbackId
-				}, callback);
-			};
-			const p = new Promise((resolve) => call.then(() => resolve({ remove })));
-			p.remove = async () => {
-				console.warn(`Using addListener() without 'await' is deprecated.`);
-				await remove();
-			};
-			return p;
-		};
-		const proxy = new Proxy({}, { get(_, prop) {
-			switch (prop) {
-				case "$$typeof": return;
-				case "toJSON": return () => ({});
-				case "addListener": return pluginHeader ? addListenerNative : addListener;
-				case "removeListener": return removeListener;
-				default: return createPluginMethodWrapper(prop);
-			}
-		} });
-		Plugins[pluginName] = proxy;
-		registeredPlugins.set(pluginName, {
-			name: pluginName,
-			proxy,
-			platforms: /* @__PURE__ */ new Set([...Object.keys(jsImplementations), ...pluginHeader ? [platform] : []])
-		});
-		return proxy;
-	};
-	if (!cap.convertFileSrc) cap.convertFileSrc = (filePath) => filePath;
-	cap.getPlatform = getPlatform;
-	cap.handleError = handleError;
-	cap.isNativePlatform = isNativePlatform;
-	cap.isPluginAvailable = isPluginAvailable;
-	cap.registerPlugin = registerPlugin;
-	cap.Exception = CapacitorException;
-	cap.DEBUG = !!cap.DEBUG;
-	cap.isLoggingEnabled = !!cap.isLoggingEnabled;
-	return cap;
-};
-var initCapacitorGlobal = (win) => win.Capacitor = createCapacitor(win);
-var Capacitor = /*#__PURE__*/ initCapacitorGlobal(typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : {});
-var registerPlugin = Capacitor.registerPlugin;
-/**
-* Base class web plugins should extend.
-*/
-var WebPlugin = class {
-	constructor() {
-		this.listeners = {};
-		this.retainedEventArguments = {};
-		this.windowListeners = {};
-	}
-	addListener(eventName, listenerFunc) {
-		let firstListener = false;
-		if (!this.listeners[eventName]) {
-			this.listeners[eventName] = [];
-			firstListener = true;
-		}
-		this.listeners[eventName].push(listenerFunc);
-		const windowListener = this.windowListeners[eventName];
-		if (windowListener && !windowListener.registered) this.addWindowListener(windowListener);
-		if (firstListener) this.sendRetainedArgumentsForEvent(eventName);
-		const remove = async () => this.removeListener(eventName, listenerFunc);
-		return Promise.resolve({ remove });
-	}
-	async removeAllListeners() {
-		this.listeners = {};
-		for (const listener in this.windowListeners) this.removeWindowListener(this.windowListeners[listener]);
-		this.windowListeners = {};
-	}
-	notifyListeners(eventName, data, retainUntilConsumed) {
-		const listeners = this.listeners[eventName];
-		if (!listeners) {
-			if (retainUntilConsumed) {
-				let args = this.retainedEventArguments[eventName];
-				if (!args) args = [];
-				args.push(data);
-				this.retainedEventArguments[eventName] = args;
-			}
-			return;
-		}
-		listeners.forEach((listener) => listener(data));
-	}
-	hasListeners(eventName) {
-		var _a;
-		return !!((_a = this.listeners[eventName]) === null || _a === void 0 ? void 0 : _a.length);
-	}
-	registerWindowListener(windowEventName, pluginEventName) {
-		this.windowListeners[pluginEventName] = {
-			registered: false,
-			windowEventName,
-			pluginEventName,
-			handler: (event) => {
-				this.notifyListeners(pluginEventName, event);
-			}
-		};
-	}
-	unimplemented(msg = "not implemented") {
-		return new Capacitor.Exception(msg, ExceptionCode.Unimplemented);
-	}
-	unavailable(msg = "not available") {
-		return new Capacitor.Exception(msg, ExceptionCode.Unavailable);
-	}
-	async removeListener(eventName, listenerFunc) {
-		const listeners = this.listeners[eventName];
-		if (!listeners) return;
-		const index = listeners.indexOf(listenerFunc);
-		if (index !== -1) this.listeners[eventName].splice(index, 1);
-		if (!this.listeners[eventName].length) this.removeWindowListener(this.windowListeners[eventName]);
-	}
-	addWindowListener(handle) {
-		window.addEventListener(handle.windowEventName, handle.handler);
-		handle.registered = true;
-	}
-	removeWindowListener(handle) {
-		if (!handle) return;
-		window.removeEventListener(handle.windowEventName, handle.handler);
-		handle.registered = false;
-	}
-	sendRetainedArgumentsForEvent(eventName) {
-		const args = this.retainedEventArguments[eventName];
-		if (!args) return;
-		delete this.retainedEventArguments[eventName];
-		args.forEach((arg) => {
-			this.notifyListeners(eventName, arg);
-		});
-	}
-};
-/******** END WEB VIEW PLUGIN ********/
-/******** COOKIES PLUGIN ********/
-/**
-* Safely web encode a string value (inspired by js-cookie)
-* @param str The string value to encode
-*/
-var encode = (str) => encodeURIComponent(str).replace(/%(2[346B]|5E|60|7C)/g, decodeURIComponent).replace(/[()]/g, escape);
-/**
-* Safely web decode a string value (inspired by js-cookie)
-* @param str The string value to decode
-*/
-var decode = (str) => str.replace(/(%[\dA-F]{2})+/gi, decodeURIComponent);
-var CapacitorCookiesPluginWeb = class extends WebPlugin {
-	async getCookies() {
-		const cookies = document.cookie;
-		const cookieMap = {};
-		cookies.split(";").forEach((cookie) => {
-			if (cookie.length <= 0) return;
-			let [key, value] = cookie.replace(/=/, "CAP_COOKIE").split("CAP_COOKIE");
-			key = decode(key).trim();
-			value = decode(value).trim();
-			cookieMap[key] = value;
-		});
-		return cookieMap;
-	}
-	async setCookie(options) {
-		try {
-			const encodedKey = encode(options.key);
-			const encodedValue = encode(options.value);
-			const expires = options.expires ? `; expires=${options.expires.replace("expires=", "")}` : "";
-			const path = (options.path || "/").replace("path=", "");
-			const domain = options.url != null && options.url.length > 0 ? `domain=${options.url}` : "";
-			document.cookie = `${encodedKey}=${encodedValue || ""}${expires}; path=${path}; ${domain};`;
-		} catch (error) {
-			return Promise.reject(error);
-		}
-	}
-	async deleteCookie(options) {
-		try {
-			document.cookie = `${options.key}=; Max-Age=0`;
-		} catch (error) {
-			return Promise.reject(error);
-		}
-	}
-	async clearCookies() {
-		try {
-			const cookies = document.cookie.split(";") || [];
-			for (const cookie of cookies) document.cookie = cookie.replace(/^ +/, "").replace(/=.*/, `=;expires=${(/* @__PURE__ */ new Date()).toUTCString()};path=/`);
-		} catch (error) {
-			return Promise.reject(error);
-		}
-	}
-	async clearAllCookies() {
-		try {
-			await this.clearCookies();
-		} catch (error) {
-			return Promise.reject(error);
-		}
-	}
-};
-registerPlugin("CapacitorCookies", { web: () => new CapacitorCookiesPluginWeb() });
-/**
-* Read in a Blob value and return it as a base64 string
-* @param blob The blob value to convert to a base64 string
-*/
-var readBlobAsBase64 = async (blob) => new Promise((resolve, reject) => {
-	const reader = new FileReader();
-	reader.onload = () => {
-		const base64String = reader.result;
-		resolve(base64String.indexOf(",") >= 0 ? base64String.split(",")[1] : base64String);
-	};
-	reader.onerror = (error) => reject(error);
-	reader.readAsDataURL(blob);
-});
-/**
-* Normalize an HttpHeaders map by lowercasing all of the values
-* @param headers The HttpHeaders object to normalize
-*/
-var normalizeHttpHeaders = (headers = {}) => {
-	const originalKeys = Object.keys(headers);
-	return Object.keys(headers).map((k) => k.toLocaleLowerCase()).reduce((acc, key, index) => {
-		acc[key] = headers[originalKeys[index]];
-		return acc;
-	}, {});
-};
-/**
-* Builds a string of url parameters that
-* @param params A map of url parameters
-* @param shouldEncode true if you should encodeURIComponent() the values (true by default)
-*/
-var buildUrlParams = (params, shouldEncode = true) => {
-	if (!params) return null;
-	return Object.entries(params).reduce((accumulator, entry) => {
-		const [key, value] = entry;
-		let encodedValue;
-		let item;
-		if (Array.isArray(value)) {
-			item = "";
-			value.forEach((str) => {
-				encodedValue = shouldEncode ? encodeURIComponent(str) : str;
-				item += `${key}=${encodedValue}&`;
-			});
-			item.slice(0, -1);
-		} else {
-			encodedValue = shouldEncode ? encodeURIComponent(value) : value;
-			item = `${key}=${encodedValue}`;
-		}
-		return `${accumulator}&${item}`;
-	}, "").substr(1);
-};
-/**
-* Build the RequestInit object based on the options passed into the initial request
-* @param options The Http plugin options
-* @param extra Any extra RequestInit values
-*/
-var buildRequestInit = (options, extra = {}) => {
-	const output = Object.assign({
-		method: options.method || "GET",
-		headers: options.headers
-	}, extra);
-	const type = normalizeHttpHeaders(options.headers)["content-type"] || "";
-	if (typeof options.data === "string") output.body = options.data;
-	else if (type.includes("application/x-www-form-urlencoded")) {
-		const params = new URLSearchParams();
-		for (const [key, value] of Object.entries(options.data || {})) params.set(key, value);
-		output.body = params.toString();
-	} else if (type.includes("multipart/form-data") || options.data instanceof FormData) {
-		const form = new FormData();
-		if (options.data instanceof FormData) options.data.forEach((value, key) => {
-			form.append(key, value);
-		});
-		else for (const key of Object.keys(options.data)) form.append(key, options.data[key]);
-		output.body = form;
-		const headers = new Headers(output.headers);
-		headers.delete("content-type");
-		output.headers = headers;
-	} else if (type.includes("application/json") || typeof options.data === "object") output.body = JSON.stringify(options.data);
-	return output;
-};
-var CapacitorHttpPluginWeb = class extends WebPlugin {
-	/**
-	* Perform an Http request given a set of options
-	* @param options Options to build the HTTP request
-	*/
-	async request(options) {
-		const requestInit = buildRequestInit(options, options.webFetchExtra);
-		const urlParams = buildUrlParams(options.params, options.shouldEncodeUrlParams);
-		const url = urlParams ? `${options.url}?${urlParams}` : options.url;
-		const response = await fetch(url, requestInit);
-		const contentType = response.headers.get("content-type") || "";
-		let { responseType = "text" } = response.ok ? options : {};
-		if (contentType.includes("application/json")) responseType = "json";
-		let data;
-		let blob;
-		switch (responseType) {
-			case "arraybuffer":
-			case "blob":
-				blob = await response.blob();
-				data = await readBlobAsBase64(blob);
-				break;
-			case "json":
-				data = await response.json();
-				break;
-			default: data = await response.text();
-		}
-		const headers = {};
-		response.headers.forEach((value, key) => {
-			headers[key] = value;
-		});
-		return {
-			data,
-			headers,
-			status: response.status,
-			url: response.url
-		};
-	}
-	/**
-	* Perform an Http GET request given a set of options
-	* @param options Options to build the HTTP request
-	*/
-	async get(options) {
-		return this.request(Object.assign(Object.assign({}, options), { method: "GET" }));
-	}
-	/**
-	* Perform an Http POST request given a set of options
-	* @param options Options to build the HTTP request
-	*/
-	async post(options) {
-		return this.request(Object.assign(Object.assign({}, options), { method: "POST" }));
-	}
-	/**
-	* Perform an Http PUT request given a set of options
-	* @param options Options to build the HTTP request
-	*/
-	async put(options) {
-		return this.request(Object.assign(Object.assign({}, options), { method: "PUT" }));
-	}
-	/**
-	* Perform an Http PATCH request given a set of options
-	* @param options Options to build the HTTP request
-	*/
-	async patch(options) {
-		return this.request(Object.assign(Object.assign({}, options), { method: "PATCH" }));
-	}
-	/**
-	* Perform an Http DELETE request given a set of options
-	* @param options Options to build the HTTP request
-	*/
-	async delete(options) {
-		return this.request(Object.assign(Object.assign({}, options), { method: "DELETE" }));
-	}
-};
-registerPlugin("CapacitorHttp", { web: () => new CapacitorHttpPluginWeb() });
-/******** END HTTP PLUGIN ********/
-/******** SYSTEM BARS PLUGIN ********/
-/**
-* Available status bar styles.
-*/
-var SystemBarsStyle;
-(function(SystemBarsStyle) {
-	/**
-	* Light system bar content on a dark background.
-	*
-	* @since 8.0.0
-	*/
-	SystemBarsStyle["Dark"] = "DARK";
-	/**
-	* For dark system bar content on a light background.
-	*
-	* @since 8.0.0
-	*/
-	SystemBarsStyle["Light"] = "LIGHT";
-	/**
-	* The style is based on the device appearance or the underlying content.
-	* If the device is using Dark mode, the system bars content will be light.
-	* If the device is using Light mode, the system bars content will be dark.
-	*
-	* @since 8.0.0
-	*/
-	SystemBarsStyle["Default"] = "DEFAULT";
-})(SystemBarsStyle || (SystemBarsStyle = {}));
-/**
-* Available system bar types.
-*/
-var SystemBarType;
-(function(SystemBarType) {
-	/**
-	* The top status bar on both Android and iOS.
-	*
-	* @since 8.0.0
-	*/
-	SystemBarType["StatusBar"] = "StatusBar";
-	/**
-	* The navigation bar (or gesture bar on iOS) on both Android and iOS.
-	*
-	* @since 8.0.0
-	*/
-	SystemBarType["NavigationBar"] = "NavigationBar";
-})(SystemBarType || (SystemBarType = {}));
-var SystemBarsPluginWeb = class extends WebPlugin {
-	async setStyle() {
-		this.unavailable("not available for web");
-	}
-	async setAnimation() {
-		this.unavailable("not available for web");
-	}
-	async show() {
-		this.unavailable("not available for web");
-	}
-	async hide() {
-		this.unavailable("not available for web");
-	}
-};
-registerPlugin("SystemBars", { web: () => new SystemBarsPluginWeb() });
-//#endregion
 //#region node_modules/@capacitor/local-notifications/dist/esm/definitions.js
 /**
 * Day of the week. Used for scheduling notifications on a particular weekday.
@@ -16845,7 +17114,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 };
 //#endregion
 //#region node_modules/@capacitor/local-notifications/dist/esm/index.js
-var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-TlumhXFz.js").then((m) => new m.LocalNotificationsWeb()), []) });
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-DTV33XuC.js").then((m) => new m.LocalNotificationsWeb()), []) });
 //#endregion
 //#region src/services/notificationService.ts
 /**
@@ -17190,7 +17459,7 @@ async function deleteChatMessageAsAdmin(pin, messageId) {
 * Autor: Daniel Čizmar
 * GitHub: dxdandy/Android-App-Repo
 */
-var CURRENT_APP_VERSION = "1.4.0";
+var CURRENT_APP_VERSION = "1.4.1";
 /**
 * Uspoređuje dvije semantičke verzije (npr. '1.1.0' > '1.0.1')
 * Vraća true ako je remoteVer novija od currentVer
@@ -17304,7 +17573,7 @@ async function checkForAppUpdate(force = false) {
 		currentVersion: CURRENT_APP_VERSION,
 		errorMessage: lastErrorMsg
 	};
-	if (!isNewerVersion(latestData.version, "1.4.0")) return {
+	if (!isNewerVersion(latestData.version, "1.4.1")) return {
 		status: "up_to_date",
 		serverVersion: latestData.version,
 		currentVersion: CURRENT_APP_VERSION,
@@ -18900,10 +19169,10 @@ function App() {
 			river: "Dunav",
 			sectorName: "Sektor 2 / Ušće Drave u Dunav (Šporanj)",
 			riverKm: "rkm 1380,300",
-			waterLevelCm: -42,
+			waterLevelCm: -35,
 			waterLevelTrend: "stagnira",
 			waterLevelChangeCm: 0,
-			timeOfMeasurement: "14:00",
+			timeOfMeasurement: "08:00",
 			dateOfMeasurement: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
 			maxLevelCm: 820,
 			maxLevelDate: "25.06.1965.",
@@ -18911,26 +19180,26 @@ function App() {
 			recentHistory: [
 				{
 					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-					time: "14:00",
-					level: -41,
-					trendChange: 1
-				},
-				{
-					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-					time: "13:00",
-					level: -42,
+					time: "08:00",
+					level: -35,
 					trendChange: 0
 				},
 				{
 					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
-					time: "12:00",
-					level: -42,
+					time: "07:00",
+					level: -35,
+					trendChange: 0
+				},
+				{
+					date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
+					time: "06:00",
+					level: -35,
 					trendChange: 0
 				}
 			],
 			airPressureHpa: 1021,
 			airPressureTrend: "stabilan",
-			airTempC: 9.9,
+			airTempC: 8.4,
 			waterTempC: 11.4,
 			windSpeedKmh: 12,
 			windSpeedMs: 3.3,
@@ -18950,10 +19219,10 @@ function App() {
 			river: "Dunav",
 			sectorName: "Most Bogojevo - Erdut / Kameni špornjevi",
 			riverKm: "rkm 1367,000",
-			waterLevelCm: -54,
+			waterLevelCm: -44,
 			waterLevelTrend: "u_porastu",
-			waterLevelChangeCm: 15,
-			flowM3s: 1170,
+			waterLevelChangeCm: 10,
+			flowM3s: 1200,
 			forecastDays: [
 				-44,
 				-41,
@@ -18967,17 +19236,17 @@ function App() {
 			recentHistory: [{
 				date: (/* @__PURE__ */ new Date()).toLocaleDateString("hr-HR"),
 				time: "07:00",
-				level: -54,
-				trendChange: 15
+				level: -44,
+				trendChange: 10
 			}, {
 				date: "Jučer",
 				time: "07:00",
-				level: -69,
-				trendChange: 4
+				level: -54,
+				trendChange: 15
 			}],
 			airPressureHpa: 1022,
 			airPressureTrend: "stabilan",
-			airTempC: 10.4,
+			airTempC: 8.6,
 			waterTempC: 11.6,
 			windSpeedKmh: 10,
 			windSpeedMs: 2.8,

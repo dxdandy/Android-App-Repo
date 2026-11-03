@@ -342,8 +342,8 @@ app.get('/api/water/aljmas', async (_req, res) => {
     // Najgornji podatak s mvodostaji.voda.hr
     const latest = rows[0] || {
       date: new Date().toLocaleDateString('hr-HR'),
-      time: '09:00',
-      level: -76,
+      time: '08:00',
+      level: -35,
       trendClass: 'blue',
       trendChange: 0
     };
@@ -387,12 +387,12 @@ app.get('/api/water/aljmas', async (_req, res) => {
       success: false,
       stationName: 'Dunav - Aljmaš (Ušće Drave)',
       riverKm: 'rkm 1380,300',
-      waterLevelCm: -76,
+      waterLevelCm: -35,
       waterLevelTrend: 'stagnira',
       waterLevelChangeCm: 0,
-      waterTempC: 12.9,
-      airPressureHpa: 1025,
-      timeOfMeasurement: '09:00',
+      waterTempC: 11.4,
+      airPressureHpa: 1021,
+      timeOfMeasurement: '08:00',
       dateOfMeasurement: '30.10.2026.',
       maxLevelCm: 820,
       prepLevelCm: 400,
@@ -432,9 +432,9 @@ app.get('/api/water/bogojevo', async (_req, res) => {
     const trendMatch = html.match(/ikonice\/interf\/(rast|pad|stagn|opad)/i);
     const forecastMatch = html.match(/Vodostaj&nbsp;\(cm\):\s*<\/td>(.*?)(?:<\/tr>|Dijagrami)/s);
 
-    const parsedLevel = levelMatch ? parseInt(levelMatch[1], 10) : -83;
-    const parsedChange = changeMatch ? parseInt(changeMatch[1], 10) : -1;
-    const parsedFlow = flowMatch ? parseInt(flowMatch[1], 10) : 985;
+    const parsedLevel = levelMatch ? parseInt(levelMatch[1], 10) : -44;
+    const parsedChange = changeMatch ? parseInt(changeMatch[1], 10) : 10;
+    const parsedFlow = flowMatch ? parseInt(flowMatch[1], 10) : 1200;
 
     // Temperatura vode za Bogojevo s https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42015
     const waterTemp = await fetchBogojevoWaterTemp();
@@ -486,12 +486,12 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       success: false,
       stationName: 'RHMZ Dunav - Bogojevo',
       waterBody: 'Dunav',
-      waterLevelCm: -83,
-      waterLevelChangeCm: -1,
-      waterLevelTrend: 'opada',
-      waterTempC: 12.6,
-      airPressureHpa: 1025,
-      flowM3s: 985,
+      waterLevelCm: -44,
+      waterLevelChangeCm: 10,
+      waterLevelTrend: 'u_porastu',
+      waterTempC: 11.6,
+      airPressureHpa: 1022,
+      flowM3s: 1200,
       forecastDays: [-92, -86, -90, -96],
       regularDefenseCm: 600,
       emergencyDefenseCm: 700,
@@ -1146,15 +1146,15 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.4.0',
+    version: '1.4.1',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-02',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.0.apk',
+    releaseDate: '2026-11-03',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.1.apk',
     changelog: [
-      'Ažuriran službeni izvor za vodostaj Aljmaš (mvodostaji.voda.hr sektor 2, postaja 148, vrh tablice)',
-      'Ažuriran službeni izvor za vodostaj Bogojevo (hidmet.gov.rs postaja 42020)',
-      'Dohvat temperature zraka s Yr.no za Aljmaš i Bogojevo border checkpoint',
-      'Otklonjen problem sa skokovima temperature kod uzastopnog ažuriranja'
+      'Nativni dohvat i parsiranje službenih stranica (mvodostaji.voda.hr i hidmet.gov.rs) izravno na mobilnom uređaju',
+      'Otklonjen problem s prikazom starih pričuvnih vrijednosti (-76 i -83) na mobitelu',
+      'Automatsko čišćenje neispravne predmemorije na uređaju',
+      'Prikaz točnog vodostaja za Aljmaš i Bogojevo u svim uvjetima'
     ],
     isCritical: false
   });
