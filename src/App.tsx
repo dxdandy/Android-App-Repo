@@ -151,7 +151,7 @@ export default function App() {
 
   // Solunarni rezultati za danas
   const [solunarData, setSolunarData] = useState<SolunarDayData>(() => {
-    return getSolunarDataForDate(new Date(), 1017, 'stabilan');
+    return getSolunarDataForDate(new Date(), 1021, 'stabilan');
   });
 
   // Glavna funkcija za osvježavanje svih podataka
@@ -169,7 +169,7 @@ export default function App() {
       // Ažuriranje solunara na temelju najsvježijeg barometra
       const updatedSolunar = getSolunarDataForDate(
         new Date(),
-        alj.airPressureHpa || 1017,
+        alj.airPressureHpa || 1021,
         alj.airPressureTrend || 'stabilan'
       );
       setSolunarData(updatedSolunar);

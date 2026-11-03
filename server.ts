@@ -1146,15 +1146,15 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.4.1',
+    version: '1.4.2',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-03',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.1.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.2.apk',
     changelog: [
-      'Nativni dohvat i parsiranje službenih stranica (mvodostaji.voda.hr i hidmet.gov.rs) izravno na mobilnom uređaju',
-      'Otklonjen problem s prikazom starih pričuvnih vrijednosti (-76 i -83) na mobitelu',
-      'Automatsko čišćenje neispravne predmemorije na uređaju',
-      'Prikaz točnog vodostaja za Aljmaš i Bogojevo u svim uvjetima'
+      'Ispravljen dohvat tlaka zraka na mobilnim uređajima (korištenje točnog MSL barometarskog tlaka prema Ventuskyju)',
+      'Uklonjena razlika između prikaza tlaka na računalu i mobilnom uređaju',
+      'Povezivanje barometra s Yr.no i Ventusky izvorima uz automatsku sinkronizaciju',
+      'Automatsko čišćenje neusklađenih vrijednosti tlaka iz predmemorije'
     ],
     isCritical: false
   });

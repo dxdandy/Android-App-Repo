@@ -343,15 +343,18 @@ export async function fetchMeteoForCoords(lat: number, lon: number): Promise<{
 }> {
   try {
     const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,weather_code,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=Europe%2FZagreb`,
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,surface_pressure,weather_code,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=Europe%2FZagreb`,
       { signal: AbortSignal.timeout(4500) }
     );
     if (!res.ok) throw new Error('Meteo status ' + res.status);
     const data = await res.json();
     const curr = data.current || {};
 
-    const pressure = curr.surface_pressure ? Math.round(curr.surface_pressure) : 1017;
-    const temp = curr.temperature_2m !== undefined ? Math.round(curr.temperature_2m * 10) / 10 : 21.0;
+    // UVIJEK koristi barometarski tlak sveden na razinu mora (pressure_msl) - točno kao na Ventusky
+    const pressure = curr.pressure_msl 
+      ? Math.round(curr.pressure_msl) 
+      : (curr.surface_pressure ? Math.round(curr.surface_pressure) : 1021);
+    const temp = curr.temperature_2m !== undefined ? Math.round(curr.temperature_2m * 10) / 10 : 8.5;
     const windSpeedMs = curr.wind_speed_10m !== undefined ? Math.round(curr.wind_speed_10m * 10) / 10 : 3.3;
     const windSpeedKmh = Math.round(windSpeedMs * 3.6);
     const windDir = getWindDirectionLabel(curr.wind_direction_10m);
@@ -372,9 +375,9 @@ export async function fetchMeteoForCoords(lat: number, lon: number): Promise<{
     };
   } catch (err) {
     return {
-      airPressureHpa: 1017,
+      airPressureHpa: 1021,
       airPressureTrend: 'stabilan',
-      airTempC: 10.0,
+      airTempC: 8.5,
       windSpeedKmh: 12,
       windSpeedMs: 3.3,
       windDirection: 'SZ',
@@ -603,41 +606,81 @@ function parseBogojevoHtml(html: string) {
 }
 
 /**
- * Izravan dohvat temperature zraka s Yr.no
+ * Izravan dohvat prognoze (temperatura i barometarski tlak) s Yr.no
  */
-async function fetchDirectYrNoTemp(locationId: string): Promise<number | null> {
+async function fetchDirectYrNoForecast(locationId: string): Promise<{ temperature: number | null; pressure: number | null }> {
   try {
     const data = await fetchUniversalJson<any>(`https://www.yr.no/api/v0/locations/${locationId}/forecast`);
     if (data) {
+      let temperature: number | null = null;
+      let pressure: number | null = null;
+
       if (Array.isArray(data.shortIntervals) && data.shortIntervals.length > 0) {
-        const val = data.shortIntervals[0].temperature?.value;
-        if (typeof val === 'number') return Math.round(val * 10) / 10;
+        const item = data.shortIntervals[0];
+        if (typeof item.temperature?.value === 'number') {
+          temperature = Math.round(item.temperature.value * 10) / 10;
+        }
+        if (typeof item.pressure?.value === 'number') {
+          pressure = Math.round(item.pressure.value);
+        }
       }
-      if (Array.isArray(data.dayIntervals) && data.dayIntervals.length > 0) {
-        const val = data.dayIntervals[0].temperature?.value;
-        if (typeof val === 'number') return Math.round(val * 10) / 10;
+      if (temperature === null && Array.isArray(data.dayIntervals) && data.dayIntervals.length > 0) {
+        const item = data.dayIntervals[0];
+        if (typeof item.temperature?.value === 'number') {
+          temperature = Math.round(item.temperature.value * 10) / 10;
+        }
       }
+      return { temperature, pressure };
     }
   } catch {}
-  return null;
+  return { temperature: null, pressure: null };
 }
 
 /**
- * Izravan dohvat tlaka zraka s Ventusky
+ * Izravan dohvat tlaka zraka s Ventusky uz višeslojnu provjeru (Ventusky -> Yr.no MSL -> Open-Meteo MSL)
  */
-async function fetchDirectVentuskyPressure(lat: number, lon: number): Promise<number | null> {
+async function fetchDirectVentuskyPressure(lat: number, lon: number, yrLocationId?: string): Promise<number | null> {
+  // 1. Primarni izvor: Ventusky službena stranica
   try {
     const html = await fetchUniversalText(`https://www.ventusky.com/${lat};${lon}`);
     if (html) {
-      const tableMatch = html.match(/(?:Tlak zraka|Air pressure|Pressure)[^<]*<\/td>\s*<td[^>]*>\s*<b>\s*(\d{3,4})\s*(?:&nbsp;|\s)*hPa/i)
+      const tableMatch = html.match(/(?:Tlak zraka|Air pressure|Pressure)[^<]*<\/td>[\s\S]*?<td[^>]*>[\s\S]*?<b>[\s\S]*?(\d{3,4})[\s\S]*?hPa/i)
         || html.match(/<b>\s*(\d{3,4})\s*(?:&nbsp;|\s)*hPa\s*<\/b>/i)
         || html.match(/(\d{3,4})\s*(?:&nbsp;|\s)*hPa/i);
       if (tableMatch && tableMatch[1]) {
         const val = parseInt(tableMatch[1], 10);
         if (val >= 940 && val <= 1065) return val;
       }
+      const inHgMatch = html.match(/(?:Tlak zraka|Air pressure)[^<]*<\/td>[\s\S]*?<td[^>]*>[\s\S]*?<b>\s*(\d+(?:\.\d+)?)\s*(?:&nbsp;|\s)*inHg/i);
+      if (inHgMatch && inHgMatch[1]) {
+        const inhg = parseFloat(inHgMatch[1]);
+        if (!isNaN(inhg)) return Math.round(inhg * 33.8639);
+      }
     }
   } catch {}
+
+  // 2. Automatska provjera s Yr.no (isti točan barometarski MSL tlak)
+  if (yrLocationId) {
+    try {
+      const yr = await fetchDirectYrNoForecast(yrLocationId);
+      if (typeof yr.pressure === 'number' && yr.pressure >= 940 && yr.pressure <= 1065) {
+        return yr.pressure;
+      }
+    } catch {}
+  }
+
+  // 3. Rezervni dohvat točnog MSL barometarskog tlaka (razina mora) za koordinate
+  try {
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=pressure_msl&timezone=Europe%2FZagreb`, {
+      signal: AbortSignal.timeout(4000)
+    });
+    if (res.ok) {
+      const mData = await res.json();
+      const p = mData.current?.pressure_msl;
+      if (typeof p === 'number' && p >= 940 && p <= 1065) return Math.round(p);
+    }
+  } catch {}
+
   return null;
 }
 
@@ -647,8 +690,8 @@ export function getStoredAljmasData(): StationWaterData | null {
     const raw = localStorage.getItem(CACHE_ALJMAS_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Ako je zaostala stara neispravna vrijednost -76, automatski je očisti iz memorije uređaja
-    if (parsed && (parsed.waterLevelCm === -76 || typeof parsed.waterLevelCm !== 'number')) {
+    // Ako je zaostala stara neispravna vrijednost -76 ili unreduced tlak (<1012 dok je stvarni tlak normalan), očisti
+    if (parsed && (parsed.waterLevelCm === -76 || typeof parsed.waterLevelCm !== 'number' || (parsed.airPressureHpa && parsed.airPressureHpa < 1012))) {
       localStorage.removeItem(CACHE_ALJMAS_KEY);
       return null;
     }
@@ -664,8 +707,8 @@ export function getStoredBogojevoData(): StationWaterData | null {
     const raw = localStorage.getItem(CACHE_BOGOJEVO_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Ako je zaostala stara neispravna vrijednost -83, automatski je očisti iz memorije uređaja
-    if (parsed && (parsed.waterLevelCm === -83 || typeof parsed.waterLevelCm !== 'number')) {
+    // Ako je zaostala stara neispravna vrijednost -83 ili unreduced tlak (<1012 dok je stvarni tlak normalan), očisti
+    if (parsed && (parsed.waterLevelCm === -83 || typeof parsed.waterLevelCm !== 'number' || (parsed.airPressureHpa && parsed.airPressureHpa < 1012))) {
       localStorage.removeItem(CACHE_BOGOJEVO_KEY);
       return null;
     }
@@ -763,24 +806,28 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
       console.warn('Greška pri izravnom dohvatu Aljmaš stranice:', err);
     }
 
-    // Izravan dohvat temperature s Yr.no
+    // Izravan dohvat temperature i tlaka s Yr.no
     try {
-      const yrTemp = await fetchDirectYrNoTemp('2-3244159');
-      if (typeof yrTemp === 'number') {
-        airTempC = yrTemp;
+      const yr = await fetchDirectYrNoForecast('2-3244159');
+      if (typeof yr.temperature === 'number') {
+        airTempC = yr.temperature;
+      }
+      if (typeof yr.pressure === 'number') {
+        airPressureHpa = yr.pressure;
       }
     } catch {}
 
-    // Izravan dohvat tlaka s Ventusky
+    // Izravan dohvat tlaka s Ventusky (uz Yr.no i MSL fallback)
     try {
-      const vPressure = await fetchDirectVentuskyPressure(45.529, 18.95);
+      const vPressure = await fetchDirectVentuskyPressure(45.529, 18.95, '2-3244159');
       if (typeof vPressure === 'number') {
         airPressureHpa = vPressure;
-        if (airPressureHpa > 1019) airPressureTrend = 'rast';
-        else if (airPressureHpa < 1012) airPressureTrend = 'pad';
-        else airPressureTrend = 'stabilan';
       }
     } catch {}
+
+    if (airPressureHpa > 1019) airPressureTrend = 'rast';
+    else if (airPressureHpa < 1012) airPressureTrend = 'pad';
+    else airPressureTrend = 'stabilan';
   }
 
   const result: StationWaterData = {
@@ -889,24 +936,28 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
       console.warn('Greška pri izravnom dohvatu Bogojevo stranice:', err);
     }
 
-    // Izravan dohvat temperature s Yr.no
+    // Izravan dohvat temperature i tlaka s Yr.no
     try {
-      const yrTemp = await fetchDirectYrNoTemp('2-12503703');
-      if (typeof yrTemp === 'number') {
-        airTempC = yrTemp;
+      const yr = await fetchDirectYrNoForecast('2-12503703');
+      if (typeof yr.temperature === 'number') {
+        airTempC = yr.temperature;
+      }
+      if (typeof yr.pressure === 'number') {
+        airPressureHpa = yr.pressure;
       }
     } catch {}
 
-    // Izravan dohvat tlaka s Ventusky
+    // Izravan dohvat tlaka s Ventusky (uz Yr.no i MSL fallback)
     try {
-      const vPressure = await fetchDirectVentuskyPressure(45.53, 19.13);
+      const vPressure = await fetchDirectVentuskyPressure(45.53, 19.13, '2-12503703');
       if (typeof vPressure === 'number') {
         airPressureHpa = vPressure;
-        if (airPressureHpa > 1019) airPressureTrend = 'rast';
-        else if (airPressureHpa < 1012) airPressureTrend = 'pad';
-        else airPressureTrend = 'stabilan';
       }
     } catch {}
+
+    if (airPressureHpa > 1019) airPressureTrend = 'rast';
+    else if (airPressureHpa < 1012) airPressureTrend = 'pad';
+    else airPressureTrend = 'stabilan';
   }
 
   const history: WaterLevelHistoryItem[] = cached?.recentHistory && cached.recentHistory.length > 0
