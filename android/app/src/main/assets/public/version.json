@@ -1,14 +1,14 @@
 {
-  "version": "1.4.3",
+  "version": "1.4.4",
   "name": "RiboPrognoza",
-  "releaseDate": "2026-11-03",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.3.apk",
+  "releaseDate": "2026-11-04",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.4.apk",
   "changelog": [
-    "Potpuna sinkronizacija LiveChata putem Firestore baze u stvarnom vremenu",
-    "Svi odobreni korisnici odmah vide međusobne poruke bez zastoja",
-    "Prikaz kada drugi korisnik piše poruku s animiranim trostrukim točkicama",
-    "Aktivni Online status u LiveChatu",
-    "Trenutne zvučne obavijesti i skočne obavijesti na zaslonu mobitela za nove poruke"
+    "Ispravljeno pokretanje: aplikacija se uvijek otvara u standardnom osnovnom modu s kompletnim pregledom",
+    "Ispravljen LiveChat modal koji se sada pravilno zatvara na gumb X ili dodir pozadine",
+    "Brzo i pouzdano slanje poruka bez zastoja i blokiranja gumba",
+    "Automatsko otvaranje LiveChata pri ulasku u aplikaciju samo ako je korisnik primio novu poruku dok je bio izvan aplikacije",
+    "Povezivanje s javnim poslužiteljem za mobilne instalacije"
   ],
   "isCritical": false
 }

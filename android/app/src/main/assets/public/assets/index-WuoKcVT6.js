@@ -42196,7 +42196,7 @@ function isAppActivated() {
 /**
 * Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
 */
-var CLOUD_BACKEND_URL = "https://ais-dev-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app";
+var CLOUD_BACKEND_URL = "https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app";
 var LOCAL_LICENSES_CACHE_KEY = "ribo_admin_licenses_cache";
 /**
 * Razrješava ispravan URL API rute ovisno o okruženju (Web preglednik vs. Android Capacitor)
@@ -42212,7 +42212,14 @@ function getApiUrl(endpoint) {
 */
 async function safeFetchJson(url, options) {
 	try {
-		const res = await fetch(url, options);
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), 4500);
+		const mergedOptions = {
+			...options,
+			signal: options?.signal || controller.signal
+		};
+		const res = await fetch(url, mergedOptions);
+		clearTimeout(timer);
 		if ((res.headers.get("content-type") || "").includes("application/json")) {
 			const data = await res.json();
 			return {
@@ -42244,7 +42251,7 @@ async function safeFetchJson(url, options) {
 			ok: false,
 			status: 0,
 			data: null,
-			error: err?.message?.toLowerCase().includes("failed to fetch") ? "Komunikacija s poslužiteljem trenutno nije uspjela (provjerite internet)." : err?.message || "Greška u mrežnoj komunikaciji."
+			error: err?.name === "AbortError" ? "Zahtjev prema poslužitelju je istekao (timeout)." : err?.message?.toLowerCase().includes("failed to fetch") ? "Komunikacija s poslužiteljem trenutno nije uspjela (provjerite internet)." : err?.message || "Greška u mrežnoj komunikaciji."
 		};
 	}
 }
@@ -46675,7 +46682,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 };
 //#endregion
 //#region node_modules/@capacitor/local-notifications/dist/esm/index.js
-var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-BY0Xse-G.js").then((m) => new m.LocalNotificationsWeb()), []) });
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-C1UX7hq7.js").then((m) => new m.LocalNotificationsWeb()), []) });
 //#endregion
 //#region src/services/notificationService.ts
 /**
@@ -47023,8 +47030,8 @@ async function sendChatMessage(text) {
 		error: "Poruka ne može biti prazna."
 	};
 	try {
-		const licSnap = await getDoc(doc(db, "licenses", deviceId));
-		if (licSnap.exists()) {
+		const licSnap = await Promise.race([getDoc(doc(db, "licenses", deviceId)), new Promise((resolve) => setTimeout(() => resolve(null), 1500))]);
+		if (licSnap && licSnap.exists && licSnap.exists()) {
 			const lic = licSnap.data();
 			if (lic.status === "revoked") return {
 				success: false,
@@ -47058,22 +47065,20 @@ async function sendChatMessage(text) {
 	saveLocalChatCache(current);
 	setMyTypingStatus(false).catch(() => {});
 	try {
-		await setDoc(doc(db, "chat_messages", newMsg.id), newMsg);
+		await Promise.race([setDoc(doc(db, "chat_messages", newMsg.id), newMsg), new Promise((resolve) => setTimeout(resolve, 3e3))]);
 	} catch (err) {
 		console.warn("Greška pri spremanju u Firestore chat:", err);
 	}
-	try {
-		await safeFetchJson(getApiUrl("/api/chat/messages"), {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				deviceId,
-				activationKey: getStoredActivationKey(),
-				userName,
-				text: cleanText
-			})
-		});
-	} catch {}
+	safeFetchJson(getApiUrl("/api/chat/messages"), {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({
+			deviceId,
+			activationKey: getStoredActivationKey(),
+			userName,
+			text: cleanText
+		})
+	}).catch(() => {});
 	return {
 		success: true,
 		message: newMsg
@@ -47138,7 +47143,7 @@ function subscribeToTypingStatus(callback) {
 * Autor: Daniel Čizmar
 * GitHub: dxdandy/Android-App-Repo
 */
-var CURRENT_APP_VERSION = "1.4.3";
+var CURRENT_APP_VERSION = "1.4.4";
 /**
 * Uspoređuje dvije semantičke verzije (npr. '1.1.0' > '1.0.1')
 * Vraća true ako je remoteVer novija od currentVer
@@ -47252,7 +47257,7 @@ async function checkForAppUpdate(force = false) {
 		currentVersion: CURRENT_APP_VERSION,
 		errorMessage: lastErrorMsg
 	};
-	if (!isNewerVersion(latestData.version, "1.4.3")) return {
+	if (!isNewerVersion(latestData.version, "1.4.4")) return {
 		status: "up_to_date",
 		serverVersion: latestData.version,
 		currentVersion: CURRENT_APP_VERSION,
@@ -48548,9 +48553,12 @@ var FishingChatModal = ({ isOpen, onClose, onNameChanged }) => {
 			}, 3e3);
 		}
 	};
+	if (!isOpen) return null;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		onClick: onClose,
 		className: "fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md select-none animate-fadeIn",
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			onClick: (e) => e.stopPropagation(),
 			className: "bg-slate-900 border border-teal-500/40 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col h-[85vh] max-h-[640px] text-white relative overflow-hidden",
 			children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute -right-20 -top-20 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" }),
@@ -49068,6 +49076,32 @@ function App() {
 	const lastNotifiedMsgIdRef = (0, import_react.useRef)("");
 	(0, import_react.useEffect)(() => {
 		requestNotificationPermission().catch(() => {});
+		let isMounted = true;
+		try {
+			LocalNotifications.addListener("localNotificationActionPerformed", () => {
+				if (isMounted) setShowChatModal(true);
+			});
+		} catch {}
+		const handleCheckPendingOpen = () => {
+			try {
+				if (localStorage.getItem("ribo_pending_open_chat_on_resume") === "true") {
+					localStorage.removeItem("ribo_pending_open_chat_on_resume");
+					setShowChatModal(true);
+				}
+			} catch {}
+		};
+		window.addEventListener("focus", handleCheckPendingOpen);
+		document.addEventListener("visibilitychange", () => {
+			if (!document.hidden) handleCheckPendingOpen();
+		});
+		handleCheckPendingOpen();
+		return () => {
+			isMounted = false;
+			window.removeEventListener("focus", handleCheckPendingOpen);
+			try {
+				LocalNotifications.removeAllListeners();
+			} catch {}
+		};
 	}, []);
 	(0, import_react.useEffect)(() => {
 		if (!isActivated) return;
@@ -49094,6 +49128,9 @@ function App() {
 					if (initialSyncDone && count > 0 && newestMsg.id !== lastNotifiedMsgIdRef.current) {
 						showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
 						lastNotifiedMsgIdRef.current = newestMsg.id;
+						if (typeof document !== "undefined" && document.hidden) try {
+							localStorage.setItem("ribo_pending_open_chat_on_resume", "true");
+						} catch {}
 					} else if (!lastNotifiedMsgIdRef.current) lastNotifiedMsgIdRef.current = newestMsg.id;
 				}
 			}
@@ -49106,6 +49143,15 @@ function App() {
 		setUnreadChatCount(0);
 		markChatAsRead();
 		updateAppBadge(0);
+		try {
+			localStorage.removeItem("ribo_pending_open_chat_on_resume");
+		} catch {}
+	};
+	const handleCloseChat = () => {
+		setShowChatModal(false);
+		try {
+			localStorage.removeItem("ribo_pending_open_chat_on_resume");
+		} catch {}
 	};
 	const handleManualCheckUpdate = async () => {
 		setIsCheckingUpdate(true);
@@ -49477,7 +49523,7 @@ function App() {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FishingChatModal, {
 				isOpen: showChatModal,
-				onClose: () => setShowChatModal(false)
+				onClose: handleCloseChat
 			})
 		]
 	});

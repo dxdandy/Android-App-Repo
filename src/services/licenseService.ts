@@ -139,7 +139,7 @@ export function isAppActivated(): boolean {
  * Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
  */
 // Cloud backend URL kada se aplikacija pokreće unutar Android Capacitor WebViewa
-export const CLOUD_BACKEND_URL = 'https://ais-dev-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
+export const CLOUD_BACKEND_URL = 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
 const LOCAL_LICENSES_CACHE_KEY = 'ribo_admin_licenses_cache';
 
 /**
@@ -168,7 +168,16 @@ export function getApiUrl(endpoint: string): string {
  */
 export async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
   try {
-    const res = await fetch(url, options);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4500);
+    const mergedOptions: RequestInit = {
+      ...options,
+      signal: options?.signal || controller.signal
+    };
+
+    const res = await fetch(url, mergedOptions);
+    clearTimeout(timer);
+
     const contentType = res.headers.get('content-type') || '';
     
     if (contentType.includes('application/json')) {
@@ -190,9 +199,11 @@ export async function safeFetchJson<T>(url: string, options?: RequestInit): Prom
       };
     }
   } catch (err: any) {
-    const errMsg = err?.message?.toLowerCase().includes('failed to fetch')
-      ? 'Komunikacija s poslužiteljem trenutno nije uspjela (provjerite internet).'
-      : (err?.message || 'Greška u mrežnoj komunikaciji.');
+    const errMsg = err?.name === 'AbortError'
+      ? 'Zahtjev prema poslužitelju je istekao (timeout).'
+      : (err?.message?.toLowerCase().includes('failed to fetch')
+          ? 'Komunikacija s poslužiteljem trenutno nije uspjela (provjerite internet).'
+          : (err?.message || 'Greška u mrežnoj komunikaciji.'));
     return { ok: false, status: 0, data: null, error: errMsg };
   }
 }

@@ -366,11 +366,14 @@ export async function sendChatMessage(text: string): Promise<{ success: boolean;
     return { success: false, error: 'Poruka ne može biti prazna.' };
   }
 
-  // Provjeri status ovlasti u Firestore
+  // Provjeri status ovlasti u Firestore s brzim timeoutom od 1.5s tako da nikada ne zablokira
   try {
-    const licSnap = await getDoc(doc(db, 'licenses', deviceId));
-    if (licSnap.exists()) {
-      const lic = licSnap.data();
+    const licSnap = await Promise.race([
+      getDoc(doc(db, 'licenses', deviceId)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500))
+    ]);
+    if (licSnap && (licSnap as any).exists && (licSnap as any).exists()) {
+      const lic = (licSnap as any).data();
       if (lic.status === 'revoked') {
         return { success: false, error: 'Vaša licenca je ukinuta od strane administratora.' };
       }
@@ -391,37 +394,38 @@ export async function sendChatMessage(text: string): Promise<{ success: boolean;
     readBy: [{ deviceId, userName, readAt: Date.now() }]
   };
 
-  // 1. Odmah spremi lokalno
+  // 1. Odmah spremi lokalno u predmemoriju uređaja
   const current = getLocalChatCache();
   current.push(newMsg);
   saveLocalChatCache(current);
 
-  // 2. Ugasi status tipkanja jer je poruka poslana
+  // 2. Ugasi status tipkanja u pozadini jer je poruka poslana
   setMyTypingStatus(false).catch(() => {});
 
   // 3. Spremi izravno u Firestore (odmah vidljivo svim ostalim korisnicima)
   try {
-    await setDoc(doc(db, 'chat_messages', newMsg.id), newMsg);
+    await Promise.race([
+      setDoc(doc(db, 'chat_messages', newMsg.id), newMsg),
+      new Promise((resolve) => setTimeout(resolve, 3000))
+    ]);
   } catch (err: any) {
     console.warn('Greška pri spremanju u Firestore chat:', err);
   }
 
-  // 4. Pošalji i poslužitelju
-  try {
-    await safeFetchJson(
-      getApiUrl('/api/chat/messages'),
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deviceId,
-          activationKey: getStoredActivationKey(),
-          userName,
-          text: cleanText
-        })
-      }
-    );
-  } catch {}
+  // 4. Asinkrono pošalji i poslužitelju (potpuno u pozadini bez čekanja)
+  safeFetchJson(
+    getApiUrl('/api/chat/messages'),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deviceId,
+        activationKey: getStoredActivationKey(),
+        userName,
+        text: cleanText
+      })
+    }
+  ).catch(() => {});
 
   return { 
     success: true, 

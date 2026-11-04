@@ -42,6 +42,7 @@ import {
   requestNotificationPermission, 
   updateAppBadge 
 } from './services/notificationService';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { 
   checkForAppUpdate, 
   AppVersionInfo, 
@@ -237,6 +238,42 @@ export default function App() {
   useEffect(() => {
     // Inicijalno zatraži dozvolu za prikaz obavijesti i zvuk (Android + PWA)
     requestNotificationPermission().catch(() => {});
+
+    // Slušaj klik na obavijest na Android mobitelu kako bi odmah otvorio LiveChat
+    let isMounted = true;
+    try {
+      LocalNotifications.addListener('localNotificationActionPerformed', () => {
+        if (isMounted) {
+          setShowChatModal(true);
+        }
+      });
+    } catch {}
+
+    const handleCheckPendingOpen = () => {
+      try {
+        if (localStorage.getItem('ribo_pending_open_chat_on_resume') === 'true') {
+          localStorage.removeItem('ribo_pending_open_chat_on_resume');
+          setShowChatModal(true);
+        }
+      } catch {}
+    };
+
+    window.addEventListener('focus', handleCheckPendingOpen);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        handleCheckPendingOpen();
+      }
+    });
+
+    handleCheckPendingOpen();
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleCheckPendingOpen);
+      try {
+        LocalNotifications.removeAllListeners();
+      } catch {}
+    };
   }, []);
 
   // Pretplata na poruke u stvarnom vremenu za zvučnu obavijest, obavijest na traci i ikoni aplikacije (App Badge)
@@ -273,6 +310,13 @@ export default function App() {
             // Zvuk i sistemska skočna obavijest na mobitelu (Android i Web)
             showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
             lastNotifiedMsgIdRef.current = newestMsg.id;
+
+            // Ako je korisnik u tom trenutku bio izvan aplikacije, zabilježi da se pri povratku otvori LiveChat
+            if (typeof document !== 'undefined' && document.hidden) {
+              try {
+                localStorage.setItem('ribo_pending_open_chat_on_resume', 'true');
+              } catch {}
+            }
           } else if (!lastNotifiedMsgIdRef.current) {
             lastNotifiedMsgIdRef.current = newestMsg.id;
           }
@@ -289,6 +333,16 @@ export default function App() {
     setUnreadChatCount(0);
     markChatAsRead();
     updateAppBadge(0);
+    try {
+      localStorage.removeItem('ribo_pending_open_chat_on_resume');
+    } catch {}
+  };
+
+  const handleCloseChat = () => {
+    setShowChatModal(false);
+    try {
+      localStorage.removeItem('ribo_pending_open_chat_on_resume');
+    } catch {}
   };
 
   // Ručna provjera nadogradnji (iz footera ili postavki)
@@ -731,7 +785,7 @@ export default function App() {
       {/* Modal za interni Dunavski ribički chat */}
       <FishingChatModal
         isOpen={showChatModal}
-        onClose={() => setShowChatModal(false)}
+        onClose={handleCloseChat}
       />
 
     </div>
