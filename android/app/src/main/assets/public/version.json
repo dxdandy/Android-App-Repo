@@ -1,14 +1,14 @@
 {
-  "version": "1.4.4",
+  "version": "1.4.6",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-04",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.4.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.6.apk",
   "changelog": [
-    "Ispravljeno pokretanje: aplikacija se uvijek otvara u standardnom osnovnom modu s kompletnim pregledom",
-    "Ispravljen LiveChat modal koji se sada pravilno zatvara na gumb X ili dodir pozadine",
-    "Brzo i pouzdano slanje poruka bez zastoja i blokiranja gumba",
-    "Automatsko otvaranje LiveChata pri ulasku u aplikaciju samo ako je korisnik primio novu poruku dok je bio izvan aplikacije",
-    "Povezivanje s javnim poslužiteljem za mobilne instalacije"
+    "Dodan novi gumb i stranica 'Lovostaj riba' sa službenim pravilnikom i ugrađenim PDF dokumentom",
+    "Preimenovan gumb 'Ekspertni mod (Pro)' u pregledniji 'Pro mod'",
+    "Interaktivna tražilica i tablica ribljih vrsta s automatskim statusom trenutnog lovostaja",
+    "Istaknute posebne napomene za dunavske rukavce i vrste bez nacionalnog lovostaja",
+    "Ispravljena i stabilna dvosmjerna sinkronizacija LiveChata"
   ],
   "isCritical": false
 }

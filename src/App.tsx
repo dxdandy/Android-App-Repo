@@ -30,6 +30,7 @@ import { AdminKeyGeneratorModal } from './components/AdminKeyGeneratorModal';
 import { AppUpdateModal } from './components/AppUpdateModal';
 import { DonationModal } from './components/DonationModal';
 import { FishingChatModal } from './components/FishingChatModal';
+import { LovostajModal } from './components/LovostajModal';
 import { isAppActivated, verifyLicenseWithServer, getDeviceId } from './services/licenseService';
 import { 
   fetchChatMessages, 
@@ -57,6 +58,7 @@ export default function App() {
   const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
   const [showDonationModal, setShowDonationModal] = useState<boolean>(false);
   const [showChatModal, setShowChatModal] = useState<boolean>(false);
+  const [showLovostajModal, setShowLovostajModal] = useState<boolean>(false);
   const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
 
   // Stanja za automatska ažuriranja
@@ -457,8 +459,8 @@ export default function App() {
               Hidrometeo & Solunarni Centar Dunava
             </h1>
 
-            {/* Odabir načina prikaza: Osnovni mod vs Ekspertni mod (podignuto na visinu blinkajućeg teksta) */}
-            <div className="mt-2 sm:mt-2.5 flex items-center gap-2.5 flex-wrap">
+            {/* Odabir načina prikaza: Osnovni mod vs Pro mod te Lovostaj riba */}
+            <div className="mt-2 sm:mt-2.5 flex items-center gap-2 sm:gap-2.5 flex-wrap">
               <div className="inline-flex p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner">
                 <button
                   type="button"
@@ -486,9 +488,22 @@ export default function App() {
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <span>🎯 Ekspertni mod (Pro)</span>
+                  <span>🎯 Pro mod</span>
                 </button>
               </div>
+
+              {/* Novi gumb: Lovostaj riba */}
+              <button
+                type="button"
+                onClick={() => setShowLovostajModal(true)}
+                className="px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 text-emerald-200 border border-emerald-500/40 shadow-md active:scale-95 shrink-0"
+                title="Prikaz pravilnika: Lovostaj i najmanja lovna mjera (PDF)"
+              >
+                <span>🐟 Lovostaj riba</span>
+                <span className="text-[9px] bg-emerald-500/25 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-500/40 font-black tracking-wide">
+                  PDF
+                </span>
+              </button>
 
               <span className="text-[11px] text-slate-400 hidden sm:inline-block">
                 {viewMode === 'basic' ? 'Pojednostavljeni brzi pregled za vodu' : 'Puni ribolovni centar s grafikonima i savjetima'}
@@ -575,6 +590,7 @@ export default function App() {
             solunar={solunarData} 
             isLoading={isLoading} 
             onOpenExpertSection={handleOpenExpertSection}
+            onOpenLovostaj={() => setShowLovostajModal(true)}
           />
         ) : (
           /* DUBINSKI EKSPERTNI RIBOLOVNI MOD */
@@ -786,6 +802,12 @@ export default function App() {
       <FishingChatModal
         isOpen={showChatModal}
         onClose={handleCloseChat}
+      />
+
+      {/* Modal za Lovostaj i najmanje lovne mjere (PDF) */}
+      <LovostajModal
+        isOpen={showLovostajModal}
+        onClose={() => setShowLovostajModal(false)}
       />
 
     </div>

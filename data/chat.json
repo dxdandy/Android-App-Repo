@@ -7,5 +7,59 @@
     "timestamp": "10:52",
     "createdAt": 1793443953594,
     "readBy": []
+  },
+  {
+    "id": "test-msg-1",
+    "deviceId": "test-device",
+    "userName": "Ribič",
+    "text": "Pozdrav",
+    "timestamp": "",
+    "createdAt": 1793782671640,
+    "readBy": [
+      {
+        "deviceId": "RP-B4AP-X4FH",
+        "readAt": 1793786615571,
+        "userName": "Ribič (X4FH)"
+      }
+    ]
+  },
+  {
+    "id": "msg-test-2",
+    "deviceId": "RP-B4AP-X4FH",
+    "userName": "Ribič (X4FH)",
+    "text": "Testna poruka 2",
+    "timestamp": "11:15",
+    "createdAt": 1793786831550,
+    "readBy": [
+      {
+        "readAt": 1793786831550,
+        "deviceId": "RP-B4AP-X4FH",
+        "userName": "Ribič (X4FH)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1793787108872-ipff",
+    "deviceId": "RP-B4AP-X4FH",
+    "userName": "Ribič (X4FH)",
+    "text": "Pozdrav s Dunava test",
+    "timestamp": "10:11",
+    "createdAt": 1793787108910,
+    "readBy": []
+  },
+  {
+    "id": "msg-1793787834325-lloh",
+    "deviceId": "RP-ADMIN",
+    "userName": "Administrator",
+    "text": "Provjera sinkronizacije chata v1.4.5",
+    "timestamp": "10:23",
+    "createdAt": 1793787834325,
+    "readBy": [
+      {
+        "deviceId": "RP-ADMIN",
+        "userName": "Administrator",
+        "readAt": 1793787834331
+      }
+    ]
   }
 ]

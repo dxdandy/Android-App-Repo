@@ -189,6 +189,35 @@ export function subscribeToChatMessages(
   const deviceId = overrideDeviceId || getDeviceId();
   let isChatBlocked = false;
   let blockedReason = '';
+  let active = true;
+
+  // Mapa poruka sjedinjena iz svih kanala (Firestore + lokalni cache + poslužitelj)
+  const messageMap = new Map<string, ChatMessage>();
+
+  const emitMerged = () => {
+    if (!active) return;
+    if (isChatBlocked) {
+      callback({
+        messages: [],
+        chatBlocked: true,
+        message: blockedReason || 'Pristup LiveChatu je onemogućen.'
+      });
+      return;
+    }
+    const sorted = Array.from(messageMap.values()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    saveLocalChatCache(sorted);
+    callback({
+      messages: sorted,
+      chatBlocked: false
+    });
+  };
+
+  // Učitaj odmah lokalni cache tako da korisnik odmah vidi sve postojeće poruke
+  const cached = getLocalChatCache();
+  cached.forEach(m => messageMap.set(m.id, m));
+  if (cached.length > 0) {
+    emitMerged();
+  }
 
   // 1. Provjeri status ovlasti u Firestore bazi za ovog korisnika
   const licenseRef = doc(db, 'licenses', deviceId);
@@ -205,12 +234,13 @@ export function subscribeToChatMessages(
         isChatBlocked = false;
         blockedReason = '';
       }
+      emitMerged();
     }
   }, () => {
-    // Ako nema pristupa licenci, dopusti lokalno
+    // Ako nema pristupa licenci u Firestore, dopusti lokalno
   });
 
-  // 2. Slušaj promjene u kolekciji chat_messages
+  // 2. Slušaj promjene u kolekciji chat_messages u Firestore bazi
   const q = query(
     collection(db, 'chat_messages'),
     orderBy('createdAt', 'asc'),
@@ -218,19 +248,9 @@ export function subscribeToChatMessages(
   );
 
   const unsubscribeMessages = onSnapshot(q, snapshot => {
-    if (isChatBlocked) {
-      callback({
-        messages: [],
-        chatBlocked: true,
-        message: blockedReason || 'Pristup LiveChatu je onemogućen.'
-      });
-      return;
-    }
-
-    const msgs: ChatMessage[] = [];
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
-      msgs.push({
+      const newMsg: ChatMessage = {
         id: docSnap.id,
         deviceId: data.deviceId || '',
         userName: data.userName || 'Ribič',
@@ -238,27 +258,51 @@ export function subscribeToChatMessages(
         timestamp: data.timestamp || '',
         createdAt: data.createdAt || 0,
         readBy: data.readBy || []
-      });
+      };
+      messageMap.set(newMsg.id, newMsg);
     });
-
-    saveLocalChatCache(msgs);
-
-    callback({
-      messages: msgs,
-      chatBlocked: false
-    });
+    emitMerged();
   }, error => {
     console.warn('Greška u Firestore live pretplati na chat:', error);
-    // U slučaju offline rada vrati lokalnu predmemoriju
-    const cached = getLocalChatCache();
-    callback({
-      messages: cached,
-      chatBlocked: isChatBlocked,
-      message: isChatBlocked ? blockedReason : undefined
-    });
+    emitMerged();
   });
 
+  // 3. Dodatna periodička sinkronizacija s poslužiteljem (/api/chat/messages)
+  const pollServer = async () => {
+    if (!active) return;
+    try {
+      const res = await safeFetchJson<{ success: boolean; messages?: ChatMessage[]; chatBlocked?: boolean; message?: string }>(
+        getApiUrl(`/api/chat/messages?deviceId=${encodeURIComponent(deviceId)}`),
+        {
+          headers: { 'x-device-id': deviceId }
+        }
+      );
+      if (res.ok && res.data) {
+        if (res.data.chatBlocked) {
+          isChatBlocked = true;
+          blockedReason = res.data.message || 'Pristup onemogućen.';
+        }
+        if (Array.isArray(res.data.messages)) {
+          let hasNew = false;
+          res.data.messages.forEach(m => {
+            const existing = messageMap.get(m.id);
+            if (!existing || JSON.stringify(existing.readBy) !== JSON.stringify(m.readBy)) {
+              messageMap.set(m.id, m);
+              hasNew = true;
+            }
+          });
+          if (hasNew) emitMerged();
+        }
+      }
+    } catch {}
+  };
+
+  pollServer();
+  const pollTimer = setInterval(pollServer, 3500);
+
   return () => {
+    active = false;
+    clearInterval(pollTimer);
     unsubscribeLicense();
     unsubscribeMessages();
   };
@@ -412,13 +456,15 @@ export async function sendChatMessage(text: string): Promise<{ success: boolean;
     console.warn('Greška pri spremanju u Firestore chat:', err);
   }
 
-  // 4. Asinkrono pošalji i poslužitelju (potpuno u pozadini bez čekanja)
+  // 4. Asinkrono pošalji i poslužitelju s istim ID-om kako bi se podaci podudarali u svim bazama
   safeFetchJson(
     getApiUrl('/api/chat/messages'),
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        id: newMsg.id,
+        createdAt: newMsg.createdAt,
         deviceId,
         activationKey: getStoredActivationKey(),
         userName,

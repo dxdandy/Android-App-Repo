@@ -193,6 +193,11 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     setIsSending(false);
 
     if (res.success && res.message) {
+      const sentMsg = res.message;
+      setMessages(prev => {
+        if (prev.some(m => m.id === sentMsg.id)) return prev;
+        return [...prev, sentMsg];
+      });
       setInputText('');
       setTimeout(scrollToBottom, 50);
       inputRef.current?.focus();

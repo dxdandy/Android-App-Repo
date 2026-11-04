@@ -3,6 +3,8 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -681,6 +683,76 @@ function saveChat(messages: ChatMessageRecord[]): void {
   }
 }
 
+// Inicijalizacija Firebase Firestore sinkronizacije na poslužitelju
+let serverDb: any = null;
+try {
+  const firebaseConfigPath = path.resolve(__dirname, 'firebase-applet-config.json');
+  if (fs.existsSync(firebaseConfigPath)) {
+    const rawCfg = fs.readFileSync(firebaseConfigPath, 'utf-8');
+    const firebaseConfig = JSON.parse(rawCfg);
+    const fbApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    serverDb = getFirestore(fbApp, firebaseConfig.firestoreDatabaseId || '(default)');
+    console.log('Poslužitelj povezan s Firestore:', firebaseConfig.firestoreDatabaseId);
+
+    // 1. Sinkroniziraj postojeće licence u Firestore
+    const localLicenses = loadLicenses();
+    for (const lic of localLicenses) {
+      if (lic.deviceId) {
+        setDoc(doc(serverDb, 'licenses', lic.deviceId), lic, { merge: true }).catch(() => {});
+      }
+    }
+
+    // 2. Sinkroniziraj postojeće poruke iz chat.json u Firestore
+    const localChat = loadChat();
+    for (const msg of localChat) {
+      if (msg.id) {
+        setDoc(doc(serverDb, 'chat_messages', msg.id), msg, { merge: true }).catch(() => {});
+      }
+    }
+
+    // 3. Sinkroniziraj sve poruke iz Firestore u lokalnu bazu poslužitelja u stvarnom vremenu
+    onSnapshot(collection(serverDb, 'chat_messages'), snapshot => {
+      let currentChat = loadChat();
+      let hasChanges = false;
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'added' || change.type === 'modified') {
+          const d = change.doc.data();
+          const docId = change.doc.id;
+          const idx = currentChat.findIndex(m => m.id === docId);
+          const newEntry: ChatMessageRecord = {
+            id: docId,
+            deviceId: d.deviceId || '',
+            userName: d.userName || 'Ribič',
+            text: d.text || '',
+            timestamp: d.timestamp || '',
+            createdAt: d.createdAt || Date.now(),
+            readBy: d.readBy || []
+          };
+          if (idx >= 0) {
+            currentChat[idx] = newEntry;
+            hasChanges = true;
+          } else {
+            currentChat.push(newEntry);
+            hasChanges = true;
+          }
+        } else if (change.type === 'removed') {
+          const docId = change.doc.id;
+          currentChat = currentChat.filter(m => m.id !== docId);
+          hasChanges = true;
+        }
+      });
+      if (hasChanges) {
+        currentChat.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        saveChat(currentChat);
+      }
+    }, err => {
+      console.warn('Upozorenje: Firestore listener na poslužitelju:', err);
+    });
+  }
+} catch (err) {
+  console.warn('Upozorenje pri inicijalizaciji Firebase na poslužitelju:', err);
+}
+
 /**
  * API: Registracija i redovita provjera licence s poslužiteljem
  */
@@ -1105,20 +1177,35 @@ app.post('/api/chat/messages', (req, res) => {
   const cleanText = String(text).trim().slice(0, 350); // limit 350 znakova
 
   let chat = loadChat();
+  const msgId = (req.body.id && String(req.body.id).trim()) || `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const msgCreatedAt = (req.body.createdAt && Number(req.body.createdAt)) || Date.now();
   const newMsg: ChatMessageRecord = {
-    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    id: msgId,
     deviceId: cleanDeviceId,
     userName: userLicense.userName, // Koristi službeno ime iz kontrolnog panela
     text: cleanText,
     timestamp: new Date().toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' }),
-    createdAt: Date.now()
+    createdAt: msgCreatedAt,
+    readBy: [{ deviceId: cleanDeviceId, userName: userLicense.userName, readAt: Date.now() }]
   };
 
-  chat.push(newMsg);
+  const existingIdx = chat.findIndex(m => m.id === newMsg.id);
+  if (existingIdx >= 0) {
+    chat[existingIdx] = newMsg;
+  } else {
+    chat.push(newMsg);
+  }
   if (chat.length > 250) {
     chat = chat.slice(-250);
   }
   saveChat(chat);
+
+  // Sinkroniziraj i u Firestore oblak tako da svi mobilni i web klijenti prime poruku u istoj sekundi
+  if (serverDb) {
+    setDoc(doc(serverDb, 'chat_messages', newMsg.id), newMsg, { merge: true }).catch(err => {
+      console.warn('Greška pri sinkronizaciji u Firestore iz /api/chat/messages:', err);
+    });
+  }
 
   return res.json({ success: true, message: newMsg });
 });
@@ -1137,6 +1224,10 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
   chat = chat.filter(m => m.id !== id);
   saveChat(chat);
 
+  if (serverDb) {
+    deleteDoc(doc(serverDb, 'chat_messages', id)).catch(() => {});
+  }
+
   res.json({ success: true });
 });
 
@@ -1146,16 +1237,16 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.4.4',
+    version: '1.4.6',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-04',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.4.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.6.apk',
     changelog: [
-      'Ispravljeno pokretanje: aplikacija se uvijek otvara u standardnom osnovnom modu s kompletnim pregledom',
-      'Ispravljen LiveChat modal koji se sada pravilno zatvara na gumb X ili dodir pozadine',
-      'Brzo i pouzdano slanje poruka bez zastoja i blokiranja gumba',
-      'Automatsko otvaranje LiveChata pri ulasku u aplikaciju samo ako je korisnik primio novu poruku dok je bio izvan aplikacije',
-      'Povezivanje s javnim poslužiteljem za mobilne instalacije'
+      'Dodan novi gumb i stranica Lovostaj riba sa službenim pravilnikom i ugrađenim PDF dokumentom',
+      'Preimenovan gumb Ekspertni mod (Pro) u pregledniji Pro mod',
+      'Interaktivna tražilica i tablica ribljih vrsta s automatskim statusom trenutnog lovostaja',
+      'Istaknute posebne napomene za dunavske rukavce i vrste bez nacionalnog lovostaja',
+      'Ispravljena i stabilna dvosmjerna sinkronizacija LiveChata'
     ],
     isCritical: false
   });
