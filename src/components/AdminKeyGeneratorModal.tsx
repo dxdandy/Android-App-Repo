@@ -35,6 +35,8 @@ import {
   addAdminLicense,
   updateAdminLicense,
   deleteAdminLicense,
+  renameUserAsAdmin,
+  setAdminUnlocked,
   LicenseRecord
 } from '../services/licenseService';
 import { 
@@ -43,6 +45,8 @@ import {
   deleteChatMessageAsAdmin,
   ChatMessage
 } from '../services/chatService';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { 
   runUpdateDiagnostic, 
   CURRENT_APP_VERSION, 
@@ -137,9 +141,27 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
-      if (activeTab === 'korisnici') loadLicensesData();
-      if (activeTab === 'chat') loadChatData();
+    if (!isAuthenticated) return;
+    if (activeTab === 'korisnici') {
+      loadLicensesData();
+      const unsubLicenses = onSnapshot(collection(db, 'licenses'), snapshot => {
+        if (!snapshot.empty) {
+          const list: LicenseRecord[] = [];
+          snapshot.forEach(docSnap => {
+            list.push(docSnap.data() as LicenseRecord);
+          });
+          list.sort((a, b) => new Date(b.lastSeenAt || 0).getTime() - new Date(a.lastSeenAt || 0).getTime());
+          setLicenses(list);
+        }
+      }, err => console.warn('Licenses onSnapshot warning:', err));
+      return () => unsubLicenses();
+    }
+    if (activeTab === 'chat') {
+      loadChatData();
+      const unsubChat = onSnapshot(collection(db, 'chat_messages'), () => {
+        loadChatData();
+      }, err => console.warn('Chat onSnapshot warning:', err));
+      return () => unsubChat();
     }
   }, [isAuthenticated, activeTab]);
 
@@ -150,6 +172,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
     if (checkAdminPin(pinInput)) {
       setIsAuthenticated(true);
       setPinError(false);
+      setAdminUnlocked(true);
     } else {
       setPinError(true);
     }
@@ -224,10 +247,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
   const handleSaveName = async (deviceId: string) => {
     if (!editingNameValue.trim()) return;
     try {
-      await updateAdminLicense(pinInput || '2026', {
-        deviceId,
-        userName: editingNameValue.trim()
-      });
+      await renameUserAsAdmin(deviceId, editingNameValue.trim(), pinInput || '2026');
       setLicenses(prev => prev.map(l => l.deviceId === deviceId ? { ...l, userName: editingNameValue.trim() } : l));
       setEditingDeviceId(null);
       setActionSuccessMsg(`Ime korisnika uspješno promijenjeno u: ${editingNameValue.trim()}`);

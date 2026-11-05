@@ -2,7 +2,7 @@
  * Sustav licenci i zaštite aplikacije (Hardverski ID uređaja + Centralni registar i opoziv)
  * Autor: Daniel Čizmar
  */
-import { doc, getDoc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, query, where } from 'firebase/firestore';
 import { db } from './firebase';
 
 const SECRET_SALT = 'DUNAV_ZANDER_DANIEL_CIZMAR_2026_PROTECT_KEY';
@@ -367,6 +367,29 @@ export function checkAdminPin(pin: string): boolean {
   return pin.trim() === ADMIN_MASTER_PIN;
 }
 
+/**
+ * Provjerava je li trenutni korisnik otključan kao administrator (RP-ADMIN ili verifikacija PIN-om)
+ */
+export function isAdminUnlocked(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    getDeviceId() === 'RP-ADMIN' ||
+    localStorage.getItem('ribo_admin_unlocked') === 'true'
+  );
+}
+
+/**
+ * Postavlja administratorski status nakon unosa točnog PIN-a
+ */
+export function setAdminUnlocked(unlocked: boolean): void {
+  if (typeof window === 'undefined') return;
+  if (unlocked) {
+    localStorage.setItem('ribo_admin_unlocked', 'true');
+  } else {
+    localStorage.removeItem('ribo_admin_unlocked');
+  }
+}
+
 /* =====================================================================
  * ADMIN POZIVI ZA KONTROLU I OPOZIV LICENCI (S LOKALNOM POUZDANOM POHRANOM)
  * ===================================================================== */
@@ -571,3 +594,96 @@ export async function deleteAdminLicense(pin: string, deviceId: string): Promise
 
   return true;
 }
+
+/**
+ * Administratorska promjena imena bilo kojeg korisnika u sustavu (LiveChat ili kontrolni panel)
+ * Ažurira bazu licenci u Firestore oblaku, sve postojeće poruke u chat_messages,
+ * lokalnu predmemoriju i centralni poslužitelj.
+ */
+export async function renameUserAsAdmin(
+  targetDeviceId: string,
+  newName: string,
+  pin: string = '2026'
+): Promise<{ success: boolean; newName: string; error?: string }> {
+  const cleanId = targetDeviceId.trim().toUpperCase();
+  const cleanName = newName.trim().slice(0, 30);
+  if (!cleanId || !cleanName) {
+    return { success: false, newName: '', error: 'ID uređaja i novo ime su obavezni.' };
+  }
+
+  // 1. Ažuriraj u Firestore licenci (izravno u oblaku)
+  try {
+    await setDoc(doc(db, 'licenses', cleanId), {
+      deviceId: cleanId,
+      userName: cleanName,
+      lastSeenAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err: any) {
+    console.warn('Greška pri spremanju licence u Firestore:', err);
+  }
+
+  // 2. Ažuriraj sve poruke koje je poslao ovaj korisnik u Firestore bazi chat_messages
+  try {
+    const q = query(collection(db, 'chat_messages'), where('deviceId', '==', cleanId));
+    const snap = await getDocs(q);
+    const updatePromises = snap.docs.map(d =>
+      setDoc(d.ref, { userName: cleanName }, { merge: true })
+    );
+    await Promise.allSettled(updatePromises);
+  } catch (err: any) {
+    console.warn('Greška pri ažuriranju postojećih poruka u Firestoreu:', err);
+  }
+
+  // 3. Pošalji i poslužitelju (za licenses.json i chat.json)
+  try {
+    safeFetchJson(getApiUrl('/api/admin/licenses/update'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-pin': pin.trim() },
+      body: JSON.stringify({ deviceId: cleanId, userName: cleanName })
+    }).catch(() => {});
+
+    safeFetchJson(getApiUrl('/api/chat/rename'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId: cleanId, newName: cleanName })
+    }).catch(() => {});
+  } catch {}
+
+  // 4. Ažuriraj lokalnu predmemoriju licenci
+  const currentLicenses = getLocalLicenses();
+  const licIdx = currentLicenses.findIndex(l => l.deviceId === cleanId);
+  if (licIdx >= 0) {
+    currentLicenses[licIdx].userName = cleanName;
+  } else {
+    currentLicenses.push({
+      deviceId: cleanId,
+      activationKey: generateActivationKey(cleanId),
+      userName: cleanName,
+      status: 'active',
+      chatEnabled: true,
+      createdAt: new Date().toISOString(),
+      lastSeenAt: new Date().toISOString()
+    });
+  }
+  saveLocalLicenses(currentLicenses);
+
+  // 5. Ažuriraj lokalnu predmemoriju chata ako postoji
+  try {
+    const rawChat = localStorage.getItem('ribo_chat_messages_cache');
+    if (rawChat) {
+      const msgs = JSON.parse(rawChat);
+      if (Array.isArray(msgs)) {
+        const updated = msgs.map((m: any) => m.deviceId === cleanId ? { ...m, userName: cleanName } : m);
+        localStorage.setItem('ribo_chat_messages_cache', JSON.stringify(updated));
+      }
+    }
+  } catch {}
+
+  // 6. Ako je admin promijenio vlastito ime, ažuriraj i u ribo_user_name
+  if (cleanId === getDeviceId()) {
+    setStoredUserName(cleanName);
+  }
+
+  return { success: true, newName: cleanName };
+}
+

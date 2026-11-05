@@ -746,7 +746,35 @@ try {
         saveChat(currentChat);
       }
     }, err => {
-      console.warn('Upozorenje: Firestore listener na poslužitelju:', err);
+      console.warn('Upozorenje: Firestore chat listener na poslužitelju:', err);
+    });
+
+    // 4. Sinkroniziraj sve licence iz Firestore u lokalnu bazu poslužitelja u stvarnom vremenu
+    onSnapshot(collection(serverDb, 'licenses'), snapshot => {
+      let currentLicenses = loadLicenses();
+      let hasChanges = false;
+      snapshot.docChanges().forEach(change => {
+        const d = change.doc.data() as LicenseRecord;
+        const docId = change.doc.id;
+        if (change.type === 'added' || change.type === 'modified') {
+          const idx = currentLicenses.findIndex(l => l.deviceId === docId);
+          if (idx >= 0) {
+            currentLicenses[idx] = { ...currentLicenses[idx], ...d };
+            hasChanges = true;
+          } else {
+            currentLicenses.push(d);
+            hasChanges = true;
+          }
+        } else if (change.type === 'removed') {
+          currentLicenses = currentLicenses.filter(l => l.deviceId !== docId);
+          hasChanges = true;
+        }
+      });
+      if (hasChanges) {
+        saveLicenses(currentLicenses);
+      }
+    }, err => {
+      console.warn('Upozorenje: Firestore licenses listener na poslužitelju:', err);
     });
   }
 } catch (err) {
@@ -877,6 +905,9 @@ app.post('/api/admin/licenses/add', (req, res) => {
     if (typeof notes === 'string') licenses[existingIdx].notes = notes.trim();
     licenses[existingIdx].lastSeenAt = new Date().toISOString();
     saveLicenses(licenses);
+    if (serverDb) {
+      setDoc(doc(serverDb, 'licenses', cleanDeviceId), licenses[existingIdx], { merge: true }).catch(() => {});
+    }
     return res.json({ success: true, license: licenses[existingIdx], updated: true });
   }
 
@@ -893,6 +924,9 @@ app.post('/api/admin/licenses/add', (req, res) => {
 
   licenses.unshift(newRecord);
   saveLicenses(licenses);
+  if (serverDb) {
+    setDoc(doc(serverDb, 'licenses', cleanDeviceId), newRecord, { merge: true }).catch(() => {});
+  }
   return res.json({ success: true, license: newRecord, created: true });
 });
 
@@ -929,6 +963,9 @@ app.post('/api/admin/licenses/update', (req, res) => {
     };
     licenses.push(newRecord);
     saveLicenses(licenses);
+    if (serverDb) {
+      setDoc(doc(serverDb, 'licenses', cleanDeviceId), newRecord, { merge: true }).catch(() => {});
+    }
     return res.json({ success: true, license: newRecord });
   }
 
@@ -938,6 +975,9 @@ app.post('/api/admin/licenses/update', (req, res) => {
   if (typeof notes === 'string') target.notes = notes.trim();
 
   saveLicenses(licenses);
+  if (serverDb) {
+    setDoc(doc(serverDb, 'licenses', cleanDeviceId), target, { merge: true }).catch(() => {});
+  }
   return res.json({ success: true, license: target });
 });
 
@@ -954,6 +994,9 @@ app.delete('/api/admin/licenses/:deviceId', (req, res) => {
   let licenses = loadLicenses();
   licenses = licenses.filter(l => l.deviceId !== cleanDeviceId);
   saveLicenses(licenses);
+  if (serverDb) {
+    deleteDoc(doc(serverDb, 'licenses', cleanDeviceId)).catch(() => {});
+  }
 
   res.json({ success: true, message: 'Licenca obrisana' });
 });
@@ -1099,6 +1142,9 @@ app.post('/api/chat/rename', (req, res) => {
   if (existing) {
     existing.userName = cleanName;
     saveLicenses(licenses);
+    if (serverDb) {
+      setDoc(doc(serverDb, 'licenses', cleanDeviceId), existing, { merge: true }).catch(() => {});
+    }
   } else {
     const newRecord: LicenseRecord = {
       deviceId: cleanDeviceId,
@@ -1111,6 +1157,9 @@ app.post('/api/chat/rename', (req, res) => {
     };
     licenses.push(newRecord);
     saveLicenses(licenses);
+    if (serverDb) {
+      setDoc(doc(serverDb, 'licenses', cleanDeviceId), newRecord, { merge: true }).catch(() => {});
+    }
   }
 
   // Ažuriraj i u zadnjim spremljenim porukama
@@ -1119,6 +1168,9 @@ app.post('/api/chat/rename', (req, res) => {
   chat = chat.map(m => {
     if (m.deviceId === cleanDeviceId) {
       updatedAny = true;
+      if (serverDb) {
+        setDoc(doc(serverDb, 'chat_messages', m.id), { userName: cleanName }, { merge: true }).catch(() => {});
+      }
       return { ...m, userName: cleanName };
     }
     return m;
@@ -1237,17 +1289,16 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.4.8',
+    version: '1.4.9',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-05',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.8.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.9.apk',
     changelog: [
-      'Potpuno popravljena i provjerena dvosmjerna sinkronizacija LiveChat poruka za sve ribiče',
-      'Uklonjena blokada mrežnih streamova u Android aplikaciji (onemogućen CapacitorHttp interceptor)',
-      'Uveden izravan i trenutan prijenos poruka putem Google Firestore baze (push obavijesti i u stvarnom vremenu)',
-      'Prikaz punog naziva Lovostaj i najmanja lovna mjera bez točkica',
-      'Fiksna i pregledna tablica lovostaja bez vodoravnog klizanja',
-      'Objedinjeni gumbi načina rada u jednom redu (Osnovni mod, Pro mod, Lovostaj riba)'
+      'Sinkronizirani svi korisnici između računala i mobilnih uređaja u kontrolnom panelu (ukupno 6 aktivnih ribiča)',
+      'Omogućena izravna promjena imena korisnika u LiveChatu klikom na ime pošiljatelja poruke (za administratora Daniel)',
+      'Novo ime korisnika automatski i trenutno vidljivo svim ribičima u stvarnom vremenu',
+      'Povezane licence s centralnom bazom u stvarnom vremenu (obostrano usklađivanje računalo - mobitel)',
+      'Prikaz punog naziva Lovostaj i najmanja lovna mjera i tablica bez klizanja'
     ],
     isCritical: false
   });

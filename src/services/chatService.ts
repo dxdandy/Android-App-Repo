@@ -4,7 +4,11 @@ import {
   setStoredUserName, 
   getUserName, 
   getApiUrl, 
-  safeFetchJson 
+  safeFetchJson,
+  getLocalLicenses,
+  renameUserAsAdmin,
+  isAdminUnlocked,
+  setAdminUnlocked
 } from './licenseService';
 import { updateAppBadge } from './notificationService';
 import { 
@@ -22,7 +26,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 
-export { updateAppBadge };
+export { updateAppBadge, renameUserAsAdmin, isAdminUnlocked, setAdminUnlocked };
 
 export interface ChatReadReceipt {
   deviceId: string;
@@ -193,6 +197,13 @@ export function subscribeToChatMessages(
 
   // Mapa poruka sjedinjena iz svih kanala (Firestore + lokalni cache + poslužitelj)
   const messageMap = new Map<string, ChatMessage>();
+  // Službena imena iz centralnog registra licenci: deviceId -> userName
+  const userNamesMap = new Map<string, string>();
+
+  // Inicijalno napuni mapu imena iz lokalne baze licenci
+  getLocalLicenses().forEach(l => {
+    if (l.deviceId && l.userName) userNamesMap.set(l.deviceId, l.userName);
+  });
 
   const emitMerged = () => {
     if (!active) return;
@@ -204,7 +215,20 @@ export function subscribeToChatMessages(
       });
       return;
     }
-    const sorted = Array.from(messageMap.values()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    const sorted = Array.from(messageMap.values())
+      .map(msg => {
+        const officialName = userNamesMap.get(msg.deviceId);
+        return {
+          ...msg,
+          userName: officialName || msg.userName,
+          readBy: (msg.readBy || []).map(r => ({
+            ...r,
+            userName: userNamesMap.get(r.deviceId) || r.userName
+          }))
+        };
+      })
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
     saveLocalChatCache(sorted);
     callback({
       messages: sorted,
@@ -219,25 +243,35 @@ export function subscribeToChatMessages(
     emitMerged();
   }
 
-  // 1. Provjeri status ovlasti u Firestore bazi za ovog korisnika
-  const licenseRef = doc(db, 'licenses', deviceId);
-  const unsubscribeLicense = onSnapshot(licenseRef, docSnap => {
-    if (docSnap.exists()) {
+  // 1. Slušaj promjene u bazi licenci u Firestore oblaku u stvarnom vremenu.
+  // Čim admin promijeni ime bilo kojem ribiču, u istoj sekundi se na svim uređajima
+  // ažurira ime na svim porukama u LiveChatu!
+  const unsubscribeAllLicenses = onSnapshot(collection(db, 'licenses'), snapshot => {
+    snapshot.forEach(docSnap => {
       const data = docSnap.data();
-      if (data.status === 'revoked') {
-        isChatBlocked = true;
-        blockedReason = 'Vaša licenca je ukinuta od strane administratora.';
-      } else if (data.chatEnabled === false) {
-        isChatBlocked = true;
-        blockedReason = 'Administrator vam je onemogućio pristup LiveChatu.';
-      } else {
-        isChatBlocked = false;
-        blockedReason = '';
+      if (data.deviceId && data.userName) {
+        userNamesMap.set(data.deviceId, data.userName);
       }
-      emitMerged();
-    }
+      // Ako je ovo vlastiti uređaj, provjeri status ovlasti i ažurirano ime
+      if (docSnap.id === deviceId) {
+        if (data.status === 'revoked') {
+          isChatBlocked = true;
+          blockedReason = 'Vaša licenca je ukinuta od strane administratora.';
+        } else if (data.chatEnabled === false) {
+          isChatBlocked = true;
+          blockedReason = 'Administrator vam je onemogućio pristup LiveChatu.';
+        } else {
+          isChatBlocked = false;
+          blockedReason = '';
+        }
+        if (data.userName && data.userName !== getUserName()) {
+          setStoredUserName(data.userName);
+        }
+      }
+    });
+    emitMerged();
   }, () => {
-    // Ako nema pristupa licenci u Firestore, dopusti lokalno
+    // Tihi fallback ako nema pristupa
   });
 
   // 2. Slušaj promjene u kolekciji chat_messages u Firestore bazi
@@ -253,7 +287,7 @@ export function subscribeToChatMessages(
       const newMsg: ChatMessage = {
         id: docSnap.id,
         deviceId: data.deviceId || '',
-        userName: data.userName || 'Ribič',
+        userName: userNamesMap.get(data.deviceId) || data.userName || 'Ribič',
         text: data.text || '',
         timestamp: data.timestamp || '',
         createdAt: data.createdAt || 0,
@@ -311,7 +345,7 @@ export function subscribeToChatMessages(
   return () => {
     active = false;
     if (pollTimer) clearInterval(pollTimer);
-    unsubscribeLicense();
+    unsubscribeAllLicenses();
     unsubscribeMessages();
   };
 }

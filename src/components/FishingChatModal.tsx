@@ -11,7 +11,9 @@ import {
   AlertCircle,
   Edit2,
   Check,
-  Eye
+  Eye,
+  CheckCircle2,
+  Lock
 } from 'lucide-react';
 import { 
   fetchChatMessages, 
@@ -22,7 +24,10 @@ import {
   TypingUser,
   ChatMessage, 
   markChatAsRead, 
-  renameMyUserName 
+  renameMyUserName,
+  renameUserAsAdmin,
+  isAdminUnlocked,
+  setAdminUnlocked
 } from '../services/chatService';
 import { getDeviceId, getUserName } from '../services/licenseService';
 import { playNotificationSound } from '../services/notificationService';
@@ -58,6 +63,18 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [newMyNameInput, setNewMyNameInput] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
 
+  // Stanja za administratorsku promjenu imena korisnika izravno u porukama
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => isAdminUnlocked());
+  const [renameTarget, setRenameTarget] = useState<{ deviceId: string; userName: string } | null>(null);
+  const [renameNewName, setRenameNewName] = useState<string>('');
+  const [isRenaming, setIsRenaming] = useState<boolean>(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSuccessToast, setRenameSuccessToast] = useState<string | null>(null);
+  const [showPinPrompt, setShowPinPrompt] = useState<boolean>(false);
+  const [adminPinInput, setAdminPinInput] = useState<string>('');
+  const [adminPinError, setAdminPinError] = useState<boolean>(false);
+  const [pendingRenameTarget, setPendingRenameTarget] = useState<{ deviceId: string; userName: string } | null>(null);
+
   const myDeviceId = getDeviceId();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +99,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
       return;
     }
 
+    setIsAdmin(isAdminUnlocked());
     setIsLoading(true);
     let initialLoaded = false;
 
@@ -158,6 +176,66 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
       setErrorMessage(err.message || 'Greška pri promjeni imena.');
     } finally {
       setIsSavingName(false);
+    }
+  };
+
+  const handleOpenRenameUser = (targetDeviceId: string, currentUserName: string) => {
+    if (isAdminUnlocked()) {
+      setRenameTarget({ deviceId: targetDeviceId, userName: currentUserName });
+      setRenameNewName(currentUserName);
+      setRenameError(null);
+    } else {
+      setPendingRenameTarget({ deviceId: targetDeviceId, userName: currentUserName });
+      setAdminPinInput('');
+      setAdminPinError(false);
+      setShowPinPrompt(true);
+    }
+  };
+
+  const handleAdminPinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPinInput.trim() === '2026') {
+      setAdminUnlocked(true);
+      setIsAdmin(true);
+      setShowPinPrompt(false);
+      if (pendingRenameTarget) {
+        setRenameTarget(pendingRenameTarget);
+        setRenameNewName(pendingRenameTarget.userName);
+        setRenameError(null);
+        setPendingRenameTarget(null);
+      }
+    } else {
+      setAdminPinError(true);
+    }
+  };
+
+  const handleConfirmRenameUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renameTarget || !renameNewName.trim() || isRenaming) return;
+
+    setIsRenaming(true);
+    setRenameError(null);
+    try {
+      const res = await renameUserAsAdmin(renameTarget.deviceId, renameNewName.trim());
+      if (res.success) {
+        setRenameSuccessToast(`✓ Ime ribiča uspješno promijenjeno u: ${res.newName}`);
+        setTimeout(() => setRenameSuccessToast(null), 3500);
+
+        if (renameTarget.deviceId === myDeviceId) {
+          setMyUserName(res.newName);
+          if (onNameChanged) onNameChanged(res.newName);
+        }
+
+        // Ažuriraj modal tko je pročitao ako je otvoren
+        setSelectedMessageForInfo(prev => prev && prev.deviceId === renameTarget.deviceId ? { ...prev, userName: res.newName } : prev);
+        setRenameTarget(null);
+      } else {
+        setRenameError(res.error || 'Promjena imena nije uspjela.');
+      }
+    } catch (err: any) {
+      setRenameError(err.message || 'Greška pri promjeni imena.');
+    } finally {
+      setIsRenaming(false);
     }
   };
 
@@ -309,6 +387,22 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </button>
         </div>
 
+        {/* Obavijest o uspješnoj promjeni imena */}
+        {renameSuccessToast && (
+          <div className="px-3.5 py-2 bg-emerald-950/90 border-b border-emerald-800/80 text-emerald-300 text-xs flex items-center justify-between gap-2 shrink-0 animate-fadeIn z-20">
+            <span className="flex items-center gap-1.5 font-bold truncate">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              {renameSuccessToast}
+            </span>
+            <button 
+              onClick={() => setRenameSuccessToast(null)} 
+              className="text-emerald-400 hover:text-white text-xs font-bold px-1"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Prozor s porukama ili prikaz blokiranog statusa */}
         {isBlocked ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-slate-950/70">
@@ -350,12 +444,28 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                     key={msg.id} 
                     className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[85%] ${isMine ? 'ml-auto' : 'mr-auto'}`}
                   >
-                    {/* Ime pošiljatelja */}
-                    <span className={`text-[10px] font-bold mb-0.5 px-1 ${
-                      isMine ? 'text-teal-300' : 'text-cyan-300'
-                    }`}>
-                      {msg.userName} {isMine && '(Vi)'}
-                    </span>
+                    {/* Ime pošiljatelja - klik omogućuje izravnu promjenu imena u porukama */}
+                    <div className="flex items-center gap-1 mb-0.5 px-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenRenameUser(msg.deviceId, msg.userName)}
+                        className={`text-[10px] font-bold cursor-pointer hover:underline flex items-center gap-1 transition-colors ${
+                          isMine ? 'text-teal-300 hover:text-teal-200' : 'text-cyan-300 hover:text-cyan-200'
+                        }`}
+                        title="Klikni za izravnu promjenu imena ovog ribiča u LiveChatu"
+                      >
+                        <span>{msg.userName}</span>
+                        {isMine && <span className="text-[9px] opacity-75 font-normal">(Vi)</span>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenRenameUser(msg.deviceId, msg.userName)}
+                        className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                        title={`Promijeni ime ribiča (${msg.userName})`}
+                      >
+                        <Edit2 className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
 
                     {/* Oblačić poruke - klikom na njega svima se otvara tko je pročitao */}
                     <button
@@ -533,6 +643,14 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                   <span>Poslao: <strong className="text-teal-300">{selectedMessageForInfo.userName}</strong></span>
                   <span>{selectedMessageForInfo.timestamp} h</span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenRenameUser(selectedMessageForInfo.deviceId, selectedMessageForInfo.userName)}
+                  className="mt-1.5 w-full py-1.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Promijeni ime korisnika ({selectedMessageForInfo.userName})</span>
+                </button>
               </div>
 
               {/* Popis korisnika koji su pročitali poruku */}
@@ -573,6 +691,139 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
               >
                 Zatvori pregled
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal za administratorsku promjenu imena ribiča u LiveChatu */}
+        {renameTarget && (
+          <div 
+            onClick={() => setRenameTarget(null)}
+            className="absolute inset-0 z-40 bg-slate-950/90 backdrop-blur-sm p-4 flex flex-col justify-center items-center animate-fadeIn select-text"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-slate-900 border border-amber-500/50 rounded-3xl p-5 shadow-2xl flex flex-col space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center">
+                    <Edit2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white">Promjena imena ribiča</h3>
+                    <p className="text-[10px] text-amber-300 font-mono font-semibold">
+                      Uređaj: {renameTarget.deviceId}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRenameTarget(null)}
+                  className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmRenameUser} className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-300">
+                    Novo ime (odmah vidljivo svim ribičima):
+                  </label>
+                  <input
+                    type="text"
+                    value={renameNewName}
+                    onChange={(e) => setRenameNewName(e.target.value)}
+                    placeholder="npr. Krasni, Marko, Ribič s Dunava..."
+                    maxLength={30}
+                    autoFocus
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 outline-none"
+                  />
+                  <p className="text-[10px] text-slate-400 leading-normal pt-1">
+                    Novo ime se odmah sinkronizira u centralni registar i prikazuje se uz sve poslane i buduće poruke ovog korisnika.
+                  </p>
+                </div>
+
+                {renameError && (
+                  <div className="text-xs text-rose-400 bg-rose-950/60 p-2 rounded-xl border border-rose-800/60 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{renameError}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setRenameTarget(null)}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isRenaming || !renameNewName.trim()}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 text-slate-950 font-black text-xs cursor-pointer shadow-md transition-all flex items-center justify-center gap-1.5"
+                  >
+                    {isRenaming ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    <span>Spremi ime</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal za brzi unos administratorskog PIN-a ako korisnik još nije verificiran */}
+        {showPinPrompt && (
+          <div 
+            onClick={() => setShowPinPrompt(false)}
+            className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm p-4 flex flex-col justify-center items-center animate-fadeIn select-text"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-xs bg-slate-900 border border-teal-500/50 rounded-3xl p-5 shadow-2xl flex flex-col space-y-3.5 text-center"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-teal-500/20 text-teal-300 flex items-center justify-center mx-auto">
+                <Lock className="w-5 h-5" />
+              </div>
+              <h3 className="text-sm font-black text-white">Administratorski pristup</h3>
+              <p className="text-[11px] text-slate-400">
+                Unesite PIN (2026) za uređivanje imena korisnika u LiveChatu:
+              </p>
+              <form onSubmit={handleAdminPinSubmit} className="space-y-3">
+                <input
+                  type="password"
+                  maxLength={6}
+                  value={adminPinInput}
+                  onChange={(e) => setAdminPinInput(e.target.value)}
+                  placeholder="PIN (2026)"
+                  autoFocus
+                  className="w-full text-center tracking-widest text-lg font-mono bg-slate-950 border border-slate-700 focus:border-teal-400 rounded-xl px-3 py-2 text-white outline-none"
+                />
+                {adminPinError && (
+                  <p className="text-[10px] text-rose-400 font-bold">Neispravan PIN. Pokušajte ponovno.</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPinPrompt(false)}
+                    className="flex-1 py-2 rounded-xl bg-slate-800 text-slate-400 font-bold text-xs cursor-pointer"
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-xs cursor-pointer"
+                  >
+                    Potvrdi
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
