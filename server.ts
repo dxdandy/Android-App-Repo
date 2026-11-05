@@ -1237,15 +1237,15 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.4.6',
+    version: '1.4.7',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-04',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.6.apk',
+    releaseDate: '2026-11-05',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.7.apk',
     changelog: [
-      'Dodan novi gumb i stranica Lovostaj riba sa službenim pravilnikom i ugrađenim PDF dokumentom',
-      'Preimenovan gumb Ekspertni mod (Pro) u pregledniji Pro mod',
-      'Interaktivna tražilica i tablica ribljih vrsta s automatskim statusom trenutnog lovostaja',
-      'Istaknute posebne napomene za dunavske rukavce i vrste bez nacionalnog lovostaja',
+      'Svi gumbi (Osnovni mod, Pro mod i Lovostaj riba) smješteni u jednom jedinstvenom redu',
+      'Uklonjena oznaka PDF s gumba Lovostaj riba',
+      'Kompletan pregled lovostaja i najmanjih mjera sada stane na jedan ekran bez vodoravnog klizanja (bez plivajućeg teksta)',
+      'Pregledna i fiksna tablica prilagođena mobitelima i računalima uz trenutnu tražilicu',
       'Ispravljena i stabilna dvosmjerna sinkronizacija LiveChata'
     ],
     isCritical: false

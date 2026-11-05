@@ -459,16 +459,16 @@ export default function App() {
               Hidrometeo & Solunarni Centar Dunava
             </h1>
 
-            {/* Odabir načina prikaza: Osnovni mod vs Pro mod te Lovostaj riba */}
-            <div className="mt-2 sm:mt-2.5 flex items-center gap-2 sm:gap-2.5 flex-wrap">
-              <div className="inline-flex p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner">
+            {/* Odabir načina prikaza: Osnovni mod, Pro mod i Lovostaj riba - SVE U JEDNOM REDU */}
+            <div className="mt-2 sm:mt-2.5 flex items-center gap-1.5 sm:gap-2 flex-nowrap w-full max-w-full overflow-x-auto no-scrollbar py-0.5">
+              <div className="inline-flex p-0.5 sm:p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     setViewMode('basic');
                     localStorage.setItem('ribo_app_view_mode', 'basic');
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                     viewMode === 'basic'
                       ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 shadow-md font-black'
                       : 'text-slate-400 hover:text-white'
@@ -482,7 +482,7 @@ export default function App() {
                     setViewMode('expert');
                     localStorage.setItem('ribo_app_view_mode', 'expert');
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                     viewMode === 'expert'
                       ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md font-black'
                       : 'text-slate-400 hover:text-white'
@@ -492,20 +492,17 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Novi gumb: Lovostaj riba */}
+              {/* Gumb: Lovostaj riba - u istom redu, bez PDF teksta */}
               <button
                 type="button"
                 onClick={() => setShowLovostajModal(true)}
-                className="px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 text-emerald-200 border border-emerald-500/40 shadow-md active:scale-95 shrink-0"
-                title="Prikaz pravilnika: Lovostaj i najmanja lovna mjera (PDF)"
+                className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 text-emerald-200 border border-emerald-500/40 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
+                title="Prikaz pravilnika: Lovostaj i najmanja lovna mjera"
               >
                 <span>🐟 Lovostaj riba</span>
-                <span className="text-[9px] bg-emerald-500/25 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-500/40 font-black tracking-wide">
-                  PDF
-                </span>
               </button>
 
-              <span className="text-[11px] text-slate-400 hidden sm:inline-block">
+              <span className="text-[11px] text-slate-400 hidden lg:inline-block truncate">
                 {viewMode === 'basic' ? 'Pojednostavljeni brzi pregled za vodu' : 'Puni ribolovni centar s grafikonima i savjetima'}
               </span>
             </div>
