@@ -267,7 +267,13 @@ export function subscribeToChatMessages(
     emitMerged();
   });
 
-  // 3. Dodatna periodička sinkronizacija s poslužiteljem (/api/chat/messages)
+  // 3. Dodatna periodička sinkronizacija s poslužiteljem (/api/chat/messages) za web okruženje
+  const isCapacitorNative = typeof window !== 'undefined' && (
+    window.location.protocol === 'capacitor:' ||
+    Boolean((window as any).Capacitor?.isNativePlatform?.())
+  );
+
+  let pollTimer: any = null;
   const pollServer = async () => {
     if (!active) return;
     try {
@@ -297,12 +303,14 @@ export function subscribeToChatMessages(
     } catch {}
   };
 
-  pollServer();
-  const pollTimer = setInterval(pollServer, 3500);
+  if (!isCapacitorNative) {
+    pollServer();
+    pollTimer = setInterval(pollServer, 4000);
+  }
 
   return () => {
     active = false;
-    clearInterval(pollTimer);
+    if (pollTimer) clearInterval(pollTimer);
     unsubscribeLicense();
     unsubscribeMessages();
   };
@@ -410,11 +418,11 @@ export async function sendChatMessage(text: string): Promise<{ success: boolean;
     return { success: false, error: 'Poruka ne može biti prazna.' };
   }
 
-  // Provjeri status ovlasti u Firestore s brzim timeoutom od 1.5s tako da nikada ne zablokira
+  // Provjeri status ovlasti u Firestore licenci
   try {
     const licSnap = await Promise.race([
       getDoc(doc(db, 'licenses', deviceId)),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500))
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800))
     ]);
     if (licSnap && (licSnap as any).exists && (licSnap as any).exists()) {
       const lic = (licSnap as any).data();
@@ -438,25 +446,31 @@ export async function sendChatMessage(text: string): Promise<{ success: boolean;
     readBy: [{ deviceId, userName, readAt: Date.now() }]
   };
 
-  // 1. Odmah spremi lokalno u predmemoriju uređaja
-  const current = getLocalChatCache();
-  current.push(newMsg);
-  saveLocalChatCache(current);
-
-  // 2. Ugasi status tipkanja u pozadini jer je poruka poslana
+  // 1. Ugasi status tipkanja u pozadini jer je poruka poslana
   setMyTypingStatus(false).catch(() => {});
 
-  // 3. Spremi izravno u Firestore (odmah vidljivo svim ostalim korisnicima)
+  // 2. Spremi izravno u Firestore bazu (odmah vidljivo svim ostalim korisnicima)
   try {
     await Promise.race([
       setDoc(doc(db, 'chat_messages', newMsg.id), newMsg),
-      new Promise((resolve) => setTimeout(resolve, 3000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Mrežno slanje je isteklo (provjerite internet vezu).')), 7500))
     ]);
   } catch (err: any) {
-    console.warn('Greška pri spremanju u Firestore chat:', err);
+    console.error('Greška pri spremanju u Firestore chat:', err);
+    return {
+      success: false,
+      error: err?.message || 'Greška pri slanju poruke. Provjerite internetsku vezu i pokušajte ponovno.'
+    };
   }
 
-  // 4. Asinkrono pošalji i poslužitelju s istim ID-om kako bi se podaci podudarali u svim bazama
+  // 3. Tek nakon što je Firestore potvrdio uspješno spremanje, dodaj u lokalnu trajnu memoriju
+  const current = getLocalChatCache();
+  if (!current.some(m => m.id === newMsg.id)) {
+    current.push(newMsg);
+    saveLocalChatCache(current);
+  }
+
+  // 4. Asinkrono pošalji i poslužitelju za sinkronizaciju (fire-and-forget)
   safeFetchJson(
     getApiUrl('/api/chat/messages'),
     {

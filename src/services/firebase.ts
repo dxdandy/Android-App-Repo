@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = getApps().length === 0
@@ -13,7 +13,18 @@ const app = getApps().length === 0
     })
   : getApp();
 
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+
+let firestoreInstance;
+try {
+  firestoreInstance = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true
+  }, dbId);
+} catch {
+  firestoreInstance = getFirestore(app, dbId);
+}
+
+export const db = firestoreInstance;
 
 // Validacija veze s Firestore poslužiteljem prema standardu
 export async function validateFirestoreConnection(): Promise<boolean> {

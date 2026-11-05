@@ -1237,16 +1237,17 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.4.7',
+    version: '1.4.8',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-05',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.7.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.8.apk',
     changelog: [
-      'Svi gumbi (Osnovni mod, Pro mod i Lovostaj riba) smješteni u jednom jedinstvenom redu',
-      'Uklonjena oznaka PDF s gumba Lovostaj riba',
-      'Kompletan pregled lovostaja i najmanjih mjera sada stane na jedan ekran bez vodoravnog klizanja (bez plivajućeg teksta)',
-      'Pregledna i fiksna tablica prilagođena mobitelima i računalima uz trenutnu tražilicu',
-      'Ispravljena i stabilna dvosmjerna sinkronizacija LiveChata'
+      'Potpuno popravljena i provjerena dvosmjerna sinkronizacija LiveChat poruka za sve ribiče',
+      'Uklonjena blokada mrežnih streamova u Android aplikaciji (onemogućen CapacitorHttp interceptor)',
+      'Uveden izravan i trenutan prijenos poruka putem Google Firestore baze (push obavijesti i u stvarnom vremenu)',
+      'Prikaz punog naziva Lovostaj i najmanja lovna mjera bez točkica',
+      'Fiksna i pregledna tablica lovostaja bez vodoravnog klizanja',
+      'Objedinjeni gumbi načina rada u jednom redu (Osnovni mod, Pro mod, Lovostaj riba)'
     ],
     isCritical: false
   });

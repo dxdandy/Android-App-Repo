@@ -275,22 +275,22 @@ export const LovostajModal: React.FC<LovostajModalProps> = ({ isOpen, onClose })
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Zaglavlje modala */}
-        <div className="p-3.5 sm:p-4.5 border-b border-slate-800 bg-slate-950/85 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shrink-0 text-xl shadow-md">
+        {/* Zaglavlje modala - podignuto malo gore, kompaktno i bez kraćenja naslova */}
+        <div className="px-3 py-2.5 sm:px-5 sm:py-3.5 border-b border-slate-800 bg-slate-950/90 flex items-center justify-between gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shrink-0 text-base sm:text-lg shadow-sm">
               🐟
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base sm:text-xl font-black text-white tracking-tight truncate">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h2 className="text-xs xs:text-sm sm:text-lg md:text-xl font-black text-white tracking-tight leading-tight">
                   Lovostaj i najmanja lovna mjera
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <span className="hidden xs:inline-block px-1.5 py-0.2 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
                   Službeni propis
                 </span>
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-400 truncate">
+              <p className="text-[10px] sm:text-xs text-slate-400 leading-tight mt-0.5 truncate">
                 Pregled ribljih vrsta, zabrana lova i minimalnih dužina
               </p>
             </div>
@@ -298,10 +298,10 @@ export const LovostajModal: React.FC<LovostajModalProps> = ({ isOpen, onClose })
 
           <button
             onClick={onClose}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-slate-700/60 shrink-0"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-slate-700/60 shrink-0"
             title="Zatvori pregled"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
