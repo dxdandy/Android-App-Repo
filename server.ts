@@ -1289,16 +1289,15 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.5.0',
+    version: '1.5.1',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-06',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.0.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.1.apk',
     changelog: [
-      'Sustav je temeljito testiran i sve funkcije rade besprijekorno',
-      'LiveChat poruke očišćene i resetirane za novi početak s čistom bazom',
-      'Sinkronizirani svi korisnici između računala i mobilnih uređaja (ukupno 6 aktivnih ribiča)',
-      'Omogućena izravna promjena imena korisnika u LiveChatu za administratora Daniel',
-      'Optimizirana GitHub Actions konfiguracija za automatski build Android APK paketa'
+      'Nova instalacijska ikona aplikacije (zelena riba i udica) za APK datoteku i početni zaslon mobitela',
+      'Postavljena prilagođena ikonica ribe/udice za skočna obavijesti LiveChata u statusnoj traci mobitela',
+      'Usklađena grafika aplikacije u svim rezolucijama i sustavima (Android Mipmaps i Adaptive Icons)',
+      'Uspješno testiran i očišćen sustav za novi rad'
     ],
     isCritical: false
   });

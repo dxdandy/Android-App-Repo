@@ -10,6 +10,11 @@ const config: CapacitorConfig = {
   plugins: {
     CapacitorHttp: {
       enabled: false
+    },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_fish',
+      iconColor: '#22c55e',
+      sound: 'beep.wav'
     }
   }
 };

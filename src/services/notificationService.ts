@@ -129,6 +129,8 @@ export async function showIncomingMessageNotification(
           id: notifId,
           title,
           body,
+          smallIcon: 'ic_stat_fish',
+          iconColor: '#22c55e',
           sound: 'beep.wav',
           actionTypeId: '',
           extra: {
