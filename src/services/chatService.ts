@@ -606,3 +606,45 @@ export function subscribeToTypingStatus(
 
   return unsubscribe;
 }
+
+/**
+ * Administratorsko brisanje cijele povijesti chata za sve korisnike (Clear History)
+ */
+export async function clearAllChatHistoryAsAdmin(pin?: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Obriši sve dokumente u Firestore kolekciji 'chat_messages'
+    try {
+      const snap = await getDocs(collection(db, 'chat_messages'));
+      const deletePromises = snap.docs.map(d => deleteDoc(doc(db, 'chat_messages', d.id)));
+      await Promise.all(deletePromises);
+    } catch (err) {
+      console.warn('Upozorenje pri direktnom Firestore brisanju:', err);
+    }
+
+    // 2. Pozovi API poslužitelja za čišćenje lokalne datoteke chata
+    try {
+      await safeFetchJson(getApiUrl('/api/admin/chat/clear'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-pin': pin || '2026'
+        },
+        body: JSON.stringify({ pin: pin || '2026' })
+      });
+    } catch (err) {
+      console.warn('Upozorenje pri pozivu API-ja za brisanje chata:', err);
+    }
+
+    // 3. Očisti lokalni predmemorijski spremnik
+    saveLocalChatCache([]);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('ribo_last_read_chat_time');
+      } catch {}
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Greška pri brisanju povijesti chata' };
+  }
+}

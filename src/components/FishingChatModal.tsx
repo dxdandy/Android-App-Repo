@@ -7,27 +7,31 @@ import {
   Smile, 
   User, 
   Clock, 
-  CheckCheck,
-  AlertCircle,
-  Edit2,
-  Check,
-  Eye,
-  CheckCircle2,
-  Lock
+  CheckCheck, 
+  AlertCircle, 
+  Edit2, 
+  Check, 
+  Eye, 
+  CheckCircle2, 
+  Lock,
+  Calendar,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   fetchChatMessages, 
   sendChatMessage, 
-  subscribeToChatMessages,
-  subscribeToTypingStatus,
-  setMyTypingStatus,
-  TypingUser,
+  subscribeToChatMessages, 
+  subscribeToTypingStatus, 
+  setMyTypingStatus, 
+  TypingUser, 
   ChatMessage, 
   markChatAsRead, 
-  renameMyUserName,
-  renameUserAsAdmin,
-  isAdminUnlocked,
-  setAdminUnlocked
+  renameMyUserName, 
+  renameUserAsAdmin, 
+  clearAllChatHistoryAsAdmin,
+  isAdminUnlocked, 
+  setAdminUnlocked 
 } from '../services/chatService';
 import { getDeviceId, getUserName } from '../services/licenseService';
 import { playNotificationSound } from '../services/notificationService';
@@ -74,10 +78,45 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [adminPinInput, setAdminPinInput] = useState<string>('');
   const [adminPinError, setAdminPinError] = useState<boolean>(false);
   const [pendingRenameTarget, setPendingRenameTarget] = useState<{ deviceId: string; userName: string } | null>(null);
+  const [pendingAction, setPendingAction] = useState<'rename' | 'clear' | null>(null);
+
+  // Stanja za administratorsko brisanje cijele povijesti chata (Clear History)
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
+  const [isClearingChat, setIsClearingChat] = useState<boolean>(false);
 
   const myDeviceId = getDeviceId();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Funkcija za lijep prikaz zaglavlja datuma između poruka
+  const formatDateDivider = (timestamp?: number): string => {
+    if (!timestamp) return 'Danas';
+    const msgDate = new Date(timestamp);
+    const now = new Date();
+    const isToday = msgDate.getFullYear() === now.getFullYear() &&
+      msgDate.getMonth() === now.getMonth() &&
+      msgDate.getDate() === now.getDate();
+    if (isToday) return 'Danas';
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = msgDate.getFullYear() === yesterday.getFullYear() &&
+      msgDate.getMonth() === yesterday.getMonth() &&
+      msgDate.getDate() === yesterday.getDate();
+    if (isYesterday) return 'Jučer';
+
+    try {
+      const formatted = msgDate.toLocaleDateString('hr-HR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+      return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    } catch {
+      return msgDate.toLocaleDateString('hr-HR');
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -185,7 +224,19 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
       setRenameNewName(currentUserName);
       setRenameError(null);
     } else {
+      setPendingAction('rename');
       setPendingRenameTarget({ deviceId: targetDeviceId, userName: currentUserName });
+      setAdminPinInput('');
+      setAdminPinError(false);
+      setShowPinPrompt(true);
+    }
+  };
+
+  const handleOpenClearChat = () => {
+    if (isAdminUnlocked()) {
+      setShowClearConfirmModal(true);
+    } else {
+      setPendingAction('clear');
       setAdminPinInput('');
       setAdminPinError(false);
       setShowPinPrompt(true);
@@ -198,14 +249,39 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
       setAdminUnlocked(true);
       setIsAdmin(true);
       setShowPinPrompt(false);
-      if (pendingRenameTarget) {
+      setAdminPinError(false);
+
+      if (pendingAction === 'clear') {
+        setShowClearConfirmModal(true);
+        setPendingAction(null);
+      } else if (pendingRenameTarget) {
         setRenameTarget(pendingRenameTarget);
         setRenameNewName(pendingRenameTarget.userName);
         setRenameError(null);
         setPendingRenameTarget(null);
+        setPendingAction(null);
       }
     } else {
       setAdminPinError(true);
+    }
+  };
+
+  const handleConfirmClearChat = async () => {
+    setIsClearingChat(true);
+    try {
+      const res = await clearAllChatHistoryAsAdmin('2026');
+      if (res.success) {
+        setMessages([]);
+        setShowClearConfirmModal(false);
+        setRenameSuccessToast('✓ Cjelokupna povijest LiveChata je obrisana za sve korisnike.');
+        setTimeout(() => setRenameSuccessToast(null), 4000);
+      } else {
+        alert(res.error || 'Greška pri brisanju chata.');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Greška pri brisanju povijesti chata.');
+    } finally {
+      setIsClearingChat(false);
     }
   };
 
@@ -378,13 +454,28 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer shrink-0 border border-slate-700/60"
-            title="Zatvori chat"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={handleOpenClearChat}
+                className="px-2.5 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 hover:border-rose-400 text-rose-300 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-md active:scale-95"
+                title="Obriši sve poruke u chatu za sve korisnike (Samo Administrator)"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span className="hidden sm:inline">Obriši povijest chata</span>
+                <span className="sm:hidden">Obriši</span>
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer shrink-0 border border-slate-700/60"
+              title="Zatvori chat"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Obavijest o uspješnoj promjeni imena */}
@@ -435,78 +526,95 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 </p>
               </div>
             ) : (
-              messages.map((msg) => {
+              messages.map((msg, idx) => {
                 const isMine = msg.deviceId === myDeviceId;
                 const readCount = msg.readBy?.length || 0;
+                const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                const showDateDivider = !prevMsg || 
+                  new Date(msg.createdAt || 0).toDateString() !== new Date(prevMsg.createdAt || 0).toDateString();
+                const dateLabel = formatDateDivider(msg.createdAt);
 
                 return (
-                  <div 
-                    key={msg.id} 
-                    className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[85%] ${isMine ? 'ml-auto' : 'mr-auto'}`}
-                  >
-                    {/* Ime pošiljatelja - klik omogućuje izravnu promjenu imena u porukama */}
-                    <div className="flex items-center gap-1 mb-0.5 px-1">
+                  <React.Fragment key={msg.id}>
+                    {/* Dekorativni razdjelnik datuma s dvije linije i datumom u sredini */}
+                    {showDateDivider && (
+                      <div className="flex items-center justify-center my-3 sm:my-4 gap-2 select-none w-full animate-fadeIn">
+                        <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-slate-700 to-teal-500/40" />
+                        <div className="px-3.5 py-1 rounded-full bg-slate-900/95 border border-teal-500/35 text-[10px] sm:text-[11px] font-bold text-teal-300 shadow-md flex items-center gap-1.5 shrink-0">
+                          <Calendar className="w-3 h-3 text-teal-400" />
+                          <span>{dateLabel}</span>
+                        </div>
+                        <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent via-slate-700 to-teal-500/40" />
+                      </div>
+                    )}
+
+                    <div 
+                      className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[85%] ${isMine ? 'ml-auto' : 'mr-auto'}`}
+                    >
+                      {/* Ime pošiljatelja - klik omogućuje izravnu promjenu imena u porukama */}
+                      <div className="flex items-center gap-1 mb-0.5 px-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenRenameUser(msg.deviceId, msg.userName)}
+                          className={`text-[10px] font-bold cursor-pointer hover:underline flex items-center gap-1 transition-colors ${
+                            isMine ? 'text-teal-300 hover:text-teal-200' : 'text-cyan-300 hover:text-cyan-200'
+                          }`}
+                          title="Klikni za izravnu promjenu imena ovog ribiča u LiveChatu"
+                        >
+                          <span>{msg.userName}</span>
+                          {isMine && <span className="text-[9px] opacity-75 font-normal">(Vi)</span>}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenRenameUser(msg.deviceId, msg.userName)}
+                          className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                          title={`Promijeni ime ribiča (${msg.userName})`}
+                        >
+                          <Edit2 className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+
+                      {/* Oblačić poruke - klikom na njega svima se otvara tko je pročitao */}
                       <button
                         type="button"
-                        onClick={() => handleOpenRenameUser(msg.deviceId, msg.userName)}
-                        className={`text-[10px] font-bold cursor-pointer hover:underline flex items-center gap-1 transition-colors ${
-                          isMine ? 'text-teal-300 hover:text-teal-200' : 'text-cyan-300 hover:text-cyan-200'
+                        onClick={() => setSelectedMessageForInfo(msg)}
+                        className={`text-left p-2.5 sm:p-3 rounded-2xl text-xs sm:text-sm break-words leading-relaxed shadow-sm cursor-pointer hover:brightness-110 active:scale-[0.99] transition-all group relative border ${
+                          isMine 
+                            ? 'bg-gradient-to-br from-teal-600 to-cyan-700 text-white rounded-tr-xs border-teal-400/40' 
+                            : 'bg-slate-800/95 text-slate-100 rounded-tl-xs border-slate-700/80 hover:border-slate-600'
                         }`}
-                        title="Klikni za izravnu promjenu imena ovog ribiča u LiveChatu"
+                        title="Klikni za prikaz tko je sve pročitao ovu poruku"
                       >
-                        <span>{msg.userName}</span>
-                        {isMine && <span className="text-[9px] opacity-75 font-normal">(Vi)</span>}
+                        <span>{msg.text}</span>
                       </button>
+
+                      {/* Vrijeme slanja, kvačice i status tko je pročitao (svima vidljivo i klikabilno) */}
                       <button
                         type="button"
-                        onClick={() => handleOpenRenameUser(msg.deviceId, msg.userName)}
-                        className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                        title={`Promijeni ime ribiča (${msg.userName})`}
+                        onClick={() => setSelectedMessageForInfo(msg)}
+                        className="flex items-center gap-1.5 text-[9px] text-slate-400 hover:text-cyan-300 mt-0.5 px-1 font-mono transition-colors cursor-pointer"
+                        title="Klikni za prikaz tko je sve pročitao ovu poruku"
                       >
-                        <Edit2 className="w-2.5 h-2.5" />
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>{msg.timestamp}</span>
+                        </span>
+
+                        {/* Prikaz kvačica i brojača pregleda */}
+                        {readCount > 0 ? (
+                          <span className="flex items-center gap-1 text-cyan-300 font-bold bg-cyan-950/70 hover:bg-cyan-900/80 px-1.5 py-0.5 rounded-md border border-cyan-700/60 transition-colors">
+                            <CheckCheck className="w-3 h-3 text-cyan-400 shrink-0" />
+                            <Eye className="w-2.5 h-2.5 text-cyan-300 shrink-0" />
+                            <span>{readCount}</span>
+                          </span>
+                        ) : isMine ? (
+                          <span className="flex items-center gap-0.5 text-slate-500">
+                            <Check className="w-3 h-3" />
+                          </span>
+                        ) : null}
                       </button>
                     </div>
-
-                    {/* Oblačić poruke - klikom na njega svima se otvara tko je pročitao */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMessageForInfo(msg)}
-                      className={`text-left p-2.5 sm:p-3 rounded-2xl text-xs sm:text-sm break-words leading-relaxed shadow-sm cursor-pointer hover:brightness-110 active:scale-[0.99] transition-all group relative border ${
-                        isMine 
-                          ? 'bg-gradient-to-br from-teal-600 to-cyan-700 text-white rounded-tr-xs border-teal-400/40' 
-                          : 'bg-slate-800/95 text-slate-100 rounded-tl-xs border-slate-700/80 hover:border-slate-600'
-                      }`}
-                      title="Klikni za prikaz tko je sve pročitao ovu poruku"
-                    >
-                      <span>{msg.text}</span>
-                    </button>
-
-                    {/* Vrijeme slanja, kvačice i status tko je pročitao (svima vidljivo i klikabilno) */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMessageForInfo(msg)}
-                      className="flex items-center gap-1.5 text-[9px] text-slate-400 hover:text-cyan-300 mt-0.5 px-1 font-mono transition-colors cursor-pointer"
-                      title="Klikni za prikaz tko je sve pročitao ovu poruku"
-                    >
-                      <span className="flex items-center gap-0.5">
-                        <Clock className="w-2.5 h-2.5" />
-                        <span>{msg.timestamp}</span>
-                      </span>
-
-                      {/* Prikaz kvačica i brojača pregleda */}
-                      {readCount > 0 ? (
-                        <span className="flex items-center gap-1 text-cyan-300 font-bold bg-cyan-950/70 hover:bg-cyan-900/80 px-1.5 py-0.5 rounded-md border border-cyan-700/60 transition-colors">
-                          <CheckCheck className="w-3 h-3 text-cyan-400 shrink-0" />
-                          <Eye className="w-2.5 h-2.5 text-cyan-300 shrink-0" />
-                          <span>{readCount}</span>
-                        </span>
-                      ) : isMine ? (
-                        <span className="flex items-center gap-0.5 text-slate-500">
-                          <Check className="w-3 h-3" />
-                        </span>
-                      ) : null}
-                    </button>
-                  </div>
+                  </React.Fragment>
                 );
               })
             )}
@@ -824,6 +932,56 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal potvrde za administratorsko brisanje cijele povijesti chata */}
+        {showClearConfirmModal && (
+          <div 
+            onClick={() => !isClearingChat && setShowClearConfirmModal(false)}
+            className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm p-4 flex flex-col justify-center items-center animate-fadeIn select-none"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-slate-900 border border-rose-500/50 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col space-y-4 text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center mx-auto shadow-md">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-base sm:text-lg font-black text-white">Obriši povijest chata?</h3>
+                <p className="text-xs text-rose-300 font-bold">
+                  Ova radnja će trajno obrisati sve poruke u LiveChatu za sve korisnike!
+                </p>
+                <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                  Sve poruke bit će uklonjene iz centralne baze i sa svih mobilnih uređaja. Razgovor kreće potpuno ispočetka.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isClearingChat}
+                  onClick={() => setShowClearConfirmModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+                >
+                  Odustani
+                </button>
+                <button
+                  type="button"
+                  disabled={isClearingChat}
+                  onClick={handleConfirmClearChat}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 disabled:opacity-50 text-white font-black text-xs cursor-pointer shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  {isClearingChat ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isClearingChat ? 'Brisanje...' : 'Obriši sve'}</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

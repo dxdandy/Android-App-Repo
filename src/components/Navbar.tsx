@@ -50,14 +50,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             <img 
               src="/pwa-192x192.png" 
               alt="RiboPrognoza ikona" 
-              className="h-8 w-8 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl object-cover shadow-md ring-1 sm:ring-2 ring-cyan-500/30 shrink-0" 
+              className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl object-cover shadow-md ring-1 sm:ring-2 ring-cyan-500/30 shrink-0" 
               referrerPolicy="no-referrer" 
             />
             <div className="flex flex-col justify-center text-left select-none min-w-0">
-              <span className="font-black text-white text-xs sm:text-lg leading-tight tracking-tight truncate">
+              <span className="font-black text-white text-base sm:text-2xl leading-tight tracking-tight truncate">
                 RiboPrognoza
               </span>
-              <span className="text-[9px] sm:text-[10px] text-cyan-400 font-semibold uppercase tracking-wider hidden xs:block">
+              <span className="text-[10px] sm:text-xs text-cyan-400 font-bold uppercase tracking-wider hidden xs:block">
                 Dunav Live
               </span>
             </div>

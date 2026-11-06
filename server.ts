@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1284,20 +1284,45 @@ app.delete('/api/admin/chat/messages/:id', (req, res) => {
 });
 
 /**
+ * API (Admin): Brisanje cijele povijesti chata za sve korisnike (Clear History)
+ */
+app.post('/api/admin/chat/clear', async (req, res) => {
+  const pin = (req.headers['x-admin-pin'] as string) || req.body?.pin;
+  if (pin !== ADMIN_MASTER_PIN) {
+    return res.status(403).json({ error: 'Neispravan administratorski PIN' });
+  }
+
+  saveChat([]);
+
+  if (serverDb) {
+    try {
+      const snap = await getDocs(collection(serverDb, 'chat_messages'));
+      for (const d of snap.docs) {
+        await deleteDoc(doc(serverDb, 'chat_messages', d.id));
+      }
+    } catch (err) {
+      console.warn('Greška pri brisanju poruka u Firestoreu na poslužitelju:', err);
+    }
+  }
+
+  res.json({ success: true, message: 'Cijela povijest chata je uspješno obrisana za sve korisnike.' });
+});
+
+/**
  * API: Provjera najnovije verzije aplikacije
  */
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.5.2',
+    version: '1.5.3',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-06',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.2.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.3.apk',
     changelog: [
-      'Nova minimalistička ikona aplikacije (tamna udica s riječnim valovima) visoke čistoće i oštrine',
-      'Postavljena nova ikona za instalacijski APK datoteku i početne zaslone korisnika',
-      'Prilagođena ikona za statusnu traku obavijesti (silueta udice i valova)',
-      'Usklađena bijela pozadina prilagodljive ikone (Adaptive Icon) za sve Android uređaje'
+      'Povećan i istaknut font naziva aplikacije \'RiboPrognoza\' u gornjem zaglavlju',
+      'Dodana administratorska opcija za brisanje cijele povijesti chata za sve korisnike (Clear History)',
+      'Poruke u LiveChatu vizualno razdvojene po datumima s dekorativnim linijama',
+      'Nova minimalistička ikona udice i valova visoke oštrine za APK i zaslon mobitela'
     ],
     isCritical: false
   });

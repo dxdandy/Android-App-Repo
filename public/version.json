@@ -1,13 +1,13 @@
 {
-  "version": "1.5.2",
+  "version": "1.5.3",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-06",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.2.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.3.apk",
   "changelog": [
-    "Nova minimalistička ikona aplikacije (tamna udica s riječnim valovima) visoke čistoće i oštrine",
-    "Postavljena nova ikona za instalacijski APK datoteku i početne zaslone korisnika",
-    "Prilagođena ikona za statusnu traku obavijesti (silueta udice i valova)",
-    "Usklađena bijela pozadina prilagodljive ikone (Adaptive Icon) za sve Android uređaje"
+    "Povećan i istaknut font naziva aplikacije 'RiboPrognoza' u gornjem zaglavlju",
+    "Dodana administratorska opcija za brisanje cijele povijesti chata za sve korisnike (Clear History)",
+    "Poruke u LiveChatu vizualno razdvojene po datumima s dekorativnim linijama",
+    "Nova minimalistička ikona udice i valova visoke oštrine za APK i zaslon mobitela"
   ],
   "isCritical": false
 }
