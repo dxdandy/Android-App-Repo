@@ -1,15 +1,14 @@
 {
-  "version": "1.4.8",
+  "version": "1.5.0",
   "name": "RiboPrognoza",
-  "releaseDate": "2026-11-05",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.4.8.apk",
+  "releaseDate": "2026-11-06",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.0.apk",
   "changelog": [
-    "Potpuno popravljena i provjerena dvosmjerna sinkronizacija LiveChat poruka za sve ribiče",
-    "Uklonjena blokada mrežnih streamova u Android aplikaciji (onemogućen CapacitorHttp interceptor)",
-    "Uveden izravan i trenutan prijenos poruka putem Google Firestore baze (push obavijesti i u stvarnom vremenu)",
-    "Prikaz punog naziva 'Lovostaj i najmanja lovna mjera' bez točkica",
-    "Fiksna i pregledna tablica lovostaja bez vodoravnog klizanja",
-    "Objedinjeni gumbi načina rada u jednom redu (Osnovni mod, Pro mod, Lovostaj riba)"
+    "Sustav je temeljito testiran i sve funkcije rade besprijekorno",
+    "LiveChat poruke očišćene i resetirane za novi početak s čistom bazom",
+    "Sinkronizirani svi korisnici između računala i mobilnih uređaja (ukupno 6 aktivnih ribiča)",
+    "Omogućena izravna promjena imena korisnika u LiveChatu za administratora Daniel",
+    "Optimizirana GitHub Actions konfiguracija za automatski build Android APK paketa"
   ],
   "isCritical": false
 }
