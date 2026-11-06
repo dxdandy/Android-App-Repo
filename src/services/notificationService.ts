@@ -130,7 +130,7 @@ export async function showIncomingMessageNotification(
           title,
           body,
           smallIcon: 'ic_stat_fish',
-          iconColor: '#22c55e',
+          iconColor: '#0891b2',
           sound: 'beep.wav',
           actionTypeId: '',
           extra: {

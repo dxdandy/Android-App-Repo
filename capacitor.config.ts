@@ -13,7 +13,7 @@ const config: CapacitorConfig = {
     },
     LocalNotifications: {
       smallIcon: 'ic_stat_fish',
-      iconColor: '#22c55e',
+      iconColor: '#0891b2',
       sound: 'beep.wav'
     }
   }
