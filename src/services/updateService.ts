@@ -6,7 +6,7 @@
 
 import { registerPlugin } from '@capacitor/core';
 
-export const CURRENT_APP_VERSION = '1.5.5';
+export const CURRENT_APP_VERSION = '1.5.7';
 
 export interface AppVersionInfo {
   version: string;

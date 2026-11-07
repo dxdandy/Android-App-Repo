@@ -13,7 +13,7 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core';
 export const CACHE_ALJMAS_KEY = 'ribo_cache_aljmas_station_data';
 export const CACHE_BOGOJEVO_KEY = 'ribo_cache_bogojevo_station_data';
 
-export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=34&postajaID=148';
+export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=34&postajaID=1582';
 export const HIDMET_BOGOJEVO_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42020';
 export const VENTUSKY_ALJMAS_URL = 'https://www.ventusky.com/45.529;18.95';
 export const VENTUSKY_BOGOJEVO_URL = 'https://www.ventusky.com/45.53;19.13';
@@ -854,7 +854,7 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
     windDirection: meteo.windDirection,
     weatherCondition: meteo.weatherCondition,
     sourceUrl: MVODOSTAJI_ALJMAS_URL,
-    sourceName: 'mvodostaji.voda.hr (postaja 148)',
+    sourceName: 'mvodostaji.voda.hr (postaja 1582 - Aljmaš)',
     isLive,
     notes: 'Službena hidrološka postaja Hrvatskih voda na rkm 1380,300 u Aljmašu. Tlak zraka s Ventusky (45.529;18.95), temperatura s Yr.no.'
   };

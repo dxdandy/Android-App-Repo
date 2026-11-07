@@ -489,21 +489,37 @@ export async function sendChatMessage(
     text: cleanText,
     timestamp: new Date().toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' }),
     createdAt: Date.now(),
-    readBy: [{ deviceId, userName, readAt: Date.now() }],
-    replyTo: replyTo && replyTo.text ? {
+    readBy: [{ deviceId, userName, readAt: Date.now() }]
+  };
+
+  if (replyTo && replyTo.text) {
+    newMsg.replyTo = {
       id: replyTo.id,
       userName: replyTo.userName,
       text: replyTo.text.slice(0, 200)
-    } : undefined
-  };
+    };
+  }
 
   // 1. Ugasi status tipkanja u pozadini jer je poruka poslana
   setMyTypingStatus(false).catch(() => {});
 
-  // 2. Spremi izravno u Firestore bazu (odmah vidljivo svim ostalim korisnicima)
+  // 2. Spremi izravno u Firestore bazu (isključivo definirana polja kako Firestore ne bi bacio grešku)
+  const firestoreData: Record<string, any> = {
+    id: newMsg.id,
+    deviceId: newMsg.deviceId,
+    userName: newMsg.userName,
+    text: newMsg.text,
+    timestamp: newMsg.timestamp,
+    createdAt: newMsg.createdAt,
+    readBy: newMsg.readBy
+  };
+  if (newMsg.replyTo) {
+    firestoreData.replyTo = newMsg.replyTo;
+  }
+
   try {
     await Promise.race([
-      setDoc(doc(db, 'chat_messages', newMsg.id), newMsg),
+      setDoc(doc(db, 'chat_messages', newMsg.id), firestoreData),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Mrežno slanje je isteklo (provjerite internet vezu).')), 7500))
     ]);
   } catch (err: any) {

@@ -25,7 +25,7 @@ app.use((_req, res, next) => {
   next();
 });
 
-export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=34&postajaID=148';
+export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=34&postajaID=1582';
 export const SEATEMP_ALJMAS_VUKOVAR_URL = 'https://hr.seatemperature.net/current/croatia/water-temp-in-vukovar-in-danube';
 export const VENTUSKY_ALJMAS_URL = 'https://www.ventusky.com/45.529;18.95';
 export const YR_ALJMAS_URL = 'https://www.yr.no/en/forecast/daily-table/2-3244159/Croatia/Vukovar-Srijem%20County/Aljmas';
@@ -711,7 +711,17 @@ try {
     const localChat = loadChat();
     for (const msg of localChat) {
       if (msg.id) {
-        setDoc(doc(serverDb, 'chat_messages', msg.id), msg, { merge: true }).catch(() => {});
+        const payload: Record<string, any> = {
+          id: msg.id,
+          deviceId: msg.deviceId,
+          userName: msg.userName,
+          text: msg.text,
+          timestamp: msg.timestamp,
+          createdAt: msg.createdAt,
+          readBy: msg.readBy || []
+        };
+        if (msg.replyTo) payload.replyTo = msg.replyTo;
+        setDoc(doc(serverDb, 'chat_messages', msg.id), payload, { merge: true }).catch(() => {});
       }
     }
 
@@ -1243,13 +1253,16 @@ app.post('/api/chat/messages', (req, res) => {
     text: cleanText,
     timestamp: new Date().toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' }),
     createdAt: msgCreatedAt,
-    readBy: [{ deviceId: cleanDeviceId, userName: userLicense.userName, readAt: Date.now() }],
-    replyTo: replyTo && replyTo.text ? {
+    readBy: [{ deviceId: cleanDeviceId, userName: userLicense.userName, readAt: Date.now() }]
+  };
+
+  if (replyTo && replyTo.text) {
+    newMsg.replyTo = {
       id: String(replyTo.id),
       userName: String(replyTo.userName || 'Ribič'),
       text: String(replyTo.text).slice(0, 200)
-    } : undefined
-  };
+    };
+  }
 
   const existingIdx = chat.findIndex(m => m.id === newMsg.id);
   if (existingIdx >= 0) {
@@ -1264,7 +1277,19 @@ app.post('/api/chat/messages', (req, res) => {
 
   // Sinkroniziraj i u Firestore oblak tako da svi mobilni i web klijenti prime poruku u istoj sekundi
   if (serverDb) {
-    setDoc(doc(serverDb, 'chat_messages', newMsg.id), newMsg, { merge: true }).catch(err => {
+    const firestorePayload: Record<string, any> = {
+      id: newMsg.id,
+      deviceId: newMsg.deviceId,
+      userName: newMsg.userName,
+      text: newMsg.text,
+      timestamp: newMsg.timestamp,
+      createdAt: newMsg.createdAt,
+      readBy: newMsg.readBy
+    };
+    if (newMsg.replyTo) {
+      firestorePayload.replyTo = newMsg.replyTo;
+    }
+    setDoc(doc(serverDb, 'chat_messages', newMsg.id), firestorePayload, { merge: true }).catch(err => {
       console.warn('Greška pri sinkronizaciji u Firestore iz /api/chat/messages:', err);
     });
   }
@@ -1324,14 +1349,14 @@ app.post('/api/admin/chat/clear', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.5.5',
+    version: '1.5.7',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-07',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.5.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.7.apk',
     changelog: [
-      'Fino podešen font slova u porukama LiveChata (smanjen za 10% na optimalnu veličinu)',
-      'Smanjen i kompaktniji prored redaka teksta za bolju preglednost poruka',
-      'Poboljšana kompaktnost oblačića poruka i citiranih odgovora'
+      'Ažuriran službeni ID mjerne stanice Aljmaš na mvodostaji.voda.hr (postaja 1582)',
+      'Uspješno vraćen prijenos službenih hidroloških vodostaja Aljmaš uživo u realnom vremenu',
+      'Poboljšana stabilnost i pouzdanost dohvata vodostaja Dunava'
     ],
     isCritical: false
   });

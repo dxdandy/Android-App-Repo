@@ -1,12 +1,12 @@
 {
-  "version": "1.5.5",
+  "version": "1.5.7",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-07",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.5.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.7.apk",
   "changelog": [
-    "Fino podešen font slova u porukama LiveChata (smanjen za 10% na optimalnu veličinu)",
-    "Smanjen i kompaktniji prored redaka teksta za bolju preglednost poruka",
-    "Poboljšana kompaktnost oblačića poruka i citiranih odgovora"
+    "Ažuriran službeni ID mjerne stanice Aljmaš na mvodostaji.voda.hr (postaja 1582)",
+    "Uspješno vraćen prijenos službenih hidroloških vodostaja Aljmaš uživo u realnom vremenu",
+    "Poboljšana stabilnost i pouzdanost dohvata vodostaja Dunava"
   ],
   "isCritical": false
 }

@@ -111,7 +111,7 @@ export default function App() {
       windDirection: 'SZ',
       weatherCondition: 'djelomicno_oblacno',
       sourceUrl: MVODOSTAJI_ALJMAS_URL,
-      sourceName: 'mvodostaji.voda.hr (postaja 148)',
+      sourceName: 'mvodostaji.voda.hr (postaja 1582 - Aljmaš)',
       isLive: true
     };
   });
