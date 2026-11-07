@@ -180,10 +180,10 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           </button>
         </div>
 
-        {/* Oblačić poruke: 50% VEĆI FONT (text-[17px] sm:text-[19px]) za vrhunsku čitljivost */}
+        {/* Oblačić poruke: fino podešena veličina (15px-17px) i smanjeni prored */}
         <div
           onClick={() => onShowInfo(msg)}
-          className={`text-left p-3.5 sm:p-4 rounded-3xl break-words leading-relaxed shadow-md cursor-pointer hover:brightness-105 active:scale-[0.99] transition-all group relative border ${
+          className={`text-left p-3 sm:p-3.5 rounded-2xl break-words leading-snug sm:leading-normal shadow-md cursor-pointer hover:brightness-105 active:scale-[0.99] transition-all group relative border ${
             isMine 
               ? 'bg-gradient-to-br from-teal-600 via-teal-600 to-cyan-700 text-white rounded-tr-xs border-teal-400/40 shadow-teal-950/30' 
               : 'bg-slate-800/95 text-slate-50 rounded-tl-xs border-slate-700 hover:border-slate-600 shadow-slate-950/40'
@@ -192,7 +192,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
         >
           {/* Ako je poruka odgovor na raniju poruku (Replay pregled iznad teksta) */}
           {msg.replyTo && (
-            <div className={`mb-2.5 p-2.5 rounded-2xl text-left border-l-4 ${
+            <div className={`mb-2 p-2 rounded-xl text-left border-l-4 ${
               isMine 
                 ? 'bg-slate-950/45 border-teal-300 text-teal-50' 
                 : 'bg-slate-900/95 border-cyan-400 text-slate-200'
@@ -207,8 +207,8 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
             </div>
           )}
 
-          {/* Glavni tekst poruke: uvećan za 50% (od 12px na 17px/19px) */}
-          <span className="text-[17px] sm:text-[19px] leading-relaxed font-normal tracking-wide select-text">
+          {/* Glavni tekst poruke: smanjen za 10% (15px/17px) sa zbijenijim proredom (leading-snug sm:leading-normal) */}
+          <span className="text-[15px] sm:text-[17px] leading-snug sm:leading-normal font-normal tracking-normal select-text">
             {msg.text}
           </span>
         </div>

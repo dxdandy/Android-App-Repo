@@ -1324,15 +1324,14 @@ app.post('/api/admin/chat/clear', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.5.4',
+    version: '1.5.5',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-07',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.4.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.5.apk',
     changelog: [
-      'Povećan font slova u porukama LiveChata za 50% za vrhunsku čitljivost',
-      'Dodano povlačenje (swipe) poruka ulijevo ili udesno za brzi odgovor s citiranjem',
-      'Ispravljene i poboljšane sistemske i zvučne obavijesti s ikonom udice u traci i na zaključanom/AOD zaslonu',
-      'Kreiran Android kanal visoke važnosti za pouzdano obavještavanje i u pozadini'
+      'Fino podešen font slova u porukama LiveChata (smanjen za 10% na optimalnu veličinu)',
+      'Smanjen i kompaktniji prored redaka teksta za bolju preglednost poruka',
+      'Poboljšana kompaktnost oblačića poruka i citiranih odgovora'
     ],
     isCritical: false
   });
