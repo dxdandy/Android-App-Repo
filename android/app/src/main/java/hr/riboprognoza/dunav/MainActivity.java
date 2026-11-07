@@ -21,7 +21,32 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ApkCleanerPlugin.class);
         super.onCreate(savedInstanceState);
+        createNotificationChannel();
         cleanOldApkFiles();
+    }
+
+    private void createNotificationChannel() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            try {
+                android.app.NotificationManager notificationManager = getSystemService(android.app.NotificationManager.class);
+                if (notificationManager != null) {
+                    android.app.NotificationChannel channel = new android.app.NotificationChannel(
+                        "ribo_chat_channel",
+                        "RiboPrognoza LiveChat Poruke",
+                        android.app.NotificationManager.IMPORTANCE_HIGH
+                    );
+                    channel.setDescription("Obavijesti o novim porukama u LiveChatu");
+                    channel.enableLights(true);
+                    channel.setLightColor(android.graphics.Color.parseColor("#0891b2"));
+                    channel.enableVibration(true);
+                    channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+                    channel.setShowBadge(true);
+                    notificationManager.createNotificationChannel(channel);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Greška pri kreiranju notification kanala: " + e.getMessage());
+            }
+        }
     }
 
     @Override

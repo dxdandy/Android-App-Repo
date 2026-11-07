@@ -605,6 +605,11 @@ export interface ChatMessageRecord {
   timestamp: string;
   createdAt: number;
   readBy?: ChatReadReceipt[];
+  replyTo?: {
+    id: string;
+    userName: string;
+    text: string;
+  };
 }
 
 const DATA_DIR = path.resolve(__dirname, 'data');
@@ -1186,7 +1191,7 @@ app.post('/api/chat/rename', (req, res) => {
  * API: Slanje poruke u interni chat (dozvoljeno isključivo aktivnim korisnicima s odobrenim chatom)
  */
 app.post('/api/chat/messages', (req, res) => {
-  const { deviceId, text, activationKey, userName: proposedName } = req.body || {};
+  const { deviceId, text, activationKey, userName: proposedName, replyTo } = req.body || {};
   if (!deviceId || !text || !String(text).trim()) {
     return res.status(400).json({ error: 'Tekst poruke je obavezan' });
   }
@@ -1238,7 +1243,12 @@ app.post('/api/chat/messages', (req, res) => {
     text: cleanText,
     timestamp: new Date().toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' }),
     createdAt: msgCreatedAt,
-    readBy: [{ deviceId: cleanDeviceId, userName: userLicense.userName, readAt: Date.now() }]
+    readBy: [{ deviceId: cleanDeviceId, userName: userLicense.userName, readAt: Date.now() }],
+    replyTo: replyTo && replyTo.text ? {
+      id: String(replyTo.id),
+      userName: String(replyTo.userName || 'Ribič'),
+      text: String(replyTo.text).slice(0, 200)
+    } : undefined
   };
 
   const existingIdx = chat.findIndex(m => m.id === newMsg.id);
@@ -1314,15 +1324,15 @@ app.post('/api/admin/chat/clear', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.5.3',
+    version: '1.5.4',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-06',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.3.apk',
+    releaseDate: '2026-11-07',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.4.apk',
     changelog: [
-      'Povećan i istaknut font naziva aplikacije \'RiboPrognoza\' u gornjem zaglavlju',
-      'Dodana administratorska opcija za brisanje cijele povijesti chata za sve korisnike (Clear History)',
-      'Poruke u LiveChatu vizualno razdvojene po datumima s dekorativnim linijama',
-      'Nova minimalistička ikona udice i valova visoke oštrine za APK i zaslon mobitela'
+      'Povećan font slova u porukama LiveChata za 50% za vrhunsku čitljivost',
+      'Dodano povlačenje (swipe) poruka ulijevo ili udesno za brzi odgovor s citiranjem',
+      'Ispravljene i poboljšane sistemske i zvučne obavijesti s ikonom udice u traci i na zaključanom/AOD zaslonu',
+      'Kreiran Android kanal visoke važnosti za pouzdano obavještavanje i u pozadini'
     ],
     isCritical: false
   });

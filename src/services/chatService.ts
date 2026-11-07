@@ -34,6 +34,12 @@ export interface ChatReadReceipt {
   readAt: number;
 }
 
+export interface ChatReplyTo {
+  id: string;
+  userName: string;
+  text: string;
+}
+
 export interface ChatMessage {
   id: string;
   deviceId: string;
@@ -42,6 +48,7 @@ export interface ChatMessage {
   timestamp: string;
   createdAt: number;
   readBy?: ChatReadReceipt[];
+  replyTo?: ChatReplyTo;
 }
 
 export interface FetchChatResult {
@@ -390,7 +397,8 @@ export async function fetchChatMessages(overrideDeviceId?: string): Promise<Fetc
           text: data.text || '',
           timestamp: data.timestamp || '',
           createdAt: data.createdAt || 0,
-          readBy: data.readBy || []
+          readBy: data.readBy || [],
+          replyTo: data.replyTo || undefined
         });
       });
       saveLocalChatCache(msgs);
@@ -430,7 +438,8 @@ export async function fetchChatMessagesForAdmin(pin: string): Promise<ChatMessag
           text: data.text || '',
           timestamp: data.timestamp || '',
           createdAt: data.createdAt || 0,
-          readBy: data.readBy || []
+          readBy: data.readBy || [],
+          replyTo: data.replyTo || undefined
         });
       });
       saveLocalChatCache(msgs);
@@ -444,7 +453,10 @@ export async function fetchChatMessagesForAdmin(pin: string): Promise<ChatMessag
 /**
  * Šalje poruku u chat izravno u Firestore bazu i poslužitelju
  */
-export async function sendChatMessage(text: string): Promise<{ success: boolean; message?: ChatMessage; error?: string }> {
+export async function sendChatMessage(
+  text: string, 
+  replyTo?: ChatReplyTo
+): Promise<{ success: boolean; message?: ChatMessage; error?: string }> {
   const deviceId = getDeviceId();
   const userName = getUserName() || `Ribič (${deviceId.slice(-4)})`;
 
@@ -477,7 +489,12 @@ export async function sendChatMessage(text: string): Promise<{ success: boolean;
     text: cleanText,
     timestamp: new Date().toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' }),
     createdAt: Date.now(),
-    readBy: [{ deviceId, userName, readAt: Date.now() }]
+    readBy: [{ deviceId, userName, readAt: Date.now() }],
+    replyTo: replyTo && replyTo.text ? {
+      id: replyTo.id,
+      userName: replyTo.userName,
+      text: replyTo.text.slice(0, 200)
+    } : undefined
   };
 
   // 1. Ugasi status tipkanja u pozadini jer je poruka poslana
@@ -516,7 +533,8 @@ export async function sendChatMessage(text: string): Promise<{ success: boolean;
         deviceId,
         activationKey: getStoredActivationKey(),
         userName,
-        text: cleanText
+        text: cleanText,
+        replyTo: newMsg.replyTo
       })
     }
   ).catch(() => {});

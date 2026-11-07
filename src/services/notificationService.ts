@@ -70,7 +70,7 @@ export function playNotificationSound(): void {
 export async function requestNotificationPermission(): Promise<boolean> {
   let granted = false;
 
-  // 1. Android Capacitor Native Permissions
+  // 1. Android Capacitor Native Permissions & Channel setup
   try {
     const permStatus = await LocalNotifications.checkPermissions();
     if (permStatus.display === 'granted') {
@@ -81,6 +81,19 @@ export async function requestNotificationPermission(): Promise<boolean> {
         granted = true;
       }
     }
+
+    // Kreiraj kanal visoke važnosti (heads-up, status bar, zaključani zaslon i Always On Display)
+    await LocalNotifications.createChannel({
+      id: 'ribo_chat_channel',
+      name: 'RiboPrognoza LiveChat Poruke',
+      description: 'Zvučne i znakovne obavijesti s ikonom udice za nove poruke u chatu',
+      importance: 5, // IMPORTANCE_HIGH
+      visibility: 1, // VISIBILITY_PUBLIC (prikaz na Lock screenu i AOD)
+      sound: 'beep.wav',
+      vibration: true,
+      lights: true,
+      lightColor: '#0891b2'
+    });
   } catch {
     // Nije Capacitor okruženje ili nije podržano
   }
@@ -129,6 +142,7 @@ export async function showIncomingMessageNotification(
           id: notifId,
           title,
           body,
+          channelId: 'ribo_chat_channel',
           smallIcon: 'ic_stat_fish',
           iconColor: '#0891b2',
           sound: 'beep.wav',

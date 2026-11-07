@@ -16,7 +16,8 @@ import {
   Lock,
   Calendar,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  CornerUpLeft
 } from 'lucide-react';
 import { 
   fetchChatMessages, 
@@ -26,6 +27,7 @@ import {
   setMyTypingStatus, 
   TypingUser, 
   ChatMessage, 
+  ChatReplyTo,
   markChatAsRead, 
   renameMyUserName, 
   renameUserAsAdmin, 
@@ -43,6 +45,202 @@ interface FishingChatModalProps {
 }
 
 const QUICK_EMOJIS = ['🎣', '🐟', '🦈', '🌊', '☀️', '🌧️', '⛵', '⚓', '👍', '🔥', '🍻', '☕'];
+
+interface SwipeableMessageRowProps {
+  msg: ChatMessage;
+  isMine: boolean;
+  readCount: number;
+  onOpenRename: (deviceId: string, userName: string) => void;
+  onShowInfo: (msg: ChatMessage) => void;
+  onReply: (msg: ChatMessage) => void;
+}
+
+const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
+  msg,
+  isMine,
+  readCount,
+  onOpenRename,
+  onShowInfo,
+  onReply
+}) => {
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStartXRef = useRef(0);
+  const touchStartYRef = useRef(0);
+  const isHorizontalRef = useRef<boolean | null>(null);
+  const hasTriggeredHapticRef = useRef(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+    isHorizontalRef.current = null;
+    hasTriggeredHapticRef.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = currentX - touchStartXRef.current;
+    const diffY = currentY - touchStartYRef.current;
+
+    if (isHorizontalRef.current === null) {
+      if (Math.abs(diffX) > 8 && Math.abs(diffX) > Math.abs(diffY)) {
+        isHorizontalRef.current = true;
+        setIsSwiping(true);
+      } else if (Math.abs(diffY) > 8) {
+        isHorizontalRef.current = false;
+      }
+    }
+
+    if (isHorizontalRef.current === true) {
+      // Clamped horizontal offset (podržava povlačenje i ulijevo i udesno!)
+      const offset = diffX > 0 ? Math.min(diffX * 0.7, 85) : Math.max(diffX * 0.7, -85);
+      setSwipeOffset(offset);
+
+      if (Math.abs(offset) >= 42 && !hasTriggeredHapticRef.current) {
+        hasTriggeredHapticRef.current = true;
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          try { navigator.vibrate(18); } catch {}
+        }
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (Math.abs(swipeOffset) >= 40) {
+      onReply(msg);
+    }
+    setSwipeOffset(0);
+    setIsSwiping(false);
+    isHorizontalRef.current = null;
+  };
+
+  const isTriggered = Math.abs(swipeOffset) >= 40;
+
+  return (
+    <div className="relative overflow-visible my-1 select-none w-full">
+      {/* Indikator ikone za replay/odgovor koji se pojavljuje kada se poruka povuče ulijevo ili udesno */}
+      {swipeOffset !== 0 && (
+        <div 
+          className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center transition-all pointer-events-none z-10 ${
+            swipeOffset > 0 ? 'left-2.5' : 'right-2.5'
+          }`}
+        >
+          <div className={`p-2 rounded-full transition-transform flex items-center gap-1 ${
+            isTriggered 
+              ? 'bg-gradient-to-r from-teal-400 to-cyan-400 text-slate-950 scale-125 shadow-lg shadow-teal-500/50 font-black' 
+              : 'bg-slate-800 text-teal-300 scale-95 opacity-80 border border-teal-500/30'
+          }`}>
+            <CornerUpLeft className="w-4 h-4" />
+          </div>
+        </div>
+      )}
+
+      {/* Tijelo poruke koje se glatko pomiče pri povlačenju lijevo/desno */}
+      <div
+        style={{
+          transform: `translateX(${swipeOffset}px)`,
+          transition: isSwiping ? 'none' : 'transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1)'
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[90%] sm:max-w-[82%] ${isMine ? 'ml-auto' : 'mr-auto'} group/item`}
+      >
+        {/* Ime pošiljatelja */}
+        <div className="flex items-center gap-1.5 mb-1 px-1">
+          <button
+            type="button"
+            onClick={() => onOpenRename(msg.deviceId, msg.userName)}
+            className={`text-xs sm:text-sm font-bold cursor-pointer hover:underline flex items-center gap-1 transition-colors ${
+              isMine ? 'text-teal-300 hover:text-teal-200' : 'text-cyan-300 hover:text-cyan-200'
+            }`}
+            title="Klikni za izravnu promjenu imena ovog ribiča u LiveChatu"
+          >
+            <span>{msg.userName}</span>
+            {isMine && <span className="text-[11px] opacity-75 font-normal">(Vi)</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenRename(msg.deviceId, msg.userName)}
+            className="p-1 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+            title={`Promijeni ime ribiča (${msg.userName})`}
+          >
+            <Edit2 className="w-3 h-3" />
+          </button>
+          {/* Brzi gumb za odgovor na poruku (jedan klik ili povlačenje) */}
+          <button
+            type="button"
+            onClick={() => onReply(msg)}
+            className="p-1 rounded text-slate-500 hover:text-teal-300 hover:bg-slate-800/80 transition-colors cursor-pointer opacity-70 group-hover/item:opacity-100 flex items-center gap-1 text-[11px]"
+            title="Odgovori na ovu poruku (ili povuci lijevo/desno)"
+          >
+            <CornerUpLeft className="w-3.5 h-3.5 text-teal-400" />
+            <span className="hidden sm:inline text-[10px] text-teal-400 font-semibold">Odgovori</span>
+          </button>
+        </div>
+
+        {/* Oblačić poruke: 50% VEĆI FONT (text-[17px] sm:text-[19px]) za vrhunsku čitljivost */}
+        <div
+          onClick={() => onShowInfo(msg)}
+          className={`text-left p-3.5 sm:p-4 rounded-3xl break-words leading-relaxed shadow-md cursor-pointer hover:brightness-105 active:scale-[0.99] transition-all group relative border ${
+            isMine 
+              ? 'bg-gradient-to-br from-teal-600 via-teal-600 to-cyan-700 text-white rounded-tr-xs border-teal-400/40 shadow-teal-950/30' 
+              : 'bg-slate-800/95 text-slate-50 rounded-tl-xs border-slate-700 hover:border-slate-600 shadow-slate-950/40'
+          }`}
+          title="Klikni za prikaz tko je pročitao ovu poruku ili povuci za odgovor"
+        >
+          {/* Ako je poruka odgovor na raniju poruku (Replay pregled iznad teksta) */}
+          {msg.replyTo && (
+            <div className={`mb-2.5 p-2.5 rounded-2xl text-left border-l-4 ${
+              isMine 
+                ? 'bg-slate-950/45 border-teal-300 text-teal-50' 
+                : 'bg-slate-900/95 border-cyan-400 text-slate-200'
+            }`}>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-teal-300 mb-0.5">
+                <CornerUpLeft className="w-3.5 h-3.5" />
+                <span>Odgovor ribiču: {msg.replyTo.userName}</span>
+              </div>
+              <p className="line-clamp-2 text-xs sm:text-[13px] text-slate-300/95 italic">
+                "{msg.replyTo.text}"
+              </p>
+            </div>
+          )}
+
+          {/* Glavni tekst poruke: uvećan za 50% (od 12px na 17px/19px) */}
+          <span className="text-[17px] sm:text-[19px] leading-relaxed font-normal tracking-wide select-text">
+            {msg.text}
+          </span>
+        </div>
+
+        {/* Vrijeme slanja, kvačice i status pregleda */}
+        <button
+          type="button"
+          onClick={() => onShowInfo(msg)}
+          className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 hover:text-cyan-300 mt-1 px-1 font-mono transition-colors cursor-pointer"
+          title="Klikni za prikaz tko je sve pročitao ovu poruku"
+        >
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            <span>{msg.timestamp}</span>
+          </span>
+
+          {readCount > 0 ? (
+            <span className="flex items-center gap-1.5 text-cyan-300 font-bold bg-cyan-950/80 hover:bg-cyan-900/90 px-2 py-0.5 rounded-lg border border-cyan-700/60 transition-colors">
+              <CheckCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <Eye className="w-3 h-3 text-cyan-300 shrink-0" />
+              <span>{readCount}</span>
+            </span>
+          ) : isMine ? (
+            <span className="flex items-center gap-0.5 text-slate-500">
+              <Check className="w-3.5 h-3.5" />
+            </span>
+          ) : null}
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onClose, onNameChanged }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -83,6 +281,18 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   // Stanja za administratorsko brisanje cijele povijesti chata (Clear History)
   const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
   const [isClearingChat, setIsClearingChat] = useState<boolean>(false);
+
+  // Stanje za odgovor na poruku (Reply / Replay s citatom iznad)
+  const [replyingTo, setReplyingTo] = useState<ChatReplyTo | null>(null);
+
+  const handleSelectReply = (msg: ChatMessage) => {
+    setReplyingTo({
+      id: msg.id,
+      userName: msg.userName,
+      text: msg.text
+    });
+    inputRef.current?.focus();
+  };
 
   const myDeviceId = getDeviceId();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -343,7 +553,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     setIsSending(true);
     setErrorMessage(null);
 
-    const res = await sendChatMessage(inputText.trim());
+    const res = await sendChatMessage(inputText.trim(), replyingTo || undefined);
     setIsSending(false);
 
     if (res.success && res.message) {
@@ -353,6 +563,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
         return [...prev, sentMsg];
       });
       setInputText('');
+      setReplyingTo(null);
       setTimeout(scrollToBottom, 50);
       inputRef.current?.focus();
     } else {
@@ -548,72 +759,14 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                       </div>
                     )}
 
-                    <div 
-                      className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[85%] ${isMine ? 'ml-auto' : 'mr-auto'}`}
-                    >
-                      {/* Ime pošiljatelja - klik omogućuje izravnu promjenu imena u porukama */}
-                      <div className="flex items-center gap-1 mb-0.5 px-1">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenRenameUser(msg.deviceId, msg.userName)}
-                          className={`text-[10px] font-bold cursor-pointer hover:underline flex items-center gap-1 transition-colors ${
-                            isMine ? 'text-teal-300 hover:text-teal-200' : 'text-cyan-300 hover:text-cyan-200'
-                          }`}
-                          title="Klikni za izravnu promjenu imena ovog ribiča u LiveChatu"
-                        >
-                          <span>{msg.userName}</span>
-                          {isMine && <span className="text-[9px] opacity-75 font-normal">(Vi)</span>}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenRenameUser(msg.deviceId, msg.userName)}
-                          className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                          title={`Promijeni ime ribiča (${msg.userName})`}
-                        >
-                          <Edit2 className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-
-                      {/* Oblačić poruke - klikom na njega svima se otvara tko je pročitao */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMessageForInfo(msg)}
-                        className={`text-left p-2.5 sm:p-3 rounded-2xl text-xs sm:text-sm break-words leading-relaxed shadow-sm cursor-pointer hover:brightness-110 active:scale-[0.99] transition-all group relative border ${
-                          isMine 
-                            ? 'bg-gradient-to-br from-teal-600 to-cyan-700 text-white rounded-tr-xs border-teal-400/40' 
-                            : 'bg-slate-800/95 text-slate-100 rounded-tl-xs border-slate-700/80 hover:border-slate-600'
-                        }`}
-                        title="Klikni za prikaz tko je sve pročitao ovu poruku"
-                      >
-                        <span>{msg.text}</span>
-                      </button>
-
-                      {/* Vrijeme slanja, kvačice i status tko je pročitao (svima vidljivo i klikabilno) */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMessageForInfo(msg)}
-                        className="flex items-center gap-1.5 text-[9px] text-slate-400 hover:text-cyan-300 mt-0.5 px-1 font-mono transition-colors cursor-pointer"
-                        title="Klikni za prikaz tko je sve pročitao ovu poruku"
-                      >
-                        <span className="flex items-center gap-0.5">
-                          <Clock className="w-2.5 h-2.5" />
-                          <span>{msg.timestamp}</span>
-                        </span>
-
-                        {/* Prikaz kvačica i brojača pregleda */}
-                        {readCount > 0 ? (
-                          <span className="flex items-center gap-1 text-cyan-300 font-bold bg-cyan-950/70 hover:bg-cyan-900/80 px-1.5 py-0.5 rounded-md border border-cyan-700/60 transition-colors">
-                            <CheckCheck className="w-3 h-3 text-cyan-400 shrink-0" />
-                            <Eye className="w-2.5 h-2.5 text-cyan-300 shrink-0" />
-                            <span>{readCount}</span>
-                          </span>
-                        ) : isMine ? (
-                          <span className="flex items-center gap-0.5 text-slate-500">
-                            <Check className="w-3 h-3" />
-                          </span>
-                        ) : null}
-                      </button>
-                    </div>
+                    <SwipeableMessageRow
+                      msg={msg}
+                      isMine={isMine}
+                      readCount={readCount}
+                      onOpenRename={handleOpenRenameUser}
+                      onShowInfo={setSelectedMessageForInfo}
+                      onReply={handleSelectReply}
+                    />
                   </React.Fragment>
                 );
               })
@@ -679,6 +832,34 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </div>
         )}
 
+        {/* Prikaz poruke na koju se odgovara (Replay traka iznad unosa) */}
+        {!isBlocked && replyingTo && (
+          <div className="mx-3 my-1.5 p-2.5 rounded-2xl bg-slate-900/95 border-l-4 border-teal-400 border border-teal-500/35 flex items-center justify-between shadow-xl animate-fadeIn shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="w-7 h-7 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center shrink-0">
+                <CornerUpLeft className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-bold text-teal-300 flex items-center gap-1.5 truncate">
+                  <span>Odgovaraš ribiču:</span>
+                  <span className="text-white font-black">{replyingTo.userName}</span>
+                </p>
+                <p className="text-xs sm:text-[13px] text-slate-300 truncate italic">
+                  "{replyingTo.text}"
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              className="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 ml-2"
+              title="Poništi odgovor"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Unos teksta i gumb za slanje */}
         {!isBlocked && (
           <form onSubmit={handleSendMessage} className="p-3 bg-slate-950 border-t border-slate-800/80 flex items-center gap-2 shrink-0">
@@ -687,15 +868,15 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
               type="text"
               value={inputText}
               onChange={handleInputChange}
-              placeholder="Napiši poruku s Dunava..."
+              placeholder={replyingTo ? `Odgovor ribiču (${replyingTo.userName})...` : 'Napiši poruku s Dunava...'}
               maxLength={350}
-              className="flex-1 bg-slate-900 border border-slate-700/80 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition-all"
+              className="flex-1 bg-slate-900 border border-slate-700/80 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-xl px-3.5 py-2.5 text-sm sm:text-base text-white placeholder-slate-500 outline-none transition-all"
             />
 
             <button
               type="submit"
               disabled={!inputText.trim() || isSending}
-              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
               title="Pošalji poruku"
             >
               {isSending ? (
