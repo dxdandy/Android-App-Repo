@@ -977,16 +977,22 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onTestUpdatePopup && onTestUpdatePopup({
-                        version: '1.3.1',
+                        version: '1.5.9',
                         name: 'RiboPrognoza',
-                        releaseDate: '2026-10-30',
-                        apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
-                        changelog: ['Testiranje skočnog prozora nadogradnje'],
-                        isCritical: false
+                        releaseDate: new Date().toISOString().split('T')[0],
+                        apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.9.apk',
+                        changelog: [
+                          'Testiranje Live Web ažuriranja bez preuzimanja datoteka',
+                          'Automatska sinkronizacija novog koda i predmemorije',
+                          'Potpuno zaobilaženje Google Play Protect sigurnosnih blokada'
+                        ],
+                        isCritical: false,
+                        updateType: 'live_web',
+                        liveWebUrl: 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app'
                       })}
-                      className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold cursor-pointer hover:bg-emerald-500/30 transition-colors"
                     >
-                      Testiraj Popup
+                      Testiraj Live Web Popup
                     </button>
                   </div>
                 </div>

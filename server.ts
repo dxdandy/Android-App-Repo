@@ -725,7 +725,25 @@ try {
       }
     }
 
-    // 3. Sinkroniziraj sve poruke iz Firestore u lokalnu bazu poslužitelja u stvarnom vremenu
+    // 3. Sinkroniziraj podatke o najnovijoj verziji za Live Web Ažuriranja
+    setDoc(doc(serverDb, 'app_updates', 'latest'), {
+      version: '1.5.8',
+      name: 'RiboPrognoza',
+      releaseDate: '2026-11-08',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.8.apk',
+      changelog: [
+        'Uveden sustav Live Web automatskog ažuriranja (OTA) bez potrebe za ponovnim preuzimanjem APK-a',
+        'Zaobilaženje Google Play Protect blokada i ručnih sigurnosnih postavki na mobitelima',
+        'Automatska pozadinska provjera i trenutačna primjena novih ribičkih funkcija',
+        'Obavijesti s ikonom udice u statusnoj traci i na zaključanom zaslonu kada je dostupna nova verzija'
+      ],
+      isCritical: false,
+      updateType: 'live_web',
+      liveWebUrl: 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app',
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch(() => {});
+
+    // 4. Sinkroniziraj sve poruke iz Firestore u lokalnu bazu poslužitelja u stvarnom vremenu
     onSnapshot(collection(serverDb, 'chat_messages'), snapshot => {
       let currentChat = loadChat();
       let hasChanges = false;
@@ -1349,16 +1367,19 @@ app.post('/api/admin/chat/clear', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.5.7',
+    version: '1.5.8',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-07',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.7.apk',
+    releaseDate: '2026-11-08',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.8.apk',
     changelog: [
-      'Ažuriran službeni ID mjerne stanice Aljmaš na mvodostaji.voda.hr (postaja 1582)',
-      'Uspješno vraćen prijenos službenih hidroloških vodostaja Aljmaš uživo u realnom vremenu',
-      'Poboljšana stabilnost i pouzdanost dohvata vodostaja Dunava'
+      'Uveden sustav Live Web automatskog ažuriranja (OTA) bez potrebe za ponovnim preuzimanjem APK-a',
+      'Zaobilaženje Google Play Protect blokada i ručnih sigurnosnih postavki na mobitelima',
+      'Automatska pozadinska provjera i trenutačna primjena novih ribičkih funkcija',
+      'Obavijesti s ikonom udice u statusnoj traci i na zaključanom zaslonu kada je dostupna nova verzija'
     ],
-    isCritical: false
+    isCritical: false,
+    updateType: 'live_web',
+    liveWebUrl: 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app'
   });
 });
 

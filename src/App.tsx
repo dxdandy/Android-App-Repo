@@ -48,7 +48,8 @@ import {
   checkForAppUpdate, 
   AppVersionInfo, 
   CURRENT_APP_VERSION,
-  cleanupInstallationFiles
+  cleanupInstallationFiles,
+  subscribeToLiveUpdates
 } from './services/updateService';
 
 const STORAGE_KEY_LAST_UPDATE = 'dunav_info_zadnje_azuriranje';
@@ -195,12 +196,19 @@ export default function App() {
     handleRefreshAll();
   }, [handleRefreshAll]);
 
-  // Automatska tiha provjera nadogradnje i čišćenje starih instalacijskih datoteka pri pokretanju
+  // Automatska tiha provjera nadogradnje, Live Web sinkronizacija i čišćenje starih instalacijskih datoteka
   useEffect(() => {
     // Odmah pokreni automatsko čišćenje privremenih APK instalacijskih datoteka s uređaja
     cleanupInstallationFiles().catch(() => {});
 
-    const timer = setTimeout(async () => {
+    // 1. Pretplata na Live Web ažuriranja u stvarnom vremenu putem Firestorea
+    const unsubLive = subscribeToLiveUpdates((newUpdate) => {
+      setAvailableUpdate(newUpdate);
+      setShowUpdateModal(true);
+    });
+
+    // 2. Provjera ažuriranja s poslužitelja pri pokretanju
+    const checkUpdates = async () => {
       try {
         const res = await checkForAppUpdate(false);
         if (res.status === 'update_available' && res.updateInfo) {
@@ -208,9 +216,26 @@ export default function App() {
           setShowUpdateModal(true);
         }
       } catch {}
-    }, 1500);
+    };
 
-    return () => clearTimeout(timer);
+    const timer = setTimeout(checkUpdates, 1500);
+    // Periodička provjera svakih 15 minuta dok je aplikacija aktivna
+    const interval = setInterval(checkUpdates, 15 * 60 * 1000);
+
+    // 3. Provjera kada se korisnik vrati u aplikaciju
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkUpdates();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      unsubLive();
+    };
   }, []);
 
   // Redovita provjera valjanosti i opoziva licence s centralnim poslužiteljem

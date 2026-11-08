@@ -208,3 +208,68 @@ export function updateAppBadge(count: number): void {
     }
   } catch {}
 }
+
+/**
+ * Prikazuje obavijest s ikonom udice u traci i na zaključanom zaslonu
+ * kada je dostupno novo Live Web ažuriranje za aplikaciju
+ */
+export async function showAppUpdateAvailableNotification(
+  version: string,
+  summaryText?: string
+): Promise<void> {
+  const title = `🎣 RiboPrognoza - Novo Live ažuriranje (v${version})`;
+  const body = summaryText || 'Dostupna su nova ribička poboljšanja! Dodirnite za trenutačnu primjenu bez preuzimanja APK-a.';
+
+  playNotificationSound();
+
+  // 1. Android nativna obavijest s ikonom udice
+  try {
+    const notifId = 888800 + (parseInt(version.replace(/\D/g, ''), 10) % 999);
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: notifId,
+          title,
+          body,
+          channelId: 'ribo_chat_channel',
+          smallIcon: 'ic_stat_fish',
+          iconColor: '#0891b2',
+          sound: 'beep.wav',
+          actionTypeId: '',
+          extra: {
+            updateVersion: version,
+            type: 'app_live_update'
+          }
+        }
+      ]
+    });
+  } catch {
+    // Nije nativni Capacitor
+  }
+
+  // 2. Web / PWA Notification
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration && registration.showNotification) {
+          registration.showNotification(title, {
+            body,
+            icon: '/pwa-192x192.png',
+            badge: '/pwa-192x192.png',
+            tag: `ribo-update-v${version}`,
+            vibrate: [150, 100, 150]
+          } as any);
+          return;
+        }
+      }
+
+      new Notification(title, {
+        body,
+        icon: '/pwa-192x192.png',
+        tag: `ribo-update-v${version}`
+      } as any);
+    } catch {}
+  }
+}
+
