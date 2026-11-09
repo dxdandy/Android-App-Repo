@@ -315,10 +315,10 @@ export default function App() {
 
   // Pretplata na poruke u stvarnom vremenu za zvučnu obavijest, obavijest na traci i ikoni aplikacije (App Badge)
   useEffect(() => {
-    if (!isActivated) return;
-
     const myId = getDeviceId();
     syncDeviceIdToNative(myId);
+
+    if (!isActivated) return;
 
     if (!lastNotifiedMsgIdRef.current && typeof window !== 'undefined') {
       lastNotifiedMsgIdRef.current = localStorage.getItem('ribo_last_notified_msg_id') || '';

@@ -10,16 +10,19 @@ import android.os.SystemClock;
 import android.util.Log;
 import java.util.concurrent.Executors;
 
+/**
+ * Prijamnik alarma koji budi uređaj i provjerava Firestore čak i kada je aplikacija potpuno ugašena
+ */
 public class ChatAlarmReceiver extends BroadcastReceiver {
     private static final String TAG = "ChatAlarmReceiver";
-    public static final int ALARM_INTERVAL_MS = 60 * 1000; // Provjera svake 1 minute
+    public static final int ALARM_INTERVAL_MS = 25 * 1000; // Provjera svakih 25 sekundi
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "ChatAlarmReceiver aktivan, provjera novih poruka...");
+        Log.d(TAG, "ChatAlarmReceiver probuđen, provjeravam Firestore za nove poruke...");
 
         Executors.newSingleThreadExecutor().execute(() -> {
-            ChatPollHelper.checkAndNotify(context, false);
+            ChatPollHelper.checkAndNotify(context);
         });
 
         try {
@@ -27,7 +30,7 @@ public class ChatAlarmReceiver extends BroadcastReceiver {
             context.startService(serviceIntent);
         } catch (Exception ignored) {}
 
-        // Zakaži sljedeću provjeru kako bi radilo čak i ako je aplikacija potpuno ugašena
+        // Zakaži sljedeće buđenje kako bi aplikacija primala obavijesti poput SMS-a bez prestanka
         scheduleNextAlarm(context);
     }
 

@@ -83,6 +83,30 @@ public class MainActivity extends BridgeActivity {
         startChatBackgroundMonitoring();
     }
 
+    @Override
+    public void onPause() {
+        super.onPause();
+        try {
+            getSharedPreferences(ChatPollHelper.PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(ChatPollHelper.KEY_IN_CHAT, false)
+                .apply();
+        } catch (Exception ignored) {}
+        startChatBackgroundMonitoring();
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        try {
+            getSharedPreferences(ChatPollHelper.PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(ChatPollHelper.KEY_IN_CHAT, false)
+                .apply();
+        } catch (Exception ignored) {}
+        startChatBackgroundMonitoring();
+    }
+
     private void resetWebViewToLocalAssetsIfNeeded() {
         try {
             if (this.bridge != null && this.bridge.getWebView() != null) {
@@ -261,7 +285,7 @@ public class MainActivity extends BridgeActivity {
         public void checkNow(PluginCall call) {
             try {
                 new Thread(() -> {
-                    ChatPollHelper.checkAndNotify(getContext(), false);
+                    ChatPollHelper.checkAndNotify(getContext());
                 }).start();
                 call.resolve();
             } catch (Exception e) {

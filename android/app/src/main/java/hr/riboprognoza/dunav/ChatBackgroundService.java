@@ -7,6 +7,9 @@ import android.util.Log;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Pozadinski servis koji osluškuje Firestore dok je proces aplikacije aktivan u memoriji
+ */
 public class ChatBackgroundService extends Service {
     private static final String TAG = "ChatBackgroundService";
     private ExecutorService executor;
@@ -28,14 +31,14 @@ public class ChatBackgroundService extends Service {
         executor.execute(() -> {
             while (isRunning) {
                 try {
-                    ChatPollHelper.checkAndNotify(getApplicationContext(), true);
-                    Thread.sleep(1500);
+                    ChatPollHelper.checkAndNotify(getApplicationContext());
+                    Thread.sleep(4000);
                 } catch (InterruptedException e) {
                     break;
                 } catch (Exception e) {
                     Log.w(TAG, "Greška u pozadinskom osluškivanju: " + e.getMessage());
                     try {
-                        Thread.sleep(4000);
+                        Thread.sleep(6000);
                     } catch (InterruptedException ignored) {}
                 }
             }

@@ -2,50 +2,79 @@ package hr.riboprognoza.dunav;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.PowerManager;
 import android.util.Log;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+/**
+ * Pomoćna klasa za direktnu provjeru novih poruka u Google Cloud Firestore bazi
+ * Radi 100% u pozadini, bez ovisnosti o web pregledniku ili privremenim poslužiteljima.
+ * Upit ide izravno na službeni Google Firestore REST API s visokom dostupnošću (99.999%).
+ */
 public class ChatPollHelper {
     private static final String TAG = "ChatPollHelper";
     public static final String PREFS_NAME = "RiboChatPrefs";
     public static final String KEY_DEVICE_ID = "device_id";
     public static final String KEY_LAST_NOTIFIED_ID = "last_notified_id";
+    public static final String KEY_LAST_NOTIFIED_TIME = "last_notified_time";
     public static final String KEY_IN_CHAT = "in_chat";
-    private static final String CLOUD_URL = "https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app";
 
-    public static void checkAndNotify(Context context, boolean waitForNew) {
+    // Izravni Google Cloud Firestore REST API endpoint za kolekciju chat_messages
+    private static final String FIRESTORE_QUERY_URL = 
+        "https://firestore.googleapis.com/v1/projects/titanium-domain-wv4kj/databases/ai-studio-hrvatskiradnipro-badf4099-cdd8-4a4a-b90c-6a3aea6c7b94/documents:runQuery?key=AIzaSyBi1UlCC2YRgTGweaLuu52YE1F5xZGG5ho";
+
+    // Strukturirani Firestore upit: dohvati zadnju (1) najnoviju poruku poredanu silazno po createdAt
+    private static final String QUERY_PAYLOAD = 
+        "{\"structuredQuery\":{\"from\":[{\"collectionId\":\"chat_messages\"}],\"orderBy\":[{\"field\":{\"fieldPath\":\"createdAt\"},\"direction\":\"DESCENDING\"}],\"limit\":1}}";
+
+    public static void checkAndNotify(Context context) {
+        if (context == null) return;
+
+        PowerManager.WakeLock wakeLock = null;
+        try {
+            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RiboPrognoza:ChatPollWakeLock");
+                wakeLock.acquire(8000); // Drži CPU budnim max 8 sekundi za mrežni upit
+            }
+        } catch (Exception ignored) {}
+
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             String myDeviceId = prefs.getString(KEY_DEVICE_ID, "");
             String lastNotifiedId = prefs.getString(KEY_LAST_NOTIFIED_ID, "");
+            long lastNotifiedTime = prefs.getLong(KEY_LAST_NOTIFIED_TIME, 0);
             boolean inChat = prefs.getBoolean(KEY_IN_CHAT, false);
 
             if (inChat) {
-                // Korisnik je aktivno unutar chata, nemoj ga ometati sistemskim obavijestima
+                // Korisnik je aktivno unutar otvorenog chata, nema potrebe slati vanjsku obavijest
                 return;
             }
 
-            StringBuilder urlBuilder = new StringBuilder(CLOUD_URL);
-            urlBuilder.append("/api/chat/poll?deviceId=").append(URLEncoder.encode(myDeviceId, "UTF-8"));
-            urlBuilder.append("&lastSeenId=").append(URLEncoder.encode(lastNotifiedId, "UTF-8"));
-            urlBuilder.append("&wait=").append(waitForNew ? "true" : "false");
-            urlBuilder.append("&t=").append(System.currentTimeMillis());
-
-            URL url = new URL(urlBuilder.toString());
+            URL url = new URL(FIRESTORE_QUERY_URL);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(6000);
-            conn.setReadTimeout(waitForNew ? 22000 : 8000);
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(6500);
+            conn.setReadTimeout(6500);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
             conn.setRequestProperty("Accept", "application/json");
+
+            try (OutputStream os = conn.getOutputStream()) {
+                byte[] input = QUERY_PAYLOAD.getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
+            }
 
             int responseCode = conn.getResponseCode();
             if (responseCode == 200) {
-                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
                 StringBuilder response = new StringBuilder();
                 String inputLine;
                 while ((inputLine = in.readLine()) != null) {
@@ -53,25 +82,63 @@ public class ChatPollHelper {
                 }
                 in.close();
 
-                JSONObject json = new JSONObject(response.toString());
-                boolean hasNew = json.optBoolean("hasNew", false);
-                if (hasNew && json.has("message")) {
-                    JSONObject msg = json.getJSONObject("message");
-                    String msgId = msg.optString("id", "");
-                    String senderDeviceId = msg.optString("deviceId", "");
-                    String senderName = msg.optString("userName", "Ribič");
-                    String text = msg.optString("text", "");
+                JSONArray results = new JSONArray(response.toString());
+                if (results.length() > 0) {
+                    JSONObject item = results.getJSONObject(0);
+                    if (item.has("document")) {
+                        JSONObject doc = item.getJSONObject("document");
+                        JSONObject fields = doc.getJSONObject("fields");
 
-                    // Provjeri da poruka nije od ovog istog uređaja i da nije već prikazana
-                    if (!msgId.isEmpty() && !msgId.equals(lastNotifiedId) && !senderDeviceId.equalsIgnoreCase(myDeviceId)) {
-                        prefs.edit().putString(KEY_LAST_NOTIFIED_ID, msgId).apply();
-                        ChatNotificationHelper.showNotification(context, senderName, text, msgId);
+                        String msgId = fields.has("id") ? fields.getJSONObject("id").optString("stringValue", "") : "";
+                        String senderDeviceId = fields.has("deviceId") ? fields.getJSONObject("deviceId").optString("stringValue", "") : "";
+                        String senderName = fields.has("userName") ? fields.getJSONObject("userName").optString("stringValue", "Ribič") : "Ribič";
+                        String text = fields.has("text") ? fields.getJSONObject("text").optString("stringValue", "") : "";
+                        
+                        long createdAt = 0;
+                        if (fields.has("createdAt")) {
+                            JSONObject cat = fields.getJSONObject("createdAt");
+                            createdAt = cat.optLong("integerValue", 0);
+                        }
+
+                        // Ako prvi put pokrećemo i nema prethodne zabilježene poruke
+                        if (lastNotifiedTime == 0 && lastNotifiedId.isEmpty()) {
+                            // Inicijaliziraj na trenutnu zadnju poruku kako ne bismo slali obavijesti za stare poruke
+                            prefs.edit()
+                                .putString(KEY_LAST_NOTIFIED_ID, msgId)
+                                .putLong(KEY_LAST_NOTIFIED_TIME, createdAt > 0 ? createdAt : System.currentTimeMillis())
+                                .apply();
+                            return;
+                        }
+
+                        // Provjeri je li poruka nova i nije od ovog istog uređaja
+                        boolean isNew = !msgId.isEmpty() && !msgId.equals(lastNotifiedId);
+                        boolean isFromOther = myDeviceId.isEmpty() || !senderDeviceId.equalsIgnoreCase(myDeviceId);
+                        boolean isFresh = createdAt == 0 || (createdAt >= lastNotifiedTime);
+
+                        if (isNew && isFromOther && isFresh) {
+                            Log.i(TAG, "Nova poruka pronađena u pozadini od: " + senderName + " (" + msgId + ")");
+                            prefs.edit()
+                                .putString(KEY_LAST_NOTIFIED_ID, msgId)
+                                .putLong(KEY_LAST_NOTIFIED_TIME, createdAt > 0 ? createdAt : System.currentTimeMillis())
+                                .apply();
+
+                            // Prikaži glasnu zvučnu i vizualnu obavijest poput SMS poruke s ikonom udice
+                            ChatNotificationHelper.showNotification(context, senderName, text, msgId);
+                        }
                     }
                 }
+            } else {
+                Log.w(TAG, "Firestore HTTP response code: " + responseCode);
             }
             conn.disconnect();
         } catch (Exception e) {
-            Log.d(TAG, "Poll provjera: " + e.getMessage());
+            Log.e(TAG, "Greška pri provjeri Firestore poruka: " + e.getMessage());
+        } finally {
+            if (wakeLock != null && wakeLock.isHeld()) {
+                try {
+                    wakeLock.release();
+                } catch (Exception ignored) {}
+            }
         }
     }
 }

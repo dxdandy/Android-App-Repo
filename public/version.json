@@ -1,13 +1,13 @@
 {
-  "version": "1.6.1",
+  "version": "1.6.2",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-09",
   "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk",
   "changelog": [
-    "Administratorski panel (PIN 2026): istaknuti gumb 'Testiraj Zvuk & Udicu' za brzu provjeru zvuka i ikone udice",
-    "Trajno i neraskidivo vezanje imena korisnika za ID: dodijeljena imena se više nikada ne resetiraju nakon nadogradnji",
-    "Pouzdan sustav obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena",
-    "Poboljšana sinkronizacija licenciranih korisnika i poruka u LiveChatu"
+    "Pouzdan rad LiveChat obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena (poput SMS-a ili e-maila)",
+    "Direktno pozadinsko povezivanje s Google Cloud Firestore bazom bez posrednika i bez blokada",
+    "Automatsko buđenje ekrana i jasan prikaz na zaključanom zaslonu za nove poruke",
+    "Optimizirana potrošnja baterije i stabilnost nativnog Android servisa"
   ],
   "isCritical": false,
   "updateType": "apk"

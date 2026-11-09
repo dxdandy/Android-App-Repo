@@ -9,7 +9,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 
-export const BUNDLED_APP_VERSION = '1.6.1';
+export const BUNDLED_APP_VERSION = '1.6.2';
 
 /**
  * Vraća trenutnu aktivnu verziju instalirane aplikacije

@@ -784,15 +784,15 @@ try {
 
     // 3. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.6.1',
+      version: '1.6.2',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-09',
       apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
       changelog: [
-        'Administratorski panel (PIN 2026): istaknuti gumb "Testiraj Zvuk & Udicu" za provjeru obavijesti i zvuka',
-        'Trajno vezanje imena korisnika za ID uređaja: imena se nikada više ne gube niti resetiraju na ID',
-        'Pouzdan sustav obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena',
-        'Poboljšana sinkronizacija licenciranih korisnika i poruka u LiveChatu'
+        'Pouzdan rad LiveChat obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena (poput SMS-a ili e-maila)',
+        'Direktno pozadinsko povezivanje s Google Cloud Firestore bazom bez posrednika i bez blokada',
+        'Automatsko buđenje ekrana i jasan prikaz na zaključanom zaslonu za nove poruke',
+        'Optimizirana potrošnja baterije i stabilnost nativnog Android servisa'
       ],
       isCritical: false,
       updateType: 'apk',
@@ -1511,15 +1511,15 @@ app.post('/api/admin/chat/clear', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.6.1',
+    version: '1.6.2',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-09',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Administratorski panel (PIN 2026): istaknuti gumb "Testiraj Zvuk & Udicu" za provjeru obavijesti i zvuka',
-      'Trajno vezanje imena korisnika za ID uređaja: imena se nikada više ne gube niti resetiraju na ID',
-      'Pouzdan sustav obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena',
-      'Poboljšana sinkronizacija licenciranih korisnika i poruka u LiveChatu'
+      'Pouzdan rad LiveChat obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena (poput SMS-a ili e-maila)',
+      'Direktno pozadinsko povezivanje s Google Cloud Firestore bazom bez posrednika i bez blokada',
+      'Automatsko buđenje ekrana i jasan prikaz na zaključanom zaslonu za nove poruke',
+      'Optimizirana potrošnja baterije i stabilnost nativnog Android servisa'
     ],
     isCritical: false,
     updateType: 'apk'
