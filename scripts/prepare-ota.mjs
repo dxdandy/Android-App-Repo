@@ -68,17 +68,28 @@ try {
           const ota = await loadOtaFromIndexedDB();
           if (ota && ota.version && ota.jsCode && isNewerVer(ota.version, window.__BUNDLED_APP_VERSION__)) {
             if (ota.cssCode) {
+              const oldStyle = document.getElementById('ribo-ota-live-css');
+              if (oldStyle) oldStyle.remove();
               const styleEl = document.createElement('style');
               styleEl.id = 'ribo-ota-live-css';
               styleEl.textContent = ota.cssCode;
               document.head.appendChild(styleEl);
             }
             window.__RUNNING_OTA_VERSION__ = ota.version;
-            const blob = new Blob([ota.jsCode], { type: 'text/javascript' });
-            const blobUrl = URL.createObjectURL(blob);
-            await import(blobUrl);
-            loadedOta = true;
-            console.log('[RiboPrognoza OTA] Uspješno pokrenut Live Web paket v' + ota.version);
+            try {
+              const blob = new Blob([ota.jsCode], { type: 'text/javascript' });
+              const blobUrl = URL.createObjectURL(blob);
+              await import(blobUrl);
+              loadedOta = true;
+            } catch (importErr) {
+              console.warn('[RiboPrognoza OTA] Blob import nije uspio, pokušavam preko script taga:', importErr);
+              const scriptEl = document.createElement('script');
+              scriptEl.type = 'module';
+              scriptEl.textContent = ota.jsCode;
+              document.body.appendChild(scriptEl);
+              loadedOta = true;
+            }
+            console.log('[RiboPrognoza OTA] Uspješno aktiviran Live Web paket v' + ota.version);
           }
         } catch (err) {
           console.warn('[RiboPrognoza OTA] Fallback na ugrađeni paket:', err);

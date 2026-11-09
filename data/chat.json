@@ -1,1 +1,1392 @@
-[]
+[
+  {
+    "id": "msg-1794059746874-c8sr",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Ajmo azuriranje jedno",
+    "timestamp": "14:55",
+    "createdAt": 1794059746874,
+    "readBy": [
+      {
+        "userName": "Krasni",
+        "readAt": 1794059746874,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "readAt": 1794060144404,
+        "deviceId": "RP-4HTV-82DC",
+        "userName": "Ribič (82DC)"
+      },
+      {
+        "userName": "Ribič (3NF2)",
+        "readAt": 1794070106441,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "readAt": 1794130592103,
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Ribič (UC5D)"
+      },
+      {
+        "readAt": 1794218529486,
+        "userName": "Ribič (X4FH)",
+        "deviceId": "RP-B4AP-X4FH"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794129747863-iwe6",
+    "deviceId": "RP-3MXV-3NF2",
+    "userName": "Silvio",
+    "text": "Ažurirao.. jel tražim nešto posebno?",
+    "timestamp": "10:22",
+    "createdAt": 1794129747863,
+    "readBy": [
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794129747863,
+        "userName": "Silvio"
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794130592265,
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "readAt": 1794131616324,
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794146283064,
+        "deviceId": "RP-4HTV-82DC"
+      },
+      {
+        "userName": "Ribič (X4FH)",
+        "deviceId": "RP-B4AP-X4FH",
+        "readAt": 1794218529745
+      }
+    ]
+  },
+  {
+    "id": "msg-1794130606387-rrw8",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Azurirao",
+    "timestamp": "10:36",
+    "createdAt": 1794130606388,
+    "readBy": [
+      {
+        "readAt": 1794130606388,
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Ribič (UC5D)"
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794131616597,
+        "userName": "Krasni"
+      },
+      {
+        "userName": "Silvio",
+        "readAt": 1794132828391,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "readAt": 1794146283272,
+        "userName": "Ribič (82DC)",
+        "deviceId": "RP-4HTV-82DC"
+      },
+      {
+        "deviceId": "RP-B4AP-X4FH",
+        "readAt": 1794218530072,
+        "userName": "Ribič (X4FH)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794131667937-vqgt",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Tako vas volim...mislim da ce od sada ici lakse i bez ovih pizdarija...samo automatski",
+    "timestamp": "10:54",
+    "createdAt": 1794131667937,
+    "readBy": [
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794131667937,
+        "userName": "Krasni"
+      },
+      {
+        "userName": "Silvio",
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794132828621
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794146283527,
+        "userName": "Ribič (82DC)"
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794146432208,
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "userName": "Ribič (X4FH)",
+        "deviceId": "RP-B4AP-X4FH",
+        "readAt": 1794218530477
+      }
+    ]
+  },
+  {
+    "id": "msg-1794131719572-9xv9",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Javite jel vam dolazi obavijest o poruci dok niste u aplikaciji...i kako ako da",
+    "timestamp": "10:55",
+    "createdAt": 1794131719573,
+    "readBy": [
+      {
+        "userName": "Krasni",
+        "readAt": 1794131719573,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "userName": "Silvio",
+        "readAt": 1794132828840,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794146283763,
+        "userName": "Ribič (82DC)"
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794146432494,
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "readAt": 1794218530776,
+        "deviceId": "RP-B4AP-X4FH",
+        "userName": "Ribič (X4FH)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794131766301-i5dk",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Ne...samo nadam se automatski update priliko pokretanja",
+    "timestamp": "10:56",
+    "createdAt": 1794131766302,
+    "readBy": [
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794131766302,
+        "userName": "Krasni"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794132829073,
+        "userName": "Silvio"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "userName": "Ribič (82DC)",
+        "readAt": 1794146284037
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794146432693,
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "deviceId": "RP-B4AP-X4FH",
+        "userName": "Ribič (X4FH)",
+        "readAt": 1794218531239
+      }
+    ]
+  },
+  {
+    "id": "msg-1794132910250-zhwt",
+    "deviceId": "RP-3MXV-3NF2",
+    "userName": "Silvio",
+    "text": "Ja nemam obavijesti.. tek kad otvorim",
+    "timestamp": "11:15",
+    "createdAt": 1794132910250,
+    "readBy": [
+      {
+        "readAt": 1794132910250,
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Silvio"
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "userName": "Krasni",
+        "readAt": 1794133372183
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794146284288,
+        "deviceId": "RP-4HTV-82DC"
+      },
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794146432895,
+        "userName": "Ribič (UC5D)"
+      },
+      {
+        "userName": "Ribič (X4FH)",
+        "readAt": 1794218531655,
+        "deviceId": "RP-B4AP-X4FH"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794133390866-2otm",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Aha...tenkiju...",
+    "timestamp": "11:23",
+    "createdAt": 1794133390866,
+    "readBy": [
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "userName": "Krasni",
+        "readAt": 1794133390866
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794146284495,
+        "deviceId": "RP-4HTV-82DC"
+      },
+      {
+        "readAt": 1794146433090,
+        "userName": "Ribič (UC5D)",
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "readAt": 1794218532033,
+        "deviceId": "RP-B4AP-X4FH",
+        "userName": "Ribič (X4FH)"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794221248583,
+        "userName": "Silvio"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794215477093-ui6t",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Jesam",
+    "timestamp": "10:11",
+    "createdAt": 1794215477093,
+    "readBy": [
+      {
+        "readAt": 1794215477093,
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Ribič (UC5D)"
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794215870274,
+        "userName": "Krasni"
+      },
+      {
+        "deviceId": "RP-B4AP-X4FH",
+        "userName": "Ribič (X4FH)",
+        "readAt": 1794218532397
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794221248831,
+        "userName": "Silvio"
+      },
+      {
+        "readAt": 1794238087751,
+        "deviceId": "RP-4HTV-82DC",
+        "userName": "Ribič (82DC)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794215537862-ljhi",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Krasniiii",
+    "timestamp": "10:12",
+    "createdAt": 1794215537863,
+    "readBy": [
+      {
+        "userName": "Ribič (UC5D)",
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794215537863
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794215870537,
+        "userName": "Krasni"
+      },
+      {
+        "deviceId": "RP-B4AP-X4FH",
+        "readAt": 1794218532688,
+        "userName": "Ribič (X4FH)"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Silvio",
+        "readAt": 1794221249089
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "userName": "Ribič (82DC)",
+        "readAt": 1794238088036
+      }
+    ]
+  },
+  {
+    "id": "msg-1794215874845-u0kd",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Divan si",
+    "timestamp": "10:17",
+    "createdAt": 1794215874845,
+    "readBy": [
+      {
+        "userName": "Krasni",
+        "readAt": 1794215874845,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "deviceId": "RP-B4AP-X4FH",
+        "readAt": 1794218532995,
+        "userName": "Ribič (X4FH)"
+      },
+      {
+        "userName": "Silvio",
+        "readAt": 1794221249308,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794238088439,
+        "deviceId": "RP-4HTV-82DC"
+      },
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241637163
+      }
+    ]
+  },
+  {
+    "id": "msg-1794221279074-ehqb",
+    "deviceId": "RP-3MXV-3NF2",
+    "userName": "Silvio",
+    "text": "Kurac je divan 😁",
+    "timestamp": "11:47",
+    "createdAt": 1794221279074,
+    "readBy": [
+      {
+        "readAt": 1794221279074,
+        "userName": "Silvio",
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "userName": "Krasni",
+        "readAt": 1794221698430,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794238088849
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241637316,
+        "deviceId": "RP-HGT8-UC5D"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794221703722-yy5v",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Ahahah",
+    "timestamp": "11:55",
+    "createdAt": 1794221703722,
+    "readBy": [
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794221703722,
+        "userName": "Krasni"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794224865689,
+        "userName": "Silvio"
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794238089292,
+        "deviceId": "RP-4HTV-82DC"
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241637473,
+        "deviceId": "RP-HGT8-UC5D"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794224878901-npoz",
+    "deviceId": "RP-3MXV-3NF2",
+    "userName": "Silvio",
+    "text": "Opaa i obavijest stigla",
+    "timestamp": "12:47",
+    "createdAt": 1794224878901,
+    "readBy": [
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794224878901,
+        "userName": "Silvio"
+      },
+      {
+        "userName": "Krasni",
+        "readAt": 1794225059707,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794240201260,
+        "userName": "Ribič (82DC)"
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241637626,
+        "deviceId": "RP-HGT8-UC5D"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794225079827-ekjv",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "E divni...radim na tome...ide uskoro nova verzija",
+    "timestamp": "12:51",
+    "createdAt": 1794225079827,
+    "readBy": [
+      {
+        "readAt": 1794225079827,
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794226897981,
+        "userName": "Silvio"
+      },
+      {
+        "readAt": 1794240201461,
+        "userName": "Ribič (82DC)",
+        "deviceId": "RP-4HTV-82DC"
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241637775,
+        "deviceId": "RP-HGT8-UC5D"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241662633-3eaa",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Krasni",
+    "timestamp": "17:27",
+    "createdAt": 1794241662633,
+    "readBy": [
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241662633,
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "readAt": 1794241693281,
+        "deviceId": "RP-7CPA-7G8G",
+        "userName": "Krasni"
+      },
+      {
+        "readAt": 1794241739124,
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241668109-oi4p",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Pederu",
+    "timestamp": "17:27",
+    "createdAt": 1794241668109,
+    "readBy": [
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241668109,
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "userName": "Krasni",
+        "readAt": 1794241693569,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac",
+        "readAt": 1794241739333
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241735209-ysb1",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Eeeeej...nisam ja iz Ivankova",
+    "timestamp": "17:28",
+    "createdAt": 1794241735210,
+    "readBy": [
+      {
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794241735210
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794241739550,
+        "userName": "Sikac"
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241741613,
+        "deviceId": "RP-HGT8-UC5D"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241747347-xvr0",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Opaaaa",
+    "timestamp": "17:29",
+    "createdAt": 1794241747347,
+    "readBy": [
+      {
+        "readAt": 1794241747347,
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Ribič (UC5D)"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac",
+        "readAt": 1794241748806
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "userName": "Krasni",
+        "readAt": 1794241773843
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241751450-csdc",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "I zvuk",
+    "timestamp": "17:29",
+    "createdAt": 1794241751450,
+    "readBy": [
+      {
+        "readAt": 1794241751450,
+        "userName": "Ribič (UC5D)",
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "userName": "Sikac",
+        "readAt": 1794241753012,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "readAt": 1794241774020,
+        "deviceId": "RP-7CPA-7G8G",
+        "userName": "Krasni"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241758935-ibaa",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Bravo keasnodare",
+    "timestamp": "17:29",
+    "createdAt": 1794241758935,
+    "readBy": [
+      {
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241758935,
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794241760476,
+        "userName": "Sikac"
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794241774333,
+        "userName": "Krasni"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241763554-1tgn",
+    "deviceId": "RP-3MXV-3NF2",
+    "userName": "Sikac",
+    "text": "Daj ribiču ime",
+    "timestamp": "17:29",
+    "createdAt": 1794241763554,
+    "readBy": [
+      {
+        "readAt": 1794241763554,
+        "userName": "Sikac",
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794241766521
+      },
+      {
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794241774545
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241833996-73n4",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Da krasni",
+    "timestamp": "17:30",
+    "createdAt": 1794241833996,
+    "readBy": [
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794241833996,
+        "userName": "Ribič (UC5D)"
+      },
+      {
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794241834793
+      },
+      {
+        "userName": "Sikac",
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794241838126
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241849293-iu7l",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "E jebemu kojem...tj. di? U chatu ili evidenciji..meni se sve prikazuje dobro",
+    "timestamp": "17:30",
+    "createdAt": 1794241849293,
+    "readBy": [
+      {
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794241849293
+      },
+      {
+        "readAt": 1794241851657,
+        "userName": "Ribič (UC5D)",
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "readAt": 1794241851545,
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241861972-epbf",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Znaci Domi",
+    "timestamp": "17:31",
+    "createdAt": 1794241861973,
+    "readBy": [
+      {
+        "userName": "Krasni",
+        "readAt": 1794241861973,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "readAt": 1794241864334,
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Ribič (UC5D)"
+      },
+      {
+        "userName": "Sikac",
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794241864135
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242397070,
+        "userName": "Ribič (82DC)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241870434-tste",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Da meni",
+    "timestamp": "17:31",
+    "createdAt": 1794241870434,
+    "readBy": [
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241870434
+      },
+      {
+        "userName": "Krasni",
+        "readAt": 1794241871233,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "userName": "Sikac",
+        "readAt": 1794241871931,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794242397331,
+        "deviceId": "RP-4HTV-82DC"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241888422-fkl0",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Sikac je sikac ti krasni",
+    "timestamp": "17:31",
+    "createdAt": 1794241888422,
+    "readBy": [
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Ribič (UC5D)",
+        "readAt": 1794241888422
+      },
+      {
+        "userName": "Sikac",
+        "readAt": 1794241890063,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "readAt": 1794241947826,
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242397695,
+        "userName": "Ribič (82DC)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241889663-s4v9",
+    "deviceId": "RP-3MXV-3NF2",
+    "userName": "Sikac",
+    "text": "U chatu",
+    "timestamp": "17:31",
+    "createdAt": 1794241889663,
+    "readBy": [
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794241889663,
+        "userName": "Sikac"
+      },
+      {
+        "userName": "Ribič (UC5D)",
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794241891839
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794241948095,
+        "userName": "Krasni"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242398098,
+        "userName": "Ribič (82DC)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241922599-ahhu",
+    "deviceId": "RP-3MXV-3NF2",
+    "userName": "Sikac",
+    "text": "Mališa odusto 😆",
+    "timestamp": "17:32",
+    "createdAt": 1794241922600,
+    "readBy": [
+      {
+        "readAt": 1794241922600,
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac"
+      },
+      {
+        "readAt": 1794241924869,
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Ribič (UC5D)"
+      },
+      {
+        "readAt": 1794241948294,
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242398478,
+        "userName": "Ribič (82DC)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794241960660-mktg",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Nije ni bio...ahahah",
+    "timestamp": "17:32",
+    "createdAt": 1794241960661,
+    "readBy": [
+      {
+        "userName": "Krasni",
+        "readAt": 1794241960661,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "readAt": 1794241962983,
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac"
+      },
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794241986197,
+        "userName": "Domo"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242398752,
+        "userName": "Ribič (82DC)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242110779-ievi",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Ribicu jesi postao Domo",
+    "timestamp": "17:35",
+    "createdAt": 1794242110779,
+    "readBy": [
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "userName": "Krasni",
+        "readAt": 1794242110779
+      },
+      {
+        "userName": "Sikac",
+        "readAt": 1794242124253,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "readAt": 1794242157253,
+        "userName": "Domo",
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "userName": "Ribič (82DC)",
+        "readAt": 1794242399329
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242138771-t1o2",
+    "deviceId": "RP-3MXV-3NF2",
+    "userName": "Sikac",
+    "text": "Kod mene je",
+    "timestamp": "17:35",
+    "createdAt": 1794242138772,
+    "readBy": [
+      {
+        "userName": "Sikac",
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794242138772
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794242140747,
+        "userName": "Krasni"
+      },
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794242157424,
+        "userName": "Domo"
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242399717
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242144976-oib8",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Ja bih lupao sve sto je u tablici ribe ili da nesto maknem...",
+    "timestamp": "17:35",
+    "createdAt": 1794242144977,
+    "readBy": [
+      {
+        "readAt": 1794242144977,
+        "deviceId": "RP-7CPA-7G8G",
+        "userName": "Krasni"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac",
+        "readAt": 1794242147038
+      },
+      {
+        "userName": "Domo",
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794242157564
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "userName": "Ribič (82DC)",
+        "readAt": 1794242400317
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242168597-76jo",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Ja bih bih biljezio sve pa vidimo konacni broj",
+    "timestamp": "17:36",
+    "createdAt": 1794242168597,
+    "readBy": [
+      {
+        "userName": "Krasni",
+        "readAt": 1794242168597,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Domo",
+        "readAt": 1794242171067
+      },
+      {
+        "userName": "Sikac",
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794242173308
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794242400672,
+        "deviceId": "RP-4HTV-82DC"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242174519-ppzo",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Mici te bikove i kurce",
+    "timestamp": "17:36",
+    "createdAt": 1794242174519,
+    "readBy": [
+      {
+        "readAt": 1794242174519,
+        "userName": "Domo",
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "userName": "Krasni",
+        "readAt": 1794242175905
+      },
+      {
+        "userName": "Sikac",
+        "readAt": 1794242177882,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242401348
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242183245-2kca",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "🎣🎣🐟",
+    "timestamp": "17:36",
+    "createdAt": 1794242183246,
+    "readBy": [
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Domo",
+        "readAt": 1794242183246
+      },
+      {
+        "userName": "Sikac",
+        "readAt": 1794242184763,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "userName": "Krasni",
+        "readAt": 1794242186663
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794242401848,
+        "deviceId": "RP-4HTV-82DC"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242192010-31dk",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Svatko od vas moze sam sebi uvesti ribu",
+    "timestamp": "17:36",
+    "createdAt": 1794242192010,
+    "readBy": [
+      {
+        "readAt": 1794242192010,
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "userName": "Domo",
+        "readAt": 1794242194299,
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac",
+        "readAt": 1794242194115
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794242402479,
+        "deviceId": "RP-4HTV-82DC"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242195495-oo4n",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Aaaa postah domo🥰",
+    "timestamp": "17:36",
+    "createdAt": 1794242195496,
+    "readBy": [
+      {
+        "userName": "Domo",
+        "readAt": 1794242195496,
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "readAt": 1794242197044,
+        "userName": "Sikac",
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "userName": "Krasni",
+        "readAt": 1794242198828,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794242402984,
+        "deviceId": "RP-4HTV-82DC"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242207228-6yi1",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Divno",
+    "timestamp": "17:36",
+    "createdAt": 1794242207229,
+    "readBy": [
+      {
+        "readAt": 1794242207229,
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "userName": "Domo",
+        "readAt": 1794242209492,
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794242209547,
+        "userName": "Sikac"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242403328,
+        "userName": "Ribič (82DC)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242220208-y2tx",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Sta onda zelite od ribe u tablici",
+    "timestamp": "17:37",
+    "createdAt": 1794242220208,
+    "readBy": [
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794242220208,
+        "userName": "Krasni"
+      },
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794242222446,
+        "userName": "Domo"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794242222865,
+        "userName": "Sikac"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242403775,
+        "userName": "Ribič (82DC)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242239608-it61",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Pa skušu i lokardu",
+    "timestamp": "17:37",
+    "createdAt": 1794242239608,
+    "readBy": [
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794242239608,
+        "userName": "Domo"
+      },
+      {
+        "userName": "Krasni",
+        "readAt": 1794242241082,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac",
+        "readAt": 1794242243144
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "readAt": 1794242404504,
+        "deviceId": "RP-4HTV-82DC"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242261071-skee",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Dodajem",
+    "timestamp": "17:37",
+    "createdAt": 1794242261071,
+    "readBy": [
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794242261071,
+        "userName": "Krasni"
+      },
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794242263419,
+        "userName": "Domo"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794242263309,
+        "userName": "Sikac"
+      },
+      {
+        "readAt": 1794242405380,
+        "userName": "Ribič (82DC)",
+        "deviceId": "RP-4HTV-82DC"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242297077-aibr",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "🤣🤣🤣",
+    "timestamp": "17:38",
+    "createdAt": 1794242297077,
+    "readBy": [
+      {
+        "readAt": 1794242297077,
+        "userName": "Domo",
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac",
+        "readAt": 1794242298714
+      },
+      {
+        "userName": "Krasni",
+        "readAt": 1794242300377,
+        "deviceId": "RP-7CPA-7G8G"
+      },
+      {
+        "readAt": 1794242406761,
+        "deviceId": "RP-4HTV-82DC",
+        "userName": "Ribič (82DC)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242311738-3kss",
+    "deviceId": "RP-3MXV-3NF2",
+    "userName": "Sikac",
+    "text": "Ma de standardno.. smuđ, som, štuka, bucko, aj može i mrena ako nije za rep",
+    "timestamp": "17:38",
+    "createdAt": 1794242311738,
+    "readBy": [
+      {
+        "userName": "Sikac",
+        "readAt": 1794242311738,
+        "deviceId": "RP-3MXV-3NF2"
+      },
+      {
+        "userName": "Krasni",
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794242313853
+      },
+      {
+        "readAt": 1794242382678,
+        "userName": "Domo",
+        "deviceId": "RP-HGT8-UC5D"
+      },
+      {
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242407732,
+        "userName": "Ribič (82DC)"
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242399808-t9vr",
+    "deviceId": "RP-HGT8-UC5D",
+    "userName": "Domo",
+    "text": "Tako je stari",
+    "timestamp": "17:39",
+    "createdAt": 1794242399809,
+    "readBy": [
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "userName": "Domo",
+        "readAt": 1794242399809
+      },
+      {
+        "readAt": 1794242406053,
+        "deviceId": "RP-3MXV-3NF2",
+        "userName": "Sikac"
+      },
+      {
+        "userName": "Ribič (82DC)",
+        "deviceId": "RP-4HTV-82DC",
+        "readAt": 1794242409269
+      },
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "userName": "Krasni",
+        "readAt": 1794242412478
+      }
+    ]
+  },
+  {
+    "id": "msg-1794242417140-itg0",
+    "deviceId": "RP-7CPA-7G8G",
+    "userName": "Krasni",
+    "text": "Ok, brisem",
+    "timestamp": "17:40",
+    "createdAt": 1794242417140,
+    "readBy": [
+      {
+        "deviceId": "RP-7CPA-7G8G",
+        "readAt": 1794242417140,
+        "userName": "Krasni"
+      },
+      {
+        "deviceId": "RP-3MXV-3NF2",
+        "readAt": 1794242419789,
+        "userName": "Sikac"
+      },
+      {
+        "readAt": 1794242420106,
+        "userName": "Ribič (82DC)",
+        "deviceId": "RP-4HTV-82DC"
+      },
+      {
+        "deviceId": "RP-HGT8-UC5D",
+        "readAt": 1794242429568,
+        "userName": "Domo"
+      }
+    ]
+  }
+]

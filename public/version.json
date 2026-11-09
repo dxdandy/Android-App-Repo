@@ -1,13 +1,13 @@
 {
-  "version": "1.7.0",
+  "version": "1.7.1",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-09",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.0.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.1.apk",
   "changelog": [
-    "Evidencija ulova: filtriran prikaz na točno 5 traženih vrsta riba (Bucov, Smuđ, Som, Štuka, Mrena)",
-    "Zvučne obavijesti: usklađena glasnoća zvuka sa sistemskim nivoom obavijesti korisnika (STREAM_NOTIFICATION), bez preglasnih i piskavih tonova",
-    "LiveChat: automatsko resetiranje i brisanje sistemskog brojača / bedža ikone aplikacije i obavijesti u traci čim korisnik pročita sve poruke",
-    "Puna podrška za povratak gestom povlačenja (swipe) s lijevog i desnog ruba ekrana i sistemskom tipkom unatrag"
+    "Uspješno ispravljen mehanizam Live Web (OTA) ažuriranja: osigurano preuzimanje i pokretanje novog koda",
+    "Usklađena polja manifesta paketa (totalChunks/chunkCount) i omogućen direktan fallback pokretanja koda",
+    "Evidencija ulova: prikazano točno 5 traženih vrsta riba (Bucov, Smuđ, Som, Štuka, Mrena)",
+    "Usklađena glasnoća zvučnih obavijesti sa sistemskim nivoom i automatsko brisanje bedža na ikoni"
   ],
   "isCritical": false,
   "updateType": "live_web"

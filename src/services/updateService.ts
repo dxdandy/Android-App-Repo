@@ -13,7 +13,7 @@ import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 
-export const BUNDLED_APP_VERSION = '1.7.0';
+export const BUNDLED_APP_VERSION = '1.7.1';
 export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
 export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
 
@@ -46,9 +46,19 @@ export function isNewerVersion(remoteVer: string, currentVer: string): boolean {
 export function getCurrentAppVersion(): string {
   if (typeof window !== 'undefined') {
     try {
+      // Ako se trenutno u memoriji izvršava OTA paket, to je stvarna verzija koda!
+      const runningOtaVer = (window as any).__RUNNING_OTA_VERSION__;
+      if (runningOtaVer && isNewerVersion(runningOtaVer, BUNDLED_APP_VERSION)) {
+        return runningOtaVer.replace(/^[vV]/, '').trim();
+      }
+
+      // Ako je zabilježena verzija u localStorageu, ali stvarni kod nije primijenjen, nemoj lažno prikazivati noviju verziju
       const liveVer = localStorage.getItem(LIVE_VERSION_STORAGE_KEY);
       if (liveVer && isNewerVersion(liveVer, BUNDLED_APP_VERSION)) {
-        return liveVer.replace(/^[vV]/, '').trim();
+        // Provjeri poklapa li se s pokrenutim kodom
+        if (runningOtaVer && runningOtaVer === liveVer) {
+          return liveVer.replace(/^[vV]/, '').trim();
+        }
       }
       localStorage.setItem(LIVE_VERSION_STORAGE_KEY, BUNDLED_APP_VERSION);
     } catch {}
@@ -422,9 +432,17 @@ function saveOtaBundleToIndexedDB(bundle: { version: string; jsCode: string; css
 async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boolean; bundleVersion?: string }> {
   try {
     const manifestSnap = await getDoc(doc(db, 'ota_bundle', 'manifest'));
-    if (!manifestSnap.exists()) return { downloadedNewCode: false };
+    if (!manifestSnap.exists()) {
+      console.warn('[OTA] ota_bundle/manifest ne postoji u Firestoreu.');
+      return { downloadedNewCode: false };
+    }
     const manifest = manifestSnap.data();
-    if (!manifest || !manifest.version || typeof manifest.chunkCount !== 'number' || manifest.chunkCount <= 0) {
+    const count = typeof manifest?.totalChunks === 'number' 
+      ? manifest.totalChunks 
+      : (typeof manifest?.chunkCount === 'number' ? manifest.chunkCount : 0);
+
+    if (!manifest || !manifest.version || count <= 0) {
+      console.warn('[OTA] ota_bundle/manifest nema ispravan broj dijelova:', manifest);
       return { downloadedNewCode: false };
     }
 
@@ -435,10 +453,12 @@ async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boo
       return { downloadedNewCode: false, bundleVersion: remoteBundleVer };
     }
 
+    console.log(`[OTA] Preuzimam novi kod v${remoteBundleVer} (${count} dijelova)...`);
     const chunks: string[] = [];
-    for (let i = 0; i < manifest.chunkCount; i++) {
+    for (let i = 0; i < count; i++) {
       const chunkSnap = await getDoc(doc(db, 'ota_bundle', `chunk_${i}`));
       if (!chunkSnap.exists()) {
+        console.warn(`[OTA] Nedostaje ota_bundle/chunk_${i} u Firestoreu.`);
         return { downloadedNewCode: false };
       }
       const chunkData = chunkSnap.data();
@@ -482,18 +502,20 @@ export async function applyLiveWebUpdate(
       // 1. Preuzmi stvarni kompilirani kod nove verzije iz Firestore ota_bundle kolekcije
       const otaCodeResult = await downloadAndCacheOtaCodeBundle();
 
-      // 2. Trajno spremi novu aktivnu Live Web verziju u memoriju uređaja
-      try {
-        localStorage.setItem(LIVE_VERSION_STORAGE_KEY, newVer);
-        localStorage.setItem(
-          LIVE_UPDATE_INFO_STORAGE_KEY,
-          JSON.stringify({
-            version: newVer,
-            appliedAt: new Date().toISOString(),
-            changelog: changelog || ['Automatsko Live Web ažuriranje primijenjeno']
-          })
-        );
-      } catch {}
+      // 2. Trajno spremi novu aktivnu Live Web verziju u memoriju uređaja SAMO ako je kod uspješno preuzet i spremljen u IndexedDB!
+      if (otaCodeResult.downloadedNewCode || isNewerVersion(BUNDLED_APP_VERSION, newVer) === false) {
+        try {
+          localStorage.setItem(LIVE_VERSION_STORAGE_KEY, newVer);
+          localStorage.setItem(
+            LIVE_UPDATE_INFO_STORAGE_KEY,
+            JSON.stringify({
+              version: newVer,
+              appliedAt: new Date().toISOString(),
+              changelog: changelog || ['Automatsko Live Web ažuriranje primijenjeno']
+            })
+          );
+        } catch {}
+      }
 
       // 3. Očisti zastarjelu CacheStorage predmemoriju i stare podatke o temperaturi vode
       try {
