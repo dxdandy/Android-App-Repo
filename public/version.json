@@ -1,13 +1,13 @@
 {
-  "version": "1.6.8",
+  "version": "1.6.9",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-09",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.8.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.9.apk",
   "changelog": [
-    "Dodana podrška za geste povratka (Edge Swipe): povlačenje prstom s lijevog ili desnog ruba ekrana prema centru zatvara otvorene odjeljke (LiveChat, Ulovi, Lovostaj, Pro mod, Admin) i vraća u Osnovni mod",
-    "Dodana puna podrška za sistemsku strelicu i hardverski gumb unatrag na Android mobitelima za trenutni povratak u Osnovni mod",
-    "Dodane vidljive strelice za povratak (< Natrag) u zaglavljima svih odjeljaka za jednostavniju navigaciju",
-    "Poboljšana fluidnost i taktilni odziv (haptic feedback) pri izvođenju gesti povratka"
+    "Ispravljena greška prikaza LiveChata na mobitelima: otklonjen problem crnog ekrana i smrzavanja",
+    "Dodan sigurnosni ErrorBoundary štit oko svih modala koji sprječava rušenje aplikacije i omogućuje trenutan povratak u Osnovni mod",
+    "U potpunosti podržane geste povlačenja s ruba ekrana prema centru (Edge Swipe) i sistemska navigacija unatrag",
+    "Fluidan i stabilan rad LiveChata i svih popratnih funkcija"
   ],
   "isCritical": false,
   "updateType": "live_web"

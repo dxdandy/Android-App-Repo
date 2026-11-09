@@ -17,7 +17,8 @@ import {
   Calendar,
   Trash2,
   AlertTriangle,
-  CornerUpLeft
+  CornerUpLeft,
+  ChevronLeft
 } from 'lucide-react';
 import { 
   fetchChatMessages, 
@@ -301,7 +302,8 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   // Funkcija za lijep prikaz zaglavlja datuma između poruka
   const formatDateDivider = (timestamp?: number): string => {
     if (!timestamp) return 'Danas';
-    const msgDate = new Date(timestamp);
+    const msgDate = new Date(Number(timestamp));
+    if (isNaN(msgDate.getTime())) return 'Danas';
     const now = new Date();
     const isToday = msgDate.getFullYear() === now.getFullYear() &&
       msgDate.getMonth() === now.getMonth() &&

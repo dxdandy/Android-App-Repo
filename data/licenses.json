@@ -18,7 +18,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": false,
     "createdAt": "2026-11-01T12:00:00.000Z",
-    "lastSeenAt": "2026-11-09T14:11:34.968Z",
+    "lastSeenAt": "2026-11-09T16:11:08.948Z",
     "notes": "Korisnik 1"
   },
   {
@@ -51,7 +51,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": true,
     "createdAt": "2026-11-05T08:30:00.000Z",
-    "lastSeenAt": "2026-11-09T14:03:48.421Z",
+    "lastSeenAt": "2026-11-09T16:04:05.073Z",
     "notes": "Krasni"
   },
   {
@@ -73,6 +73,6 @@
     "chatEnabled": true,
     "nameSetByAdmin": false,
     "createdAt": "2026-11-09T14:04:29.853Z",
-    "lastSeenAt": "2026-11-09T14:10:35.608Z"
+    "lastSeenAt": "2026-11-09T14:49:10.028Z"
   }
 ]

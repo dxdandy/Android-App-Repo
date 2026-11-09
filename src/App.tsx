@@ -33,6 +33,7 @@ import { FishingChatModal } from './components/FishingChatModal';
 import { LovostajModal } from './components/LovostajModal';
 import { CatchLogModal } from './components/CatchLogModal';
 import { EdgeSwipeBackGesture } from './components/EdgeSwipeBackGesture';
+import { ModalErrorBoundary } from './components/ModalErrorBoundary';
 import { isAppActivated, verifyLicenseWithServer, getDeviceId } from './services/licenseService';
 import { 
   fetchChatMessages, 
@@ -973,22 +974,28 @@ export default function App() {
       />
 
       {/* Modal za interni Dunavski ribički chat */}
-      <FishingChatModal
-        isOpen={showChatModal}
-        onClose={handleCloseChat}
-      />
+      <ModalErrorBoundary onReset={handleCloseChat} fallbackTitle="LiveChat Smetnja">
+        <FishingChatModal
+          isOpen={showChatModal}
+          onClose={handleCloseChat}
+        />
+      </ModalErrorBoundary>
 
       {/* Modal za Lovostaj i najmanje lovne mjere (PDF) */}
-      <LovostajModal
-        isOpen={showLovostajModal}
-        onClose={() => setShowLovostajModal(false)}
-      />
+      <ModalErrorBoundary onReset={() => setShowLovostajModal(false)} fallbackTitle="Lovostaj Smetnja">
+        <LovostajModal
+          isOpen={showLovostajModal}
+          onClose={() => setShowLovostajModal(false)}
+        />
+      </ModalErrorBoundary>
 
       {/* Modal za Evidenciju ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa) */}
-      <CatchLogModal
-        isOpen={showCatchLogModal}
-        onClose={() => setShowCatchLogModal(false)}
-      />
+      <ModalErrorBoundary onReset={() => setShowCatchLogModal(false)} fallbackTitle="Evidencija Ulova Smetnja">
+        <CatchLogModal
+          isOpen={showCatchLogModal}
+          onClose={() => setShowCatchLogModal(false)}
+        />
+      </ModalErrorBoundary>
 
     </div>
   );
