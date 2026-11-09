@@ -181,10 +181,10 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           </button>
         </div>
 
-        {/* Oblačić poruke: fino podešena veličina (15px-17px) i smanjeni prored */}
+        {/* Oblačić poruke: smanjen oblak za 70% (px-2.5 py-1) s povećanim fontom za 10% (16.5px/19px) */}
         <div
           onClick={() => onShowInfo(msg)}
-          className={`text-left p-3 sm:p-3.5 rounded-2xl break-words leading-snug sm:leading-normal shadow-md cursor-pointer hover:brightness-105 active:scale-[0.99] transition-all group relative border ${
+          className={`text-left px-2.5 py-1 sm:px-3 sm:py-1 rounded-xl break-words leading-tight sm:leading-snug shadow-sm cursor-pointer hover:brightness-105 active:scale-[0.99] transition-all group relative border ${
             isMine 
               ? 'bg-gradient-to-br from-teal-600 via-teal-600 to-cyan-700 text-white rounded-tr-xs border-teal-400/40 shadow-teal-950/30' 
               : 'bg-slate-800/95 text-slate-50 rounded-tl-xs border-slate-700 hover:border-slate-600 shadow-slate-950/40'
@@ -193,23 +193,23 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
         >
           {/* Ako je poruka odgovor na raniju poruku (Replay pregled iznad teksta) */}
           {msg.replyTo && (
-            <div className={`mb-2 p-2 rounded-xl text-left border-l-4 ${
+            <div className={`mb-1 p-1.5 rounded-lg text-left border-l-3 ${
               isMine 
                 ? 'bg-slate-950/45 border-teal-300 text-teal-50' 
                 : 'bg-slate-900/95 border-cyan-400 text-slate-200'
             }`}>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-teal-300 mb-0.5">
-                <CornerUpLeft className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-teal-300 mb-0.5">
+                <CornerUpLeft className="w-3 h-3" />
                 <span>Odgovor ribiču: {msg.replyTo.userName}</span>
               </div>
-              <p className="line-clamp-2 text-xs sm:text-[13px] text-slate-300/95 italic">
+              <p className="line-clamp-2 text-[11px] sm:text-xs text-slate-300/95 italic">
                 "{msg.replyTo.text}"
               </p>
             </div>
           )}
 
-          {/* Glavni tekst poruke: smanjen za 10% (15px/17px) sa zbijenijim proredom (leading-snug sm:leading-normal) */}
-          <span className="text-[15px] sm:text-[17px] leading-snug sm:leading-normal font-normal tracking-normal select-text">
+          {/* Glavni tekst poruke: povećan za 10% na 16.5px / 19px uz kompaktniji oblak */}
+          <span className="text-[16.5px] sm:text-[19px] leading-tight sm:leading-snug font-normal tracking-normal select-text inline-block">
             {msg.text}
           </span>
         </div>
@@ -734,7 +734,38 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 bg-slate-950/40">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 bg-slate-950/40 relative">
+            {/* Decentne skice riba u jedva vidljivoj, malo svjetlijoj nijansi od podloge koje ne ometaju čitanje */}
+            <div className="absolute inset-0 pointer-events-none select-none overflow-hidden opacity-[0.06] flex flex-col justify-around items-center gap-12 py-6">
+              {/* Skica ribe 1 (Smuđ/Bucov kontura) */}
+              <svg className="w-56 h-28 stroke-slate-200 fill-none" viewBox="0 0 200 80" strokeWidth="1.2">
+                <path d="M 10 40 C 35 15, 95 10, 150 35 C 165 25, 185 15, 195 20 C 185 35, 185 45, 195 60 C 185 65, 165 55, 150 45 C 95 70, 35 65, 10 40 Z" />
+                <path d="M 40 40 Q 55 35 70 40" />
+                <circle cx="35" cy="35" r="2.5" />
+                <path d="M 75 22 Q 95 15 115 24" />
+                <path d="M 85 56 Q 100 62 120 54" />
+                <path d="M 125 35 Q 140 40 135 48" />
+              </svg>
+
+              {/* Skica ribe 2 (Som/Štuka kontura) */}
+              <svg className="w-64 h-28 stroke-slate-200 fill-none -rotate-6" viewBox="0 0 220 80" strokeWidth="1.2">
+                <path d="M 15 38 C 45 20, 110 15, 170 34 C 185 24, 205 18, 215 22 C 205 38, 205 44, 215 58 C 205 62, 185 56, 170 46 C 110 65, 45 60, 15 38 Z" />
+                <circle cx="38" cy="34" r="2.5" />
+                <path d="M 28 42 Q 10 48 5 45" />
+                <path d="M 28 44 Q 12 55 8 52" />
+                <path d="M 85 22 Q 105 18 125 24" />
+                <path d="M 130 36 C 145 32, 155 42, 145 46" />
+              </svg>
+
+              {/* Skica ribe 3 (Mrena/Bucov kontura) */}
+              <svg className="w-52 h-26 stroke-slate-200 fill-none rotate-3" viewBox="0 0 200 80" strokeWidth="1.2">
+                <path d="M 10 40 C 35 15, 95 10, 150 35 C 165 25, 185 15, 195 20 C 185 35, 185 45, 195 60 C 185 65, 165 55, 150 45 C 95 70, 35 65, 10 40 Z" />
+                <circle cx="32" cy="36" r="2.5" />
+                <path d="M 50 40 Q 65 38 80 40" />
+                <path d="M 110 32 Q 130 40 120 48" />
+              </svg>
+            </div>
+
             {isLoading && messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-2">
                 <RefreshCw className="w-5 h-5 animate-spin text-teal-400" />

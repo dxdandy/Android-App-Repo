@@ -548,8 +548,8 @@ export const CatchLogModal: React.FC<CatchLogModalProps> = ({ isOpen, onClose })
       </div>
 
       {/* 3. VERTIKALNO SCROLLABILNO TIJELO TABLICE (Sve vrste riba i svi ribolovci stanu u ekran) */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-1.5 sm:px-5 divide-y divide-slate-800/80">
-        <div className="max-w-4xl mx-auto divide-y divide-slate-800/80">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-1.5 sm:px-5">
+        <div className="max-w-4xl mx-auto border-b-2 border-slate-700 shadow-sm divide-y divide-slate-800/80">
           {FISH_SPECIES.map((fish, rowIdx) => {
             const speciesSum = totalsBySpecies[fish.id] || 0;
             const isEven = rowIdx % 2 === 0;
