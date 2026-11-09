@@ -9,17 +9,16 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 
-export const BUNDLED_APP_VERSION = '1.5.8';
+export const BUNDLED_APP_VERSION = '1.6.0';
 
 /**
- * Vraća trenutnu aktivnu verziju (uzima u obzir primijenjena Live Web ažuriranja)
+ * Vraća trenutnu aktivnu verziju instalirane aplikacije
  */
 export function getCurrentAppVersion(): string {
   if (typeof window !== 'undefined') {
-    const liveVer = localStorage.getItem('ribo_current_live_version');
-    if (liveVer && isNewerVersion(liveVer, BUNDLED_APP_VERSION)) {
-      return liveVer;
-    }
+    try {
+      localStorage.removeItem('ribo_current_live_version');
+    } catch {}
   }
   return BUNDLED_APP_VERSION;
 }
@@ -87,8 +86,6 @@ export function setSavedGithubRepo(repo: string): void {
   localStorage.setItem(GITHUB_REPO_KEY, clean || DEFAULT_FALLBACK_REPO);
 }
 
-export const CLOUD_UPDATE_SERVER = 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
-
 /**
  * Vraća listu svih online adresa koje aplikacija redom provjerava za novu verziju
  */
@@ -96,20 +93,16 @@ export function getUpdateEndpoints(): string[] {
   const endpoints: string[] = [];
   const repo = getSavedGithubRepo();
 
-  // 1. Primarni Cloud poslužitelj (Live Web ažuriranja u stvarnom vremenu)
-  endpoints.push(`${CLOUD_UPDATE_SERVER}/api/version?t=${Date.now()}`);
-  endpoints.push(`${CLOUD_UPDATE_SERVER}/version.json?t=${Date.now()}`);
-
-  // 2. Ako se otvara u web pregledniku na samom poslužitelju
-  if (typeof window !== 'undefined' && !window.location.origin.includes('localhost') && !window.location.protocol.startsWith('capacitor')) {
-    endpoints.push(`${window.location.origin}/api/version?t=${Date.now()}`);
-  }
-
-  // 3. GitHub Raw CDN (javni i brzi CDN kao rezervni izvor)
+  // 1. GitHub Raw CDN (službeni i javno dostupni repozitorij)
   if (repo && repo.includes('/')) {
     endpoints.push(`https://raw.githubusercontent.com/${repo}/main/public/version.json?t=${Date.now()}`);
     endpoints.push(`https://raw.githubusercontent.com/${repo}/master/public/version.json?t=${Date.now()}`);
     endpoints.push(`https://api.github.com/repos/${repo}/releases/latest?t=${Date.now()}`);
+  }
+
+  // 2. Ako se otvara u web pregledniku na samom poslužitelju
+  if (typeof window !== 'undefined' && !window.location.origin.includes('localhost') && !window.location.protocol.startsWith('capacitor')) {
+    endpoints.push(`${window.location.origin}/api/version?t=${Date.now()}`);
   }
 
   return endpoints;
@@ -123,15 +116,15 @@ function parseVersionData(json: any, repo: string): AppVersionInfo | null {
 
   // Format 1: version.json ili /api/version
   if (json.version) {
+    const cleanVer = json.version.replace(/^[vV]/, '').trim();
     return {
-      version: json.version.replace(/^[vV]/, '').trim(),
+      version: cleanVer,
       name: json.name || 'RiboPrognoza',
       releaseDate: json.releaseDate || new Date().toISOString().split('T')[0],
-      apkUrl: json.apkUrl || `https://github.com/${repo}/releases/latest/download/RiboPrognoza.apk`,
+      apkUrl: json.apkUrl || `https://github.com/${repo}/releases/latest/download/RiboPrognoza_v${cleanVer}.apk`,
       changelog: Array.isArray(json.changelog) ? json.changelog : ['Redovna ažuriranja i poboljšanja'],
       isCritical: !!json.isCritical,
-      updateType: json.updateType || 'live_web',
-      liveWebUrl: json.liveWebUrl || CLOUD_UPDATE_SERVER
+      updateType: 'apk'
     };
   }
 
@@ -143,11 +136,10 @@ function parseVersionData(json: any, repo: string): AppVersionInfo | null {
       version: cleanTag,
       name: json.name || 'RiboPrognoza',
       releaseDate: (json.published_at || new Date().toISOString()).split('T')[0],
-      apkUrl: apkAsset?.browser_download_url || `https://github.com/${repo}/releases/latest/download/RiboPrognoza.apk`,
+      apkUrl: apkAsset?.browser_download_url || `https://github.com/${repo}/releases/latest/download/RiboPrognoza_v${cleanTag}.apk`,
       changelog: json.body ? json.body.split('\n').map((s: string) => s.trim()).filter(Boolean) : ['Nova verzija aplikacije'],
       isCritical: false,
-      updateType: 'apk',
-      liveWebUrl: CLOUD_UPDATE_SERVER
+      updateType: 'apk'
     };
   }
 
@@ -346,8 +338,10 @@ export async function cleanupInstallationFiles(): Promise<{ success: boolean; de
 
 /**
  * Pokreće preuzimanje i instalaciju novog APK-a
+ * U nativnoj mobilnoj aplikaciji koristi '_system' kako bi preuzimanje preuzeo Android sustav
+ * i nikada ne dira unutarnji WebView aplikacije.
  */
-export function startApkDownload(apkUrl: string): void {
+export function startApkDownload(apkUrl?: string): void {
   const repo = getSavedGithubRepo();
   const finalUrl = apkUrl || `https://github.com/${repo}/releases/latest/download/RiboPrognoza.apk`;
 
@@ -356,23 +350,19 @@ export function startApkDownload(apkUrl: string): void {
   } catch {}
 
   if (typeof window !== 'undefined') {
-    window.open(finalUrl, '_blank');
+    // '_system' osigurava pokretanje vanjskog download managera / preglednika uređaja
+    window.open(finalUrl, '_system');
   }
 }
 
 /**
- * Trenutačno primjenjuje Live Web ažuriranje (OTA)
- * Briše staru predmemoriju i Service Worker, sprema novu verziju i osvježava aplikaciju
- * bez preuzimanja novog APK-a i bez Google Play Protect upozorenja!
+ * Primjenjuje ažuriranje aplikacije:
+ * - Na webu/PWA: čisti predmemoriju i osvježava stranicu
+ * - U nativnoj Android aplikaciji: pokreće preuzimanje APK datoteke bez preusmjeravanja WebView-a
  */
-export async function applyLiveWebUpdate(targetVersion?: string): Promise<{ success: boolean; message: string }> {
+export async function applyLiveWebUpdate(targetVersion?: string, targetApkUrl?: string): Promise<{ success: boolean; message: string }> {
   try {
     if (typeof window !== 'undefined') {
-      if (targetVersion) {
-        localStorage.setItem('ribo_current_live_version', targetVersion);
-      }
-      localStorage.setItem('ribo_last_live_update_time', Date.now().toString());
-
       // 1. Očisti CacheStorage predmemoriju
       if ('caches' in window) {
         try {
@@ -399,13 +389,12 @@ export async function applyLiveWebUpdate(targetVersion?: string): Promise<{ succ
         window.location.protocol === 'capacitor:' ||
         (typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.());
 
-      if (isCapacitorNative && !window.location.origin.includes('run.app')) {
-        // Prebaci na Live Cloud verziju koja uvijek ima najnoviji web kod
-        window.location.href = `${CLOUD_UPDATE_SERVER}/?t=${Date.now()}`;
-        return { success: true, message: 'Live Web ažuriranje je aktivirano!' };
+      if (isCapacitorNative) {
+        startApkDownload(targetApkUrl);
+        return { success: true, message: 'Pokrenuto je preuzimanje nove instalacijske datoteke.' };
       }
 
-      // Za standardni web ili ako smo već na cloud domeni: hard reload s cache busting
+      // Za standardni web preglednik
       window.location.reload();
       return { success: true, message: 'Aplikacija se osvježava s najnovijom verzijom...' };
     }
@@ -431,15 +420,15 @@ export function subscribeToLiveUpdates(
 
       const currentVer = getCurrentAppVersion();
       if (isNewerVersion(data.version, currentVer)) {
+        const repo = getSavedGithubRepo();
         const updateInfo: AppVersionInfo = {
           version: data.version,
           name: data.name || 'RiboPrognoza',
           releaseDate: data.releaseDate || new Date().toISOString().split('T')[0],
-          apkUrl: data.apkUrl || `https://github.com/${getSavedGithubRepo()}/releases/latest/download/RiboPrognoza.apk`,
+          apkUrl: data.apkUrl || `https://github.com/${repo}/releases/latest/download/RiboPrognoza_v${data.version}.apk`,
           changelog: Array.isArray(data.changelog) ? data.changelog : ['Nova verzija aplikacije'],
           isCritical: !!data.isCritical,
-          updateType: data.updateType || 'live_web',
-          liveWebUrl: data.liveWebUrl || CLOUD_UPDATE_SERVER
+          updateType: 'apk'
         };
 
         // Ako je korisnik u aplikaciji:

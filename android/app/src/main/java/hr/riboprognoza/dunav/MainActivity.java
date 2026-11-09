@@ -2,10 +2,15 @@ package hr.riboprognoza.dunav;
 
 import android.app.DownloadManager;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -15,44 +20,82 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.File;
 
 public class MainActivity extends BridgeActivity {
-    private static final String TAG = "RiboApkCleaner";
+    private static final String TAG = "MainActivity";
+    private static final int PERMISSION_REQUEST_POST_NOTIFICATIONS = 101;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ApkCleanerPlugin.class);
+        registerPlugin(ChatNativeNotifierPlugin.class);
         super.onCreate(savedInstanceState);
-        createNotificationChannel();
+
+        // 1. Zaštita: vraćanje na lokalne assete ako je prethodno došlo do krive navigacije
+        resetWebViewToLocalAssetsIfNeeded();
+
+        // 2. Kreiraj kanal visoke važnosti za zvučne i vizualne obavijesti s ikonom udice
+        ChatNotificationHelper.createNotificationChannel(this);
+
+        // 3. Traži runtime dozvolu za prikaz obavijesti na Android 13+ (API 33+)
+        requestNotificationPermissionNative();
+
+        // 4. Pokreni pozadinsku službu i zakaži periodički alarm za provjeru poruka
+        startChatBackgroundMonitoring();
+
+        // 5. Očisti privremene instalacijske datoteke
         cleanOldApkFiles();
     }
 
-    private void createNotificationChannel() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            try {
-                android.app.NotificationManager notificationManager = getSystemService(android.app.NotificationManager.class);
-                if (notificationManager != null) {
-                    android.app.NotificationChannel channel = new android.app.NotificationChannel(
-                        "ribo_chat_channel",
-                        "RiboPrognoza LiveChat Poruke",
-                        android.app.NotificationManager.IMPORTANCE_HIGH
-                    );
-                    channel.setDescription("Obavijesti o novim porukama u LiveChatu");
-                    channel.enableLights(true);
-                    channel.setLightColor(android.graphics.Color.parseColor("#0891b2"));
-                    channel.enableVibration(true);
-                    channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
-                    channel.setShowBadge(true);
-                    notificationManager.createNotificationChannel(channel);
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "Greška pri kreiranju notification kanala: " + e.getMessage());
+    private void requestNotificationPermissionNative() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                    PERMISSION_REQUEST_POST_NOTIFICATIONS
+                );
             }
+        }
+    }
+
+    private void startChatBackgroundMonitoring() {
+        try {
+            // Pokreni trajni servis
+            Intent serviceIntent = new Intent(this, ChatBackgroundService.class);
+            startService(serviceIntent);
+        } catch (Exception e) {
+            Log.w(TAG, "Pokretanje ChatBackgroundService: " + e.getMessage());
+        }
+
+        try {
+            // Zakaži AlarmManager buđenje (radi čak i kada je aplikacija ugašena)
+            ChatAlarmReceiver.scheduleNextAlarm(this);
+        } catch (Exception e) {
+            Log.w(TAG, "Zakazivanje alarma: " + e.getMessage());
         }
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        resetWebViewToLocalAssetsIfNeeded();
         cleanOldApkFiles();
+        startChatBackgroundMonitoring();
+    }
+
+    private void resetWebViewToLocalAssetsIfNeeded() {
+        try {
+            if (this.bridge != null && this.bridge.getWebView() != null) {
+                String currentUrl = this.bridge.getWebView().getUrl();
+                if (currentUrl != null && (currentUrl.contains("run.app") || currentUrl.contains("not found"))) {
+                    Log.w(TAG, "Detektiran neispravan URL (" + currentUrl + "). Vraćanje na https://localhost/index.html");
+                    this.bridge.getWebView().clearHistory();
+                    this.bridge.getWebView().loadUrl("https://localhost/index.html");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Greška u resetWebViewToLocalAssetsIfNeeded: " + e.getMessage());
+        }
     }
 
     /**
@@ -175,6 +218,68 @@ public class MainActivity extends BridgeActivity {
                 call.resolve(ret);
             } catch (Exception e) {
                 call.reject("Greška pri čišćenju APK datoteka: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Capacitor dodatak za upravljanje nativnim pozadinskim obavijestima o LiveChat porukama
+     */
+    @CapacitorPlugin(name = "ChatNativeNotifier")
+    public static class ChatNativeNotifierPlugin extends Plugin {
+        @PluginMethod
+        public void setDeviceId(PluginCall call) {
+            try {
+                String deviceId = call.getString("deviceId", "");
+                if (deviceId != null && !deviceId.trim().isEmpty()) {
+                    getContext().getSharedPreferences(ChatPollHelper.PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit()
+                        .putString(ChatPollHelper.KEY_DEVICE_ID, deviceId.trim())
+                        .apply();
+                }
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Greška pri spremanju deviceId: " + e.getMessage());
+            }
+        }
+
+        @PluginMethod
+        public void setInChat(PluginCall call) {
+            try {
+                boolean inChat = Boolean.TRUE.equals(call.getBoolean("inChat", false));
+                getContext().getSharedPreferences(ChatPollHelper.PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean(ChatPollHelper.KEY_IN_CHAT, inChat)
+                    .apply();
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Greška pri postavljanju inChat statusa: " + e.getMessage());
+            }
+        }
+
+        @PluginMethod
+        public void checkNow(PluginCall call) {
+            try {
+                new Thread(() -> {
+                    ChatPollHelper.checkAndNotify(getContext(), false);
+                }).start();
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Greška: " + e.getMessage());
+            }
+        }
+
+        @PluginMethod
+        public void sendTestNotification(PluginCall call) {
+            try {
+                String title = call.getString("title", "Test Ribič");
+                String text = call.getString("text", "Ovo je testna obavijest s ikonom udice!");
+                ChatNotificationHelper.showNotification(getContext(), title, text, "test_" + System.currentTimeMillis());
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Greška pri slanju testne obavijesti: " + e.getMessage());
             }
         }
     }

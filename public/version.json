@@ -1,16 +1,14 @@
 {
-  "version": "1.5.8",
+  "version": "1.6.0",
   "name": "RiboPrognoza",
-  "releaseDate": "2026-11-08",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.8.apk",
+  "releaseDate": "2026-11-09",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk",
   "changelog": [
-    "Uveden sustav Live Web automatskog ažuriranja (OTA) bez potrebe za ponovnim preuzimanjem APK-a",
-    "Zaobilaženje Google Play Protect blokada i ručnih sigurnosnih postavki na mobitelima",
-    "Automatska pozadinska provjera i trenutačna primjena novih ribičkih funkcija",
-    "Obavijesti s ikonom udice u statusnoj traci i na zaključanom zaslonu kada je dostupna nova verzija"
+    "Hitni ispravak: riješena greška 'Page not found' 404 i vraćen stabilan lokalni rad aplikacije",
+    "Pouzdan sustav obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija ugašena",
+    "Nativni Android pozadinski servis (ChatBackgroundService) i AlarmManager za primanje poruka",
+    "Optimizirana potrošnja baterije i stabilnost rada na zaključanom zaslonu i AOD"
   ],
   "isCritical": false,
-  "updateType": "live_web",
-  "liveWebUrl": "https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app"
+  "updateType": "apk"
 }
-

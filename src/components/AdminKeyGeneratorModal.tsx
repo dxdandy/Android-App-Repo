@@ -54,6 +54,7 @@ import {
   AppVersionInfo,
   cleanupInstallationFiles 
 } from '../services/updateService';
+import { showIncomingMessageNotification } from '../services/notificationService';
 
 interface AdminKeyGeneratorModalProps {
   isOpen: boolean;
@@ -977,22 +978,34 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onTestUpdatePopup && onTestUpdatePopup({
-                        version: '1.5.9',
+                        version: '1.6.0',
                         name: 'RiboPrognoza',
                         releaseDate: new Date().toISOString().split('T')[0],
-                        apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.9.apk',
+                        apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.0.apk',
                         changelog: [
-                          'Testiranje Live Web ažuriranja bez preuzimanja datoteka',
-                          'Automatska sinkronizacija novog koda i predmemorije',
-                          'Potpuno zaobilaženje Google Play Protect sigurnosnih blokada'
+                          'Hitni ispravak: uklonjena greška 404 Page not found',
+                          'Pouzdan sustav obavijesti s ikonom udice i zvukom',
+                          'Optimiziran stabilan rad u pozadini i na zaključanom zaslonu'
                         ],
                         isCritical: false,
-                        updateType: 'live_web',
-                        liveWebUrl: 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app'
+                        updateType: 'apk'
                       })}
                       className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold cursor-pointer hover:bg-emerald-500/30 transition-colors"
                     >
-                      Testiraj Live Web Popup
+                      Testiraj Update Popup
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        showIncomingMessageNotification(
+                          'Ribič Matej',
+                          'Test: Dunav kod Aljmaša raste! Obavijest s ikonom udice i zvukom radi.',
+                          'test_notif_' + Date.now()
+                        );
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-bold cursor-pointer hover:bg-cyan-500/30 transition-colors"
+                    >
+                      🔔 Testiraj Zvuk &amp; Udicu
                     </button>
                   </div>
                 </div>

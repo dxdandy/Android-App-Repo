@@ -5,12 +5,7 @@ const config: CapacitorConfig = {
   appName: 'RiboPrognoza',
   webDir: 'dist',
   server: {
-    androidScheme: 'https',
-    allowNavigation: [
-      'ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app',
-      'ais-dev-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app',
-      '*.run.app'
-    ]
+    androidScheme: 'https'
   },
   plugins: {
     CapacitorHttp: {

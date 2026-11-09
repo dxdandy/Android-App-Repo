@@ -688,6 +688,38 @@ function saveChat(messages: ChatMessageRecord[]): void {
   }
 }
 
+interface PollWaiter {
+  deviceId: string;
+  lastSeenId: string;
+  resolve: (data: any) => void;
+}
+
+const chatPollWaiters: PollWaiter[] = [];
+
+function notifyPollWaiters(newMsg: ChatMessageRecord) {
+  if (!newMsg || !newMsg.id) return;
+  if (chatPollWaiters.length === 0) return;
+  const waiters = chatPollWaiters.splice(0, chatPollWaiters.length);
+  for (const w of waiters) {
+    if (w.deviceId !== newMsg.deviceId && w.lastSeenId !== newMsg.id) {
+      w.resolve({
+        hasNew: true,
+        count: 1,
+        message: {
+          id: newMsg.id,
+          deviceId: newMsg.deviceId,
+          userName: newMsg.userName || 'Ribič',
+          text: newMsg.text || '',
+          timestamp: newMsg.timestamp || '',
+          createdAt: newMsg.createdAt || Date.now()
+        }
+      });
+    } else {
+      w.resolve({ hasNew: false });
+    }
+  }
+}
+
 // Inicijalizacija Firebase Firestore sinkronizacije na poslužitelju
 let serverDb: any = null;
 try {
@@ -725,21 +757,20 @@ try {
       }
     }
 
-    // 3. Sinkroniziraj podatke o najnovijoj verziji za Live Web Ažuriranja
+    // 3. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.5.8',
+      version: '1.6.0',
       name: 'RiboPrognoza',
-      releaseDate: '2026-11-08',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.8.apk',
+      releaseDate: '2026-11-09',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
       changelog: [
-        'Uveden sustav Live Web automatskog ažuriranja (OTA) bez potrebe za ponovnim preuzimanjem APK-a',
-        'Zaobilaženje Google Play Protect blokada i ručnih sigurnosnih postavki na mobitelima',
-        'Automatska pozadinska provjera i trenutačna primjena novih ribičkih funkcija',
-        'Obavijesti s ikonom udice u statusnoj traci i na zaključanom zaslonu kada je dostupna nova verzija'
+        'Hitni ispravak: riješena greška "Page not found" 404 i vraćen stabilan rad aplikacije',
+        'Pouzdan sustav obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija ugašena',
+        'Nativni Android pozadinski servis (ChatBackgroundService) i AlarmManager za primanje poruka',
+        'Optimizirana potrošnja baterije i stabilnost rada na zaključanom zaslonu i AOD'
       ],
       isCritical: false,
-      updateType: 'live_web',
-      liveWebUrl: 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app',
+      updateType: 'apk',
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch(() => {});
 
@@ -767,6 +798,7 @@ try {
           } else {
             currentChat.push(newEntry);
             hasChanges = true;
+            notifyPollWaiters(newEntry);
           }
         } else if (change.type === 'removed') {
           const docId = change.doc.id;
@@ -1115,6 +1147,67 @@ app.get('/api/chat/messages', (req, res) => {
 });
 
 /**
+ * API: Pozadinski poll endpoint za native Android i pozadinske obavijesti
+ * Vraća najnoviju poruku ako postoji nova poruka koju nije poslao ovaj uređaj.
+ * Podržava long-polling (wait=true) do 15 sekundi za trenutnu reakciju bez trošenja baterije.
+ */
+app.get('/api/chat/poll', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  const deviceId = (req.query.deviceId as string) || '';
+  const lastSeenId = (req.query.lastSeenId as string) || '';
+  const shouldWait = req.query.wait === 'true';
+
+  const cleanDeviceId = deviceId ? String(deviceId).trim().toUpperCase() : '';
+  const rawMessages = loadChat();
+
+  // Pronađi najnoviju poruku
+  const latestMsg = rawMessages.length > 0 ? rawMessages[rawMessages.length - 1] : null;
+
+  if (latestMsg && latestMsg.id !== lastSeenId && (!cleanDeviceId || latestMsg.deviceId !== cleanDeviceId)) {
+    // Postoji nova poruka od nekog drugog!
+    return res.json({
+      hasNew: true,
+      count: 1,
+      message: {
+        id: latestMsg.id,
+        deviceId: latestMsg.deviceId,
+        userName: latestMsg.userName || 'Ribič',
+        text: latestMsg.text || '',
+        timestamp: latestMsg.timestamp || '',
+        createdAt: latestMsg.createdAt || Date.now()
+      }
+    });
+  }
+
+  if (!shouldWait) {
+    return res.json({ hasNew: false });
+  }
+
+  // Long-poll čekanje do 15 sekundi za novu poruku
+  let resolved = false;
+  const timer = setTimeout(() => {
+    if (resolved) return;
+    resolved = true;
+    const idx = chatPollWaiters.findIndex(w => w.resolve === finish);
+    if (idx !== -1) chatPollWaiters.splice(idx, 1);
+    res.json({ hasNew: false, timeout: true });
+  }, 15000);
+
+  const finish = (payload: any) => {
+    if (resolved) return;
+    resolved = true;
+    clearTimeout(timer);
+    res.json(payload);
+  };
+
+  chatPollWaiters.push({
+    deviceId: cleanDeviceId,
+    lastSeenId,
+    resolve: finish
+  });
+});
+
+/**
  * API: Zabilježi potvrdu čitanja poruka (svima dostupno)
  */
 app.post('/api/chat/read', (req, res) => {
@@ -1287,6 +1380,7 @@ app.post('/api/chat/messages', (req, res) => {
     chat[existingIdx] = newMsg;
   } else {
     chat.push(newMsg);
+    notifyPollWaiters(newMsg);
   }
   if (chat.length > 250) {
     chat = chat.slice(-250);
@@ -1367,19 +1461,18 @@ app.post('/api/admin/chat/clear', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.5.8',
+    version: '1.6.0',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-08',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.5.8.apk',
+    releaseDate: '2026-11-09',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Uveden sustav Live Web automatskog ažuriranja (OTA) bez potrebe za ponovnim preuzimanjem APK-a',
-      'Zaobilaženje Google Play Protect blokada i ručnih sigurnosnih postavki na mobitelima',
-      'Automatska pozadinska provjera i trenutačna primjena novih ribičkih funkcija',
-      'Obavijesti s ikonom udice u statusnoj traci i na zaključanom zaslonu kada je dostupna nova verzija'
+      'Hitni ispravak: riješena greška "Page not found" 404 i vraćen stabilan rad aplikacije',
+      'Pouzdan sustav obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija ugašena',
+      'Nativni Android pozadinski servis (ChatBackgroundService) i AlarmManager za primanje poruka',
+      'Optimizirana potrošnja baterije i stabilnost rada na zaključanom zaslonu i AOD'
     ],
     isCritical: false,
-    updateType: 'live_web',
-    liveWebUrl: 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app'
+    updateType: 'apk'
   });
 });
 

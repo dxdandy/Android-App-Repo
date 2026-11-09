@@ -1,4 +1,5 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { ChatNativeNotifier } from './nativeNotifierService';
 
 /**
  * Zvučni sintetizator za obavijesti o novim porukama (Web Audio API)
@@ -133,7 +134,20 @@ export async function showIncomingMessageNotification(
   // Uvijek pokušaj zasvirati ton
   playNotificationSound();
 
-  // 1. Android nativna obavijest putem Capacitor LocalNotifications (radi i u pozadini s tonom)
+  // 1. Android nativna obavijest s ikonom udice i zvukom (prioritet: nativni Java notifier)
+  if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+    try {
+      await ChatNativeNotifier.sendTestNotification({
+        title: senderName,
+        text: messageText
+      });
+      return;
+    } catch {
+      // Nastavi na LocalNotifications fallback
+    }
+  }
+
+  // 1b. Capacitor LocalNotifications fallback
   try {
     const notifId = Math.floor(Math.random() * 100000) + 1;
     await LocalNotifications.schedule({

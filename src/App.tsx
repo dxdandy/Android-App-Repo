@@ -43,6 +43,10 @@ import {
   requestNotificationPermission, 
   updateAppBadge 
 } from './services/notificationService';
+import { 
+  syncDeviceIdToNative, 
+  setNativeInChatStatus 
+} from './services/nativeNotifierService';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { 
   checkForAppUpdate, 
@@ -303,17 +307,23 @@ export default function App() {
     };
   }, []);
 
+  const showChatModalRef = useRef<boolean>(showChatModal);
+  useEffect(() => {
+    showChatModalRef.current = showChatModal;
+    setNativeInChatStatus(showChatModal);
+  }, [showChatModal]);
+
   // Pretplata na poruke u stvarnom vremenu za zvučnu obavijest, obavijest na traci i ikoni aplikacije (App Badge)
   useEffect(() => {
     if (!isActivated) return;
 
-    if (showChatModal) {
-      setUnreadChatCount(0);
-      updateAppBadge(0);
-      return;
+    const myId = getDeviceId();
+    syncDeviceIdToNative(myId);
+
+    if (!lastNotifiedMsgIdRef.current && typeof window !== 'undefined') {
+      lastNotifiedMsgIdRef.current = localStorage.getItem('ribo_last_notified_msg_id') || '';
     }
 
-    const myId = getDeviceId();
     let initialSyncDone = false;
 
     const unsubscribe = subscribeToChatMessages((res) => {
@@ -334,9 +344,14 @@ export default function App() {
 
         if (newestMsg) {
           if (initialSyncDone && count > 0 && newestMsg.id !== lastNotifiedMsgIdRef.current) {
-            // Zvuk i sistemska skočna obavijest na mobitelu (Android i Web)
-            showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
+            // Ako korisnik u ovom trenutku nije unutar otvorenog chata, pošalji zvuk i sistemsku obavijest
+            if (!showChatModalRef.current) {
+              showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
+            }
             lastNotifiedMsgIdRef.current = newestMsg.id;
+            try {
+              localStorage.setItem('ribo_last_notified_msg_id', newestMsg.id);
+            } catch {}
 
             // Ako je korisnik u tom trenutku bio izvan aplikacije, zabilježi da se pri povratku otvori LiveChat
             if (typeof document !== 'undefined' && document.hidden) {
@@ -346,6 +361,9 @@ export default function App() {
             }
           } else if (!lastNotifiedMsgIdRef.current) {
             lastNotifiedMsgIdRef.current = newestMsg.id;
+            try {
+              localStorage.setItem('ribo_last_notified_msg_id', newestMsg.id);
+            } catch {}
           }
         }
       }
@@ -353,13 +371,14 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [isActivated, showChatModal]);
+  }, [isActivated]);
 
   const handleOpenChat = () => {
     setShowChatModal(true);
     setUnreadChatCount(0);
     markChatAsRead();
     updateAppBadge(0);
+    setNativeInChatStatus(true);
     try {
       localStorage.removeItem('ribo_pending_open_chat_on_resume');
     } catch {}
@@ -367,6 +386,7 @@ export default function App() {
 
   const handleCloseChat = () => {
     setShowChatModal(false);
+    setNativeInChatStatus(false);
     try {
       localStorage.removeItem('ribo_pending_open_chat_on_resume');
     } catch {}
