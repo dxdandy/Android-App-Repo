@@ -42,6 +42,18 @@
         "notes": { "type": "string" }
       },
       "required": ["deviceId", "userName", "status"]
+    },
+    "CatchStats": {
+      "title": "CatchStats",
+      "description": "Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)",
+      "type": "object",
+      "properties": {
+        "counts": { "type": "object" },
+        "anglerDevices": { "type": "object" },
+        "history": { "type": "array" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["counts", "updatedAt"]
     }
   },
   "firestore": {
@@ -56,6 +68,10 @@
     "/licenses/{deviceId}": {
       "schema": { "$ref": "#/entities/License" },
       "description": "Licence i prava pristupa korisnika"
+    },
+    "/catch_stats/{docId}": {
+      "schema": { "$ref": "#/entities/CatchStats" },
+      "description": "Zajednička tablica evidencije ulova po vrstama ribe"
     }
   }
 }

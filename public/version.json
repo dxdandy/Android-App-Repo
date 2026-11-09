@@ -1,13 +1,13 @@
 {
-  "version": "1.6.4",
+  "version": "1.6.6",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-09",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.4.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.6.apk",
   "changelog": [
-    "Kompletan nadzor LiveChata u pozadini: zvučna obavijest, ikona udice na Lockscreenu i skočna obavijest (Heads-Up) i kada je aplikacija potpuno ugašena",
-    "Napredni Android prijamnik (goAsync + točni alarmi + automatsko buđenje zaslona pri dolasku poruke)",
-    "Automatsko Live Web ažuriranje (OTA) odmah po pokretanju bez preuzimanja APK-a i bez sigurnosnih blokada",
-    "Prikaz točne verzije u nazivu APK datoteke (RiboPrognoza_v1.6.4.apk)"
+    "Usklađeni gumbi u zaglavlju (Osnovni mod, Pro mod, Lovostaj, Evidencija ulova) u jedan fiksni red bez klizanja",
+    "Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)",
+    "Vertikalna tablica prilagođena mobilnom zaslonu s fiksnim imenima ribolovaca pri scrollanju i zbrojevima po vrstama (Bucov, Smuđ, Štuka, Som, Bikonja, Šaran, Mrena, Klen, Buljo)",
+    "Pouzdan rad pozadinskih LiveChat obavijesti i automatsko Live Web ažuriranje (OTA)"
   ],
   "isCritical": false,
   "updateType": "live_web"

@@ -23,6 +23,7 @@ interface BasicOverviewViewProps {
   isLoading: boolean;
   onOpenExpertSection: (sectionId?: string) => void;
   onOpenLovostaj?: () => void;
+  onOpenCatchLog?: () => void;
 }
 
 /**
@@ -84,7 +85,8 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
   solunar,
   isLoading,
   onOpenExpertSection,
-  onOpenLovostaj
+  onOpenLovostaj,
+  onOpenCatchLog
 }) => {
   const isLandscape = useDeviceIsLandscape();
 
@@ -791,7 +793,17 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+          {onOpenCatchLog && (
+            <button
+              type="button"
+              onClick={onOpenCatchLog}
+              className="px-3.5 py-2.5 sm:py-3 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-500/40 font-bold text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+              title="Zajednička evidencija ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa)"
+            >
+              <span>🏆 Evidencija ulova</span>
+            </button>
+          )}
           {onOpenLovostaj && (
             <button
               type="button"
@@ -799,7 +811,7 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
               className="px-3.5 py-2.5 sm:py-3 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 border border-emerald-500/40 font-bold text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
               title="Pregled pravilnika o lovostaju i najmanjim mjerama"
             >
-              <span>🐟 Lovostaj riba</span>
+              <span>🐟 Lovostaj</span>
             </button>
           )}
           <button

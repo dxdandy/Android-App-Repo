@@ -616,6 +616,7 @@ export interface ChatMessageRecord {
 const DATA_DIR = path.resolve(__dirname, 'data');
 const LICENSES_FILE = path.join(DATA_DIR, 'licenses.json');
 const CHAT_FILE = path.join(DATA_DIR, 'chat.json');
+const CATCHES_FILE = path.join(DATA_DIR, 'catches.json');
 
 function ensureDataStorage() {
   try {
@@ -686,6 +687,28 @@ function saveChat(messages: ChatMessageRecord[]): void {
     fs.writeFileSync(CHAT_FILE, JSON.stringify(messages, null, 2), 'utf-8');
   } catch (err) {
     console.error('Greška pri spremanju chata:', err);
+  }
+}
+
+function loadCatches(): any {
+  try {
+    ensureDataStorage();
+    if (fs.existsSync(CATCHES_FILE)) {
+      const raw = fs.readFileSync(CATCHES_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error('Greška pri učitavanju ulova:', err);
+  }
+  return null;
+}
+
+function saveCatches(data: any): void {
+  try {
+    ensureDataStorage();
+    fs.writeFileSync(CATCHES_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Greška pri spremanju ulova:', err);
   }
 }
 
@@ -784,15 +807,15 @@ try {
 
     // 3. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.6.4',
+      version: '1.6.6',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-09',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.4.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.6.apk',
       changelog: [
-        'Pouzdan rad pozadinskih LiveChat obavijesti kada je aplikacija potpuno ugašena (goAsync WakeLock + Exact Alarm + onTaskRemoved zaštita)',
-        'Skočne (Heads-Up) obavijesti na vrhu ekrana, prikaz ikone udice na Lockscreenu i zvučni alarm pri svakoj novoj poruci',
-        'Potpuna dvosmjerna sinkronizacija pročitanih i odgovorenih poruka unutar LiveChata',
-        'Ispravljen naziv APK paketa s jasno prikazanom verzijom aplikacije (RiboPrognoza_v1.6.4.apk)'
+        'Usklađeni gumbi u zaglavlju (Osnovni mod, Pro mod, Lovostaj, Evidencija ulova) u jedan fiksni red bez klizanja',
+        'Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)',
+        'Vertikalna tablica s fiksnim imenima ribolovaca i zbrojevima po vrstama (Bucov, Smuđ, Štuka, Som, Bikonja, Šaran, Mrena, Klen, Buljo)',
+        'Pouzdan rad pozadinskih LiveChat obavijesti i automatsko Live Web ažuriranje (OTA)'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -1506,20 +1529,41 @@ app.post('/api/admin/chat/clear', async (req, res) => {
 });
 
 /**
+ * API: Dohvat i ažuriranje zajedničke evidencije ulova po vrstama ribe
+ */
+app.get('/api/catches', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  const data = loadCatches();
+  res.json(data || { counts: {}, anglerDevices: {}, history: [], updatedAt: 0 });
+});
+
+app.post('/api/catches/update', (req, res) => {
+  const incoming = req.body;
+  if (!incoming || typeof incoming !== 'object') {
+    return res.status(400).json({ error: 'Neispravan format podataka.' });
+  }
+  saveCatches(incoming);
+  if (serverDb) {
+    setDoc(doc(serverDb, 'catch_stats', 'dunav_ulovi'), incoming, { merge: true }).catch(() => {});
+  }
+  res.json({ success: true });
+});
+
+/**
  * API: Provjera najnovije verzije aplikacije
  */
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.6.4',
+    version: '1.6.6',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-09',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.4.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.6.apk',
     changelog: [
-      'Pouzdan rad pozadinskih LiveChat obavijesti kada je aplikacija potpuno ugašena (goAsync WakeLock + Exact Alarm + onTaskRemoved zaštita)',
-      'Skočne (Heads-Up) obavijesti na vrhu ekrana, prikaz ikone udice na Lockscreenu i zvučni alarm pri svakoj novoj poruci',
-      'Potpuna dvosmjerna sinkronizacija pročitanih i odgovorenih poruka unutar LiveChata',
-      'Ispravljen naziv APK paketa s jasno prikazanom verzijom aplikacije (RiboPrognoza_v1.6.4.apk)'
+      'Usklađeni gumbi u zaglavlju (Osnovni mod, Pro mod, Lovostaj, Evidencija ulova) u jedan fiksni red bez klizanja',
+      'Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)',
+      'Vertikalna tablica s fiksnim imenima ribolovaca i zbrojevima po vrstama (Bucov, Smuđ, Štuka, Som, Bikonja, Šaran, Mrena, Klen, Buljo)',
+      'Pouzdan rad pozadinskih LiveChat obavijesti i automatsko Live Web ažuriranje (OTA)'
     ],
     isCritical: false,
     updateType: 'live_web'

@@ -2,15 +2,16 @@ import React from 'react';
 import { 
   Waves, 
   Sparkles, 
-  Scale, 
   LayoutDashboard,
-  MessageSquare
+  MessageSquare,
+  Trophy
 } from 'lucide-react';
 
 interface AndroidBottomNavProps {
   activeTab: 'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba';
   onSelectTab: (tab: 'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba') => void;
   onOpenChat: () => void;
+  onOpenCatchLog?: () => void;
   unreadChatCount?: number;
 }
 
@@ -18,6 +19,7 @@ export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
   activeTab,
   onSelectTab,
   onOpenChat,
+  onOpenCatchLog,
   unreadChatCount = 0
 }) => {
   return (
@@ -71,6 +73,16 @@ export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
           <span className="text-[9px] leading-tight font-medium">Solunar</span>
         </button>
 
+        {/* Evidencija ulova */}
+        <button
+          onClick={onOpenCatchLog}
+          className="flex flex-col items-center justify-center py-1 transition-all cursor-pointer text-amber-400 hover:text-amber-300 font-bold"
+          title="Otvori Evidenciju ulova po vrstama ribe"
+        >
+          <Trophy className="w-4.5 h-4.5 mb-0.5 text-amber-400" />
+          <span className="text-[9px] leading-tight text-amber-200">Ulovi</span>
+        </button>
+
         {/* LiveChat - jasno istaknut s obavijestima za sve mobilne korisnike */}
         <button
           onClick={onOpenChat}
@@ -84,17 +96,6 @@ export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
           )}
           <MessageSquare className="w-4.5 h-4.5 mb-0.5 text-teal-300" />
           <span className="text-[9px] leading-tight text-teal-200">Chat</span>
-        </button>
-
-        {/* Usporedba */}
-        <button
-          onClick={() => onSelectTab('usporedba')}
-          className={`flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
-            activeTab === 'usporedba' ? 'text-purple-400 font-bold' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Scale className="w-4.5 h-4.5 mb-0.5" />
-          <span className="text-[9px] leading-tight font-medium">Usporedi</span>
         </button>
 
       </div>

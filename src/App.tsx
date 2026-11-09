@@ -31,6 +31,7 @@ import { AppUpdateModal } from './components/AppUpdateModal';
 import { DonationModal } from './components/DonationModal';
 import { FishingChatModal } from './components/FishingChatModal';
 import { LovostajModal } from './components/LovostajModal';
+import { CatchLogModal } from './components/CatchLogModal';
 import { isAppActivated, verifyLicenseWithServer, getDeviceId } from './services/licenseService';
 import { 
   fetchChatMessages, 
@@ -66,6 +67,7 @@ export default function App() {
   const [showDonationModal, setShowDonationModal] = useState<boolean>(false);
   const [showChatModal, setShowChatModal] = useState<boolean>(false);
   const [showLovostajModal, setShowLovostajModal] = useState<boolean>(false);
+  const [showCatchLogModal, setShowCatchLogModal] = useState<boolean>(false);
   const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
 
   // Stanja za automatska Live Web ažuriranja
@@ -547,16 +549,16 @@ export default function App() {
               Hidrometeo & Solunarni Centar Dunava
             </h1>
 
-            {/* Odabir načina prikaza: Osnovni mod, Pro mod i Lovostaj riba - SVE U JEDNOM REDU */}
-            <div className="mt-2 sm:mt-2.5 flex items-center gap-1.5 sm:gap-2 flex-nowrap w-full max-w-full overflow-x-auto no-scrollbar py-0.5">
-              <div className="inline-flex p-0.5 sm:p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner shrink-0">
+            {/* Odabir načina prikaza: Osnovni mod, Pro mod, Lovostaj i Evidencija ulova - SVE U JEDNOM REDU BEZ KLIZANJA */}
+            <div className="mt-2 sm:mt-2.5 flex items-center gap-1 sm:gap-2 flex-nowrap w-full max-w-full overflow-hidden py-0.5">
+              <div className="inline-flex p-0.5 sm:p-1 bg-slate-950/90 rounded-xl sm:rounded-2xl border border-slate-800 shadow-inner shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     setViewMode('basic');
                     localStorage.setItem('ribo_app_view_mode', 'basic');
                   }}
-                  className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                  className={`px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 whitespace-nowrap ${
                     viewMode === 'basic'
                       ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 shadow-md font-black'
                       : 'text-slate-400 hover:text-white'
@@ -570,7 +572,7 @@ export default function App() {
                     setViewMode('expert');
                     localStorage.setItem('ribo_app_view_mode', 'expert');
                   }}
-                  className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                  className={`px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 whitespace-nowrap ${
                     viewMode === 'expert'
                       ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md font-black'
                       : 'text-slate-400 hover:text-white'
@@ -580,14 +582,24 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Gumb: Lovostaj riba - u istom redu, bez PDF teksta */}
+              {/* Gumb: Lovostaj */}
               <button
                 type="button"
                 onClick={() => setShowLovostajModal(true)}
-                className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 text-emerald-200 border border-emerald-500/40 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
+                className="px-1.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 text-emerald-200 border border-emerald-500/40 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
                 title="Prikaz pravilnika: Lovostaj i najmanja lovna mjera"
               >
-                <span>🐟 Lovostaj riba</span>
+                <span>🐟 Lovostaj</span>
+              </button>
+
+              {/* Gumb: Evidencija ulova */}
+              <button
+                type="button"
+                onClick={() => setShowCatchLogModal(true)}
+                className="px-1.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 bg-gradient-to-r from-amber-950/90 to-yellow-950/90 hover:from-amber-900 hover:to-yellow-900 text-amber-200 border border-amber-500/40 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
+                title="Zajednička evidencija ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa)"
+              >
+                <span>🏆 Evidencija ulova</span>
               </button>
 
               <span className="text-[11px] text-slate-400 hidden lg:inline-block truncate">
@@ -676,6 +688,7 @@ export default function App() {
             isLoading={isLoading} 
             onOpenExpertSection={handleOpenExpertSection}
             onOpenLovostaj={() => setShowLovostajModal(true)}
+            onOpenCatchLog={() => setShowCatchLogModal(true)}
           />
         ) : (
           /* DUBINSKI EKSPERTNI RIBOLOVNI MOD */
@@ -806,6 +819,7 @@ export default function App() {
           }
         }}
         onOpenChat={handleOpenChat}
+        onOpenCatchLog={() => setShowCatchLogModal(true)}
         unreadChatCount={unreadChatCount}
       />
 
@@ -893,6 +907,12 @@ export default function App() {
       <LovostajModal
         isOpen={showLovostajModal}
         onClose={() => setShowLovostajModal(false)}
+      />
+
+      {/* Modal za Evidenciju ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa) */}
+      <CatchLogModal
+        isOpen={showCatchLogModal}
+        onClose={() => setShowCatchLogModal(false)}
       />
 
     </div>

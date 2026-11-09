@@ -20,5 +20,10 @@ service cloud.firestore {
     match /app_updates/{docId} {
       allow read, write: if true;
     }
+
+    // Zajednička evidencija ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa)
+    match /catch_stats/{docId} {
+      allow read, write: if true;
+    }
   }
 }
