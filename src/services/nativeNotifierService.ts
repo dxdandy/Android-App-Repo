@@ -5,10 +5,25 @@ interface ChatNativeNotifierPlugin {
   setInChat(options: { inChat: boolean }): Promise<void>;
   setLastSeenMessage(options: { messageId: string; createdAt?: number }): Promise<void>;
   checkNow(): Promise<void>;
+  clearNotifications(): Promise<{ success: boolean }>;
   sendTestNotification(options?: { title?: string; text?: string }): Promise<{ success: boolean }>;
 }
 
 export const ChatNativeNotifier = registerPlugin<ChatNativeNotifierPlugin>('ChatNativeNotifier');
+
+/**
+ * Poništava sve aktivne chat obavijesti u traci i resetira sistemski brojač bedža
+ */
+export async function clearNativeNotifications(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    if ((window as any).Capacitor?.isNativePlatform?.()) {
+      await ChatNativeNotifier.clearNotifications();
+    }
+  } catch (err) {
+    console.debug('ChatNativeNotifier.clearNotifications info:', err);
+  }
+}
 
 /**
  * Sinkronizira ID ovog uređaja s nativnim Android pozadinskim servisom

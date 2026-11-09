@@ -821,15 +821,15 @@ try {
 
     // 3. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.6.9',
+      version: '1.7.0',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-09',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.9.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.0.apk',
       changelog: [
-        'Ispravljena greška prikaza LiveChata na mobitelima: otklonjen problem crnog ekrana i smrzavanja',
-        'Dodan sigurnosni ErrorBoundary štit oko svih modala koji sprječava rušenje aplikacije i omogućuje trenutan povratak u Osnovni mod',
-        'U potpunosti podržane geste povlačenja s ruba ekrana prema centru (Edge Swipe) i sistemska navigacija unatrag',
-        'Fluidan i stabilan rad LiveChata i svih popratnih funkcija'
+        'Evidencija ulova: filtriran prikaz na točno 5 traženih vrsta riba (Bucov, Smuđ, Som, Štuka, Mrena)',
+        'Zvučne obavijesti: usklađena glasnoća zvuka sa sistemskim nivoom obavijesti korisnika (STREAM_NOTIFICATION), bez preglasnih i piskavih tonova',
+        'LiveChat: automatsko resetiranje i brisanje sistemskog brojača / bedža ikone aplikacije i obavijesti u traci čim korisnik pročita sve poruke',
+        'Puna podrška za povratak gestom povlačenja (swipe) s lijevog i desnog ruba ekrana i sistemskom tipkom unatrag'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -849,19 +849,19 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.6.9',
+            version: '1.7.0',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.6.9',
+          version: '1.7.0',
           totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.6.9 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.7.0 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
@@ -1601,15 +1601,15 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.6.9',
+    version: '1.7.0',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-09',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.9.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.0.apk',
     changelog: [
-      'Ispravljena greška prikaza LiveChata na mobitelima: otklonjen problem crnog ekrana i smrzavanja',
-      'Dodan sigurnosni ErrorBoundary štit oko svih modala koji sprječava rušenje aplikacije i omogućuje trenutan povratak u Osnovni mod',
-      'U potpunosti podržane geste povlačenja s ruba ekrana prema centru (Edge Swipe) i sistemska navigacija unatrag',
-      'Fluidan i stabilan rad LiveChata i svih popratnih funkcija'
+      'Evidencija ulova: filtriran prikaz na točno 5 traženih vrsta riba (Bucov, Smuđ, Som, Štuka, Mrena)',
+      'Zvučne obavijesti: usklađena glasnoća zvuka sa sistemskim nivoom obavijesti korisnika (STREAM_NOTIFICATION), bez preglasnih i piskavih tonova',
+      'LiveChat: automatsko resetiranje i brisanje sistemskog brojača / bedža ikone aplikacije i obavijesti u traci čim korisnik pročita sve poruke',
+      'Puna podrška za povratak gestom povlačenja (swipe) s lijevog i desnog ruba ekrana i sistemskom tipkom unatrag'
     ],
     isCritical: false,
     updateType: 'live_web'

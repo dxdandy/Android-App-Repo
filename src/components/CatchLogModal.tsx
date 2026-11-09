@@ -109,13 +109,9 @@ export const CatchLogModal: React.FC<CatchLogModalProps> = ({ isOpen, onClose })
     const res: Record<FishSpeciesId, number> = {
       bucov: 0,
       smud: 0,
-      stuka: 0,
       som: 0,
-      bikonja: 0,
-      saran: 0,
-      mrena: 0,
-      klen: 0,
-      buljo: 0
+      stuka: 0,
+      mrena: 0
     };
     for (const fish of FISH_SPECIES) {
       let sum = 0;

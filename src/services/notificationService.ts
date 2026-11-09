@@ -1,5 +1,5 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { ChatNativeNotifier } from './nativeNotifierService';
+import { ChatNativeNotifier, clearNativeNotifications } from './nativeNotifierService';
 
 /**
  * Zvučni sintetizator za obavijesti o novim porukama (Web Audio API)
@@ -27,7 +27,8 @@ function getAudioContext(): AudioContext | null {
 }
 
 /**
- * Svira čist i ugodan dvotonski ribički chime (akord G5 -> C6) za novu poruku
+ * Svira nježan, ugodan i diskretan ribički chime (G5 -> C6)
+ * Usklađen sa sistemskim nivoom glasnoće kako ne bi bio preglasan
  */
 export function playNotificationSound(): void {
   try {
@@ -36,30 +37,30 @@ export function playNotificationSound(): void {
 
     const now = ctx.currentTime;
 
-    // Prvi ton: 784 Hz (G5)
+    // Prvi diskretan ton: 784 Hz (G5) s blagim gainom 0.04
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.type = 'sine';
     osc1.frequency.setValueAtTime(784, now);
-    gain1.gain.setValueAtTime(0.18, now);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    gain1.gain.setValueAtTime(0.04, now);
+    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
     osc1.connect(gain1);
     gain1.connect(ctx.destination);
     osc1.start(now);
-    osc1.stop(now + 0.3);
+    osc1.stop(now + 0.26);
 
-    // Drugi ton: 1046.5 Hz (C6) - zvonki signal
+    // Drugi ton: 1046.5 Hz (C6) s blagim gainom 0.05
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(1046.5, now + 0.12);
+    osc2.frequency.setValueAtTime(1046.5, now + 0.1);
     gain2.gain.setValueAtTime(0, now);
-    gain2.gain.setValueAtTime(0.22, now + 0.12);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+    gain2.gain.setValueAtTime(0.05, now + 0.1);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
     osc2.connect(gain2);
     gain2.connect(ctx.destination);
-    osc2.start(now + 0.12);
-    osc2.stop(now + 0.5);
+    osc2.start(now + 0.1);
+    osc2.stop(now + 0.42);
   } catch (err) {
     console.warn('Greška pri reprodukciji zvučne obavijesti:', err);
   }
@@ -85,12 +86,11 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
     // Kreiraj kanal visoke važnosti (heads-up, status bar, zaključani zaslon i Always On Display)
     await LocalNotifications.createChannel({
-      id: 'ribo_chat_sms_channel_v4',
-      name: 'RiboPrognoza LiveChat SMS Obavijesti',
-      description: 'Hitne zvučne, skočne i Lockscreen obavijesti s ikonom udice za nove poruke',
+      id: 'ribo_chat_sms_channel_v5',
+      name: 'RiboPrognoza LiveChat Poruke',
+      description: 'Zvučne, skočne i Lockscreen obavijesti s ikonom udice za nove poruke',
       importance: 5, // IMPORTANCE_HIGH
       visibility: 1, // VISIBILITY_PUBLIC (prikaz na Lock screenu i AOD)
-      sound: 'beep.wav',
       vibration: true,
       lights: true,
       lightColor: '#0891b2'
@@ -131,11 +131,15 @@ export async function showIncomingMessageNotification(
   const title = `🎣 LiveChat: ${senderName}`;
   const body = messageText.length > 70 ? messageText.slice(0, 67) + '...' : messageText;
 
-  // Uvijek pokušaj zasvirati ton
-  playNotificationSound();
+  // Zvuk se reproducira preko Web Audio samo ako nismo na nativnoj platformi
+  // (Na Android nativnoj platformi Android sustav već sam reproducira ton obavijesti preko STREAM_NOTIFICATION)
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+  if (!isNative) {
+    playNotificationSound();
+  }
 
   // 1. Android nativna obavijest s ikonom udice i zvukom (prioritet: nativni Java notifier)
-  if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+  if (isNative) {
     try {
       await ChatNativeNotifier.sendTestNotification({
         title: senderName,
@@ -156,10 +160,9 @@ export async function showIncomingMessageNotification(
           id: notifId,
           title,
           body,
-          channelId: 'ribo_chat_sms_channel_v4',
+          channelId: 'ribo_chat_sms_channel_v5',
           smallIcon: 'ic_stat_hook',
           iconColor: '#0891b2',
-          sound: 'beep.wav',
           actionTypeId: '',
           extra: {
             messageId,
@@ -200,7 +203,7 @@ export async function showIncomingMessageNotification(
 
 /**
  * Ažurira oznaku na instalacijskoj ikoni aplikacije na početnom zaslonu (App Badging API)
- * Prikazuje crveni krug s brojem nepročitanih poruka kao na WhatsAppu/Gmailu
+ * Kada korisnik pročita sve poruke (count <= 0), poništava obavijesti u traci i bedž ikone
  */
 export function updateAppBadge(count: number): void {
   if (typeof window === 'undefined') return;
@@ -219,6 +222,13 @@ export function updateAppBadge(count: number): void {
       if (typeof document !== 'undefined') {
         document.title = 'RiboPrognoza';
       }
+      // Poništi obavijesti na Android uređaju čime se automatski briše i sistemski bedž ikone na mobitelu
+      try {
+        LocalNotifications.removeAllDeliveredNotifications().catch(() => {});
+      } catch {}
+      try {
+        clearNativeNotifications().catch(() => {});
+      } catch {}
     }
   } catch {}
 }

@@ -340,6 +340,18 @@ public class MainActivity extends BridgeActivity {
         }
 
         @PluginMethod
+        public void clearNotifications(PluginCall call) {
+            try {
+                ChatNotificationHelper.clearAllNotifications(getContext());
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Greška pri brisanju obavijesti: " + e.getMessage());
+            }
+        }
+
+        @PluginMethod
         public void sendTestNotification(PluginCall call) {
             try {
                 String title = call.getString("title", "Test Ribič");

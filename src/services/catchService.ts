@@ -15,13 +15,9 @@ export type AnglerId = 'sikac' | 'krasni' | 'domo' | 'malisa';
 export type FishSpeciesId =
   | 'bucov'
   | 'smud'
-  | 'stuka'
   | 'som'
-  | 'bikonja'
-  | 'saran'
-  | 'mrena'
-  | 'klen'
-  | 'buljo';
+  | 'stuka'
+  | 'mrena';
 
 export interface AnglerDef {
   id: AnglerId;
@@ -43,13 +39,9 @@ export const ANGLERS: AnglerDef[] = [
 export const FISH_SPECIES: FishSpeciesDef[] = [
   { id: 'bucov', name: 'Bucov' },
   { id: 'smud', name: 'Smuđ' },
-  { id: 'stuka', name: 'Štuka' },
   { id: 'som', name: 'Som' },
-  { id: 'bikonja', name: 'Bikonja' },
-  { id: 'saran', name: 'Šaran' },
-  { id: 'mrena', name: 'Mrena' },
-  { id: 'klen', name: 'Klen' },
-  { id: 'buljo', name: 'Buljo' }
+  { id: 'stuka', name: 'Štuka' },
+  { id: 'mrena', name: 'Mrena' }
 ];
 
 export type AnglerCatchCounts = Record<FishSpeciesId, number>;
@@ -84,13 +76,9 @@ export function createEmptyCounts(): AllCatchCounts {
   const baseSpecies = (): AnglerCatchCounts => ({
     bucov: 0,
     smud: 0,
-    stuka: 0,
     som: 0,
-    bikonja: 0,
-    saran: 0,
-    mrena: 0,
-    klen: 0,
-    buljo: 0
+    stuka: 0,
+    mrena: 0
   });
 
   return {

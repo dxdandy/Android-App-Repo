@@ -25,7 +25,7 @@ import androidx.core.app.NotificationManagerCompat;
  * - Automatsko buđenje zaslona pri dolasku poruke kada je aplikacija ugašena
  */
 public class ChatNotificationHelper {
-    public static final String CHANNEL_ID = "ribo_chat_sms_channel_v4";
+    public static final String CHANNEL_ID = "ribo_chat_sms_channel_v5";
     private static final String TAG = "ChatNotificationHelper";
 
     public static void createNotificationChannel(Context context) {
@@ -35,22 +35,21 @@ public class ChatNotificationHelper {
                 if (manager != null) {
                     NotificationChannel channel = new NotificationChannel(
                         CHANNEL_ID,
-                        "RiboPrognoza LiveChat SMS Obavijesti",
+                        "RiboPrognoza LiveChat Poruke",
                         NotificationManager.IMPORTANCE_HIGH
                     );
-                    channel.setDescription("Hitne zvučne, skočne i Lockscreen obavijesti s ikonom udice za nove poruke");
+                    channel.setDescription("Zvučne, skočne i Lockscreen obavijesti s ikonom udice za nove poruke");
                     channel.enableLights(true);
                     channel.setLightColor(Color.parseColor("#0891b2"));
                     channel.enableVibration(true);
-                    channel.setVibrationPattern(new long[]{0, 400, 150, 400});
+                    channel.setVibrationPattern(new long[]{0, 300, 150, 300});
                     channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
                     channel.setShowBadge(true);
-                    channel.setBypassDnd(true);
 
+                    // Standardni ton obavijesti usklađen sa sistemskim nivoom glasnoće zvuka obavijesti korisnika
                     AudioAttributes audioAttributes = new AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
-                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                         .build();
                     Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
                     channel.setSound(soundUri, audioAttributes);
@@ -60,6 +59,19 @@ public class ChatNotificationHelper {
             } catch (Exception e) {
                 Log.w(TAG, "Greška pri kreiranju notification kanala: " + e.getMessage());
             }
+        }
+    }
+
+    /**
+     * Uklanja sve aktivne obavijesti i resetira badge/brojač ikone aplikacije
+     */
+    public static void clearAllNotifications(Context context) {
+        try {
+            NotificationManagerCompat notificationManager = NotificationManagerCompat.from(context);
+            notificationManager.cancelAll();
+            Log.i(TAG, "Uspješno poništene sve chat obavijesti i resetiran sistemski bedž.");
+        } catch (Exception e) {
+            Log.w(TAG, "Greška pri resetiranju obavijesti: " + e.getMessage());
         }
     }
 
