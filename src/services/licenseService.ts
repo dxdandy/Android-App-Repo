@@ -14,6 +14,7 @@ export interface LicenseRecord {
   userName: string;
   status: 'active' | 'revoked';
   chatEnabled?: boolean;
+  nameSetByAdmin?: boolean; // Trajno označava da je ime postavio administrator
   createdAt: string;
   lastSeenAt: string;
   notes?: string;
@@ -249,12 +250,18 @@ export async function activateApp(key: string, proposedName?: string): Promise<{
     const snap = await getDoc(licenseDocRef);
     if (snap.exists()) {
       const data = snap.data();
-      if (data?.userName) setStoredUserName(data.userName);
+      if (data?.userName) {
+        setStoredUserName(data.userName);
+      }
       if (data?.status === 'revoked') {
         localStorage.setItem('ribo_license_revoked', 'true');
         return { success: false, message: 'Vaša licenca je ukinuta od strane administratora.' };
       }
-      await setDoc(licenseDocRef, { lastSeenAt: new Date().toISOString() }, { merge: true });
+      // Nikada ne pregazi userName ako već postoji u bazi!
+      await setDoc(licenseDocRef, { 
+        lastSeenAt: new Date().toISOString(),
+        activationKey: formattedKey
+      }, { merge: true });
     } else {
       await setDoc(licenseDocRef, {
         deviceId: currentDeviceId,
@@ -262,6 +269,7 @@ export async function activateApp(key: string, proposedName?: string): Promise<{
         userName: resolvedName,
         status: 'active',
         chatEnabled: true,
+        nameSetByAdmin: false,
         createdAt: new Date().toISOString(),
         lastSeenAt: new Date().toISOString()
       }, { merge: true });
@@ -468,6 +476,7 @@ export async function addAdminLicense(
     userName: cleanName,
     status: cleanStatus,
     chatEnabled: cleanChat,
+    nameSetByAdmin: true,
     createdAt: new Date().toISOString(),
     lastSeenAt: new Date().toISOString(),
     notes: payload.notes?.trim() || ''
@@ -505,6 +514,7 @@ export async function addAdminLicense(
           activationKey: validKey,
           status: cleanStatus,
           chatEnabled: cleanChat,
+          nameSetByAdmin: true,
           notes: payload.notes
         })
       }
@@ -521,6 +531,7 @@ export async function updateAdminLicense(
     userName?: string; 
     status?: 'active' | 'revoked'; 
     chatEnabled?: boolean;
+    nameSetByAdmin?: boolean;
     notes?: string;
   }
 ): Promise<LicenseRecord> {
@@ -530,7 +541,10 @@ export async function updateAdminLicense(
   const currentLocal = getLocalLicenses();
   const target = currentLocal.find(l => l.deviceId === cleanId);
   if (target) {
-    if (typeof payload.userName === 'string') target.userName = payload.userName.trim();
+    if (typeof payload.userName === 'string') {
+      target.userName = payload.userName.trim();
+      target.nameSetByAdmin = true;
+    }
     if (payload.status) target.status = payload.status;
     if (typeof payload.chatEnabled === 'boolean') target.chatEnabled = payload.chatEnabled;
     if (typeof payload.notes === 'string') target.notes = payload.notes.trim();
@@ -539,7 +553,11 @@ export async function updateAdminLicense(
 
   // 2. Ažuriraj u Firestore oblaku (korisnik na svom mobitelu odmah prima novo stanje)
   try {
-    await setDoc(doc(db, 'licenses', cleanId), payload, { merge: true });
+    const fsPayload = {
+      ...payload,
+      nameSetByAdmin: typeof payload.userName === 'string' ? true : payload.nameSetByAdmin
+    };
+    await setDoc(doc(db, 'licenses', cleanId), fsPayload, { merge: true });
   } catch (e) {
     console.warn('Firestore ažuriranje licence greška:', e);
   }
@@ -554,7 +572,10 @@ export async function updateAdminLicense(
           'Content-Type': 'application/json',
           'x-admin-pin': pin.trim()
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          ...payload,
+          nameSetByAdmin: typeof payload.userName === 'string' ? true : payload.nameSetByAdmin
+        })
       }
     );
   } catch {}
@@ -611,11 +632,12 @@ export async function renameUserAsAdmin(
     return { success: false, newName: '', error: 'ID uređaja i novo ime su obavezni.' };
   }
 
-  // 1. Ažuriraj u Firestore licenci (izravno u oblaku)
+  // 1. Ažuriraj u Firestore licenci (izravno u oblaku s trajnom oznakom admina)
   try {
     await setDoc(doc(db, 'licenses', cleanId), {
       deviceId: cleanId,
       userName: cleanName,
+      nameSetByAdmin: true,
       lastSeenAt: new Date().toISOString()
     }, { merge: true });
   } catch (err: any) {
@@ -639,7 +661,7 @@ export async function renameUserAsAdmin(
     safeFetchJson(getApiUrl('/api/admin/licenses/update'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-admin-pin': pin.trim() },
-      body: JSON.stringify({ deviceId: cleanId, userName: cleanName })
+      body: JSON.stringify({ deviceId: cleanId, userName: cleanName, nameSetByAdmin: true })
     }).catch(() => {});
 
     safeFetchJson(getApiUrl('/api/chat/rename'), {
@@ -654,11 +676,13 @@ export async function renameUserAsAdmin(
   const licIdx = currentLicenses.findIndex(l => l.deviceId === cleanId);
   if (licIdx >= 0) {
     currentLicenses[licIdx].userName = cleanName;
+    currentLicenses[licIdx].nameSetByAdmin = true;
   } else {
     currentLicenses.push({
       deviceId: cleanId,
       activationKey: generateActivationKey(cleanId),
       userName: cleanName,
+      nameSetByAdmin: true,
       status: 'active',
       chatEnabled: true,
       createdAt: new Date().toISOString(),

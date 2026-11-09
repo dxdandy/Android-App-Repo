@@ -5,6 +5,7 @@
     "activationKey": "AKT-CSWG-YE4M",
     "status": "active",
     "chatEnabled": true,
+    "nameSetByAdmin": true,
     "createdAt": "2026-10-30T10:00:00.000Z",
     "lastSeenAt": "2026-11-07T13:18:17.907Z",
     "notes": "Glavni administrator"
@@ -15,8 +16,9 @@
     "activationKey": "AKT-PYWJ-4M46",
     "status": "active",
     "chatEnabled": true,
+    "nameSetByAdmin": false,
     "createdAt": "2026-11-01T12:00:00.000Z",
-    "lastSeenAt": "2026-11-08T08:40:16.394Z",
+    "lastSeenAt": "2026-11-09T08:49:07.496Z",
     "notes": "Korisnik 1"
   },
   {
@@ -25,8 +27,9 @@
     "activationKey": "AKT-R3L9-GFDY",
     "status": "active",
     "chatEnabled": true,
+    "nameSetByAdmin": false,
     "createdAt": "2026-11-01T14:00:00.000Z",
-    "lastSeenAt": "2026-11-06T08:14:36.834Z",
+    "lastSeenAt": "2026-11-09T08:49:02.640Z",
     "notes": "Korisnik 2"
   },
   {
@@ -35,6 +38,7 @@
     "activationKey": "AKT-N4AU-S4TK",
     "status": "active",
     "chatEnabled": true,
+    "nameSetByAdmin": false,
     "createdAt": "2026-11-05T08:00:00.000Z",
     "lastSeenAt": "2026-11-05T12:11:11.073Z",
     "notes": "Korisnik 3"
@@ -45,6 +49,7 @@
     "activationKey": "AKT-CNVL-EXMX",
     "status": "active",
     "chatEnabled": true,
+    "nameSetByAdmin": true,
     "createdAt": "2026-11-05T08:30:00.000Z",
     "lastSeenAt": "2026-11-05T12:11:11.073Z",
     "notes": "Krasni"
@@ -55,6 +60,7 @@
     "activationKey": "AKT-4D9Z-HUSR",
     "status": "active",
     "chatEnabled": true,
+    "nameSetByAdmin": true,
     "createdAt": "2026-11-02T10:00:00.000Z",
     "lastSeenAt": "2026-11-05T12:11:11.073Z",
     "notes": "Testni račun"

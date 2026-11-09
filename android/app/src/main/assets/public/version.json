@@ -1,13 +1,13 @@
 {
-  "version": "1.6.0",
+  "version": "1.6.1",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-09",
   "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk",
   "changelog": [
-    "Hitni ispravak: riješena greška 'Page not found' 404 i vraćen stabilan lokalni rad aplikacije",
-    "Pouzdan sustav obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija ugašena",
-    "Nativni Android pozadinski servis (ChatBackgroundService) i AlarmManager za primanje poruka",
-    "Optimizirana potrošnja baterije i stabilnost rada na zaključanom zaslonu i AOD"
+    "Administratorski panel (PIN 2026): istaknuti gumb 'Testiraj Zvuk & Udicu' za brzu provjeru zvuka i ikone udice",
+    "Trajno i neraskidivo vezanje imena korisnika za ID: dodijeljena imena se više nikada ne resetiraju nakon nadogradnji",
+    "Pouzdan sustav obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena",
+    "Poboljšana sinkronizacija licenciranih korisnika i poruka u LiveChatu"
   ],
   "isCritical": false,
   "updateType": "apk"

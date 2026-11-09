@@ -458,13 +458,13 @@ export async function sendChatMessage(
   replyTo?: ChatReplyTo
 ): Promise<{ success: boolean; message?: ChatMessage; error?: string }> {
   const deviceId = getDeviceId();
-  const userName = getUserName() || `Ribič (${deviceId.slice(-4)})`;
+  let userName = getUserName() || `Ribič (${deviceId.slice(-4)})`;
 
   if (!text || !text.trim()) {
     return { success: false, error: 'Poruka ne može biti prazna.' };
   }
 
-  // Provjeri status ovlasti u Firestore licenci
+  // Provjeri status ovlasti i službeno ime dodijeljeno u Firestore licenci
   try {
     const licSnap = await Promise.race([
       getDoc(doc(db, 'licenses', deviceId)),
@@ -472,6 +472,10 @@ export async function sendChatMessage(
     ]);
     if (licSnap && (licSnap as any).exists && (licSnap as any).exists()) {
       const lic = (licSnap as any).data();
+      if (lic.userName) {
+        userName = lic.userName;
+        setStoredUserName(userName);
+      }
       if (lic.status === 'revoked') {
         return { success: false, error: 'Vaša licenca je ukinuta od strane administratora.' };
       }

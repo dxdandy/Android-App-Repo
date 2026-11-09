@@ -586,6 +586,7 @@ export interface LicenseRecord {
   userName: string;
   status: 'active' | 'revoked';
   chatEnabled?: boolean; // true = odobren chat, false = blokiran chat
+  nameSetByAdmin?: boolean; // true = ime je trajno postavio administrator i zaštićeno je od prebrisavanja
   createdAt: string;
   lastSeenAt: string;
   notes?: string;
@@ -731,13 +732,37 @@ try {
     serverDb = getFirestore(fbApp, firebaseConfig.firestoreDatabaseId || '(default)');
     console.log('Poslužitelj povezan s Firestore:', firebaseConfig.firestoreDatabaseId);
 
-    // 1. Sinkroniziraj postojeće licence u Firestore
-    const localLicenses = loadLicenses();
-    for (const lic of localLicenses) {
-      if (lic.deviceId) {
-        setDoc(doc(serverDb, 'licenses', lic.deviceId), lic, { merge: true }).catch(() => {});
+    // 1. Učitaj trajne licence iz Firestore oblaka (Firestore je MASTER izvor istine koji preživljava nadogradnje!)
+    getDocs(collection(serverDb, 'licenses')).then(snap => {
+      if (!snap.empty) {
+        const firestoreLicenses: LicenseRecord[] = [];
+        snap.forEach(d => {
+          const data = d.data() as LicenseRecord;
+          if (data.deviceId) firestoreLicenses.push(data);
+        });
+        const local = loadLicenses();
+        const mergedMap = new Map<string, LicenseRecord>();
+        local.forEach(l => { if (l.deviceId) mergedMap.set(l.deviceId, l); });
+        firestoreLicenses.forEach(fsLic => {
+          const loc = mergedMap.get(fsLic.deviceId);
+          if (!loc) {
+            mergedMap.set(fsLic.deviceId, fsLic);
+          } else {
+            // Firestore ima apsolutnu prednost ako ima prilagođeno ime postavljeno od admina
+            const fsHasCustom = fsLic.userName && (!fsLic.userName.startsWith('Ribič (') || fsLic.nameSetByAdmin);
+            mergedMap.set(fsLic.deviceId, {
+              ...loc,
+              ...fsLic,
+              userName: fsHasCustom ? fsLic.userName : (loc.userName || fsLic.userName)
+            });
+          }
+        });
+        saveLicenses(Array.from(mergedMap.values()));
+        console.log(`[Poslužitelj] Uspješno sinkronizirano ${firestoreLicenses.length} trajnih licenci iz Firestorea.`);
       }
-    }
+    }).catch(err => {
+      console.warn('Upozorenje: dohvat licenci iz Firestorea na pokretanju:', err);
+    });
 
     // 2. Sinkroniziraj postojeće poruke iz chat.json u Firestore
     const localChat = loadChat();
@@ -759,15 +784,15 @@ try {
 
     // 3. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.6.0',
+      version: '1.6.1',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-09',
       apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
       changelog: [
-        'Hitni ispravak: riješena greška "Page not found" 404 i vraćen stabilan rad aplikacije',
-        'Pouzdan sustav obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija ugašena',
-        'Nativni Android pozadinski servis (ChatBackgroundService) i AlarmManager za primanje poruka',
-        'Optimizirana potrošnja baterije i stabilnost rada na zaključanom zaslonu i AOD'
+        'Administratorski panel (PIN 2026): istaknuti gumb "Testiraj Zvuk & Udicu" za provjeru obavijesti i zvuka',
+        'Trajno vezanje imena korisnika za ID uređaja: imena se nikada više ne gube niti resetiraju na ID',
+        'Pouzdan sustav obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena',
+        'Poboljšana sinkronizacija licenciranih korisnika i poruka u LiveChatu'
       ],
       isCritical: false,
       updateType: 'apk',
@@ -866,11 +891,25 @@ app.post('/api/license/register-or-verify', (req, res) => {
     if (existing.chatEnabled === undefined) {
       existing.chatEnabled = true;
     }
-    // Ako korisnik pošalje proposedName, a admin još nije postavio prilagođeno ime
-    if (proposedName && (!existing.userName || existing.userName.startsWith('Ribič (RP-'))) {
-      existing.userName = String(proposedName).trim();
+    // Trajna zaštita imena: Ako je admin postavio ime ili ako ime nije generičko "Ribič (...)",
+    // nikada ga ne prepisujemo s privremenim imenom s mobitela!
+    const isGeneric = !existing.userName || existing.userName.startsWith('Ribič (');
+    if (!existing.nameSetByAdmin && isGeneric && proposedName) {
+      const cleanProp = String(proposedName).trim();
+      if (cleanProp && !cleanProp.startsWith('Ribič (')) {
+        existing.userName = cleanProp;
+      }
     }
     saveLicenses(licenses);
+    if (serverDb) {
+      setDoc(doc(serverDb, 'licenses', cleanDeviceId), {
+        lastSeenAt: existing.lastSeenAt,
+        status: existing.status,
+        chatEnabled: existing.chatEnabled,
+        userName: existing.userName,
+        nameSetByAdmin: !!existing.nameSetByAdmin
+      }, { merge: true }).catch(() => {});
+    }
 
     if (existing.status === 'revoked') {
       return res.json({
@@ -905,12 +944,16 @@ app.post('/api/license/register-or-verify', (req, res) => {
     userName: (proposedName && String(proposedName).trim()) || `Ribič (${cleanDeviceId.slice(-4)})`,
     status: 'active',
     chatEnabled: true,
+    nameSetByAdmin: false,
     createdAt: new Date().toISOString(),
     lastSeenAt: new Date().toISOString()
   };
 
   licenses.push(newRec);
   saveLicenses(licenses);
+  if (serverDb) {
+    setDoc(doc(serverDb, 'licenses', cleanDeviceId), newRec, { merge: true }).catch(() => {});
+  }
 
   return res.json({
     valid: true,
@@ -967,6 +1010,7 @@ app.post('/api/admin/licenses/add', (req, res) => {
     licenses[existingIdx].activationKey = validKey;
     licenses[existingIdx].status = cleanStatus;
     licenses[existingIdx].chatEnabled = cleanChat;
+    licenses[existingIdx].nameSetByAdmin = true;
     if (typeof notes === 'string') licenses[existingIdx].notes = notes.trim();
     licenses[existingIdx].lastSeenAt = new Date().toISOString();
     saveLicenses(licenses);
@@ -982,6 +1026,7 @@ app.post('/api/admin/licenses/add', (req, res) => {
     userName: cleanName,
     status: cleanStatus,
     chatEnabled: cleanChat,
+    nameSetByAdmin: true,
     createdAt: new Date().toISOString(),
     lastSeenAt: new Date().toISOString(),
     notes: (notes && String(notes).trim()) || ''
@@ -1034,7 +1079,10 @@ app.post('/api/admin/licenses/update', (req, res) => {
     return res.json({ success: true, license: newRecord });
   }
 
-  if (typeof userName === 'string') target.userName = userName.trim();
+  if (typeof userName === 'string') {
+    target.userName = userName.trim();
+    target.nameSetByAdmin = true;
+  }
   if (status === 'active' || status === 'revoked') target.status = status;
   if (typeof chatEnabled === 'boolean') target.chatEnabled = chatEnabled;
   if (typeof notes === 'string') target.notes = notes.trim();
@@ -1267,9 +1315,10 @@ app.post('/api/chat/rename', (req, res) => {
   const existing = licenses.find(l => l.deviceId === cleanDeviceId);
   if (existing) {
     existing.userName = cleanName;
+    existing.nameSetByAdmin = true;
     saveLicenses(licenses);
     if (serverDb) {
-      setDoc(doc(serverDb, 'licenses', cleanDeviceId), existing, { merge: true }).catch(() => {});
+      setDoc(doc(serverDb, 'licenses', cleanDeviceId), { userName: cleanName, nameSetByAdmin: true }, { merge: true }).catch(() => {});
     }
   } else {
     const newRecord: LicenseRecord = {
@@ -1278,6 +1327,7 @@ app.post('/api/chat/rename', (req, res) => {
       userName: cleanName,
       status: 'active',
       chatEnabled: true,
+      nameSetByAdmin: true,
       createdAt: new Date().toISOString(),
       lastSeenAt: new Date().toISOString()
     };
@@ -1461,15 +1511,15 @@ app.post('/api/admin/chat/clear', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.6.0',
+    version: '1.6.1',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-09',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Hitni ispravak: riješena greška "Page not found" 404 i vraćen stabilan rad aplikacije',
-      'Pouzdan sustav obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija ugašena',
-      'Nativni Android pozadinski servis (ChatBackgroundService) i AlarmManager za primanje poruka',
-      'Optimizirana potrošnja baterije i stabilnost rada na zaključanom zaslonu i AOD'
+      'Administratorski panel (PIN 2026): istaknuti gumb "Testiraj Zvuk & Udicu" za provjeru obavijesti i zvuka',
+      'Trajno vezanje imena korisnika za ID uređaja: imena se nikada više ne gube niti resetiraju na ID',
+      'Pouzdan sustav obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena',
+      'Poboljšana sinkronizacija licenciranih korisnika i poruka u LiveChatu'
     ],
     isCritical: false,
     updateType: 'apk'

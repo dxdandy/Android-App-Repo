@@ -412,6 +412,44 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
         ) : (
           /* Korak 2: Admin sučelje s 4 taba */
           <div className="space-y-4">
+
+            {/* Istaknuti brzi test obavijesti s ikonom udice i zvukom - ODMAH VIDLJIV NA VRHU ADMIN PANELA */}
+            <div className="bg-gradient-to-r from-cyan-950 via-slate-900 to-teal-950 border-2 border-cyan-500/60 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-xl shrink-0 shadow-inner">
+                  🎣
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xs sm:text-sm font-black text-white">
+                      Testiranje Obavijesti (Zvuk &amp; Udica)
+                    </h3>
+                    <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                      Uživo na mobitel
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">
+                    Ispitajte rad zvučnog signala, ikone udice u statusnoj traci i na zaključanom zaslonu uređaja.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  showIncomingMessageNotification(
+                    'Ribič Matej',
+                    'Test: Dunav kod Aljmaša raste! Obavijest s ikonom udice i zvukom radi.',
+                    'test_notif_' + Date.now()
+                  );
+                  setActionSuccessMsg('🔔 Testna obavijest s ikonom udice i zvučnim signalom je poslana na vaš mobitel!');
+                  setTimeout(() => setActionSuccessMsg(null), 3500);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/25 cursor-pointer active:scale-95 transition-all shrink-0"
+              >
+                <span>🔔 Testiraj Zvuk &amp; Udicu</span>
+              </button>
+            </div>
             
             {/* Tabovi */}
             <div className="flex border-b border-slate-800 gap-1 overflow-x-auto pb-1 text-xs font-bold">
@@ -505,6 +543,23 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>{showAddUserForm ? 'Zatvori unos' : '+ Dodaj korisnika'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      showIncomingMessageNotification(
+                        'Ribič Matej',
+                        'Test: Dunav kod Aljmaša raste! Obavijest s ikonom udice i zvukom radi.',
+                        'test_notif_' + Date.now()
+                      );
+                      setActionSuccessMsg('🔔 Testna obavijest s ikonom udice i zvukom je poslana na vaš mobitel!');
+                      setTimeout(() => setActionSuccessMsg(null), 3500);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/50 text-xs font-bold text-cyan-300 flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0"
+                    title="Isprobaj zvučnu obavijest s ikonom udice"
+                  >
+                    <span>🔔 Testiraj Zvuk &amp; Udicu</span>
                   </button>
 
                   <button
@@ -741,6 +796,13 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                                 <span className={`w-1.5 h-1.5 rounded-full ${lic.chatEnabled !== false ? 'bg-emerald-400' : 'bg-rose-400'}`} />
                                 <span>{lic.chatEnabled !== false ? 'Chat: Odobren' : 'Chat: Blokiran'}</span>
                               </button>
+
+                              {/* Oznaka trajno vezanog imena za ovaj ID */}
+                              {(lic.nameSetByAdmin || (lic.userName && !lic.userName.startsWith('Ribič ('))) && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 flex items-center gap-1 shadow-sm">
+                                  <span>🔒 Trajno vezano ime</span>
+                                </span>
+                              )}
                             </div>
 
                             {/* ID uređaja i ključ */}
