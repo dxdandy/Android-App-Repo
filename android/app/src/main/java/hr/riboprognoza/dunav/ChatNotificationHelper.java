@@ -18,10 +18,14 @@ import androidx.core.app.NotificationManagerCompat;
 
 /**
  * Pomoćna klasa za prikaz obavijesti s ikonicom udice i zvukom
- * Konfigurirana za visoki prioritet (Heads-up skočne obavijesti, buđenje ekrana i lock-screen) poput SMS-a
+ * Konfigurirana za maksimalni prioritet:
+ * - Zvučna obavijest i vibracija
+ * - Skočna obavijest na vrhu ekrana (Heads-Up)
+ * - Prikaz ikone udice i poruke na zaključanom zaslonu (Lockscreen & Always-On Display)
+ * - Automatsko buđenje zaslona pri dolasku poruke kada je aplikacija ugašena
  */
 public class ChatNotificationHelper {
-    public static final String CHANNEL_ID = "ribo_chat_channel_v3";
+    public static final String CHANNEL_ID = "ribo_chat_sms_channel_v4";
     private static final String TAG = "ChatNotificationHelper";
 
     public static void createNotificationChannel(Context context) {
@@ -31,16 +35,17 @@ public class ChatNotificationHelper {
                 if (manager != null) {
                     NotificationChannel channel = new NotificationChannel(
                         CHANNEL_ID,
-                        "RiboPrognoza LiveChat Poruke",
+                        "RiboPrognoza LiveChat SMS Obavijesti",
                         NotificationManager.IMPORTANCE_HIGH
                     );
-                    channel.setDescription("Zvučne i vizualne obavijesti s ikonom udice za nove poruke poput SMS-a");
+                    channel.setDescription("Hitne zvučne, skočne i Lockscreen obavijesti s ikonom udice za nove poruke");
                     channel.enableLights(true);
                     channel.setLightColor(Color.parseColor("#0891b2"));
                     channel.enableVibration(true);
-                    channel.setVibrationPattern(new long[]{0, 350, 150, 350});
+                    channel.setVibrationPattern(new long[]{0, 400, 150, 400});
                     channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
                     channel.setShowBadge(true);
+                    channel.setBypassDnd(true);
 
                     AudioAttributes audioAttributes = new AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -51,7 +56,6 @@ public class ChatNotificationHelper {
                     channel.setSound(soundUri, audioAttributes);
 
                     manager.createNotificationChannel(channel);
-                    Log.i(TAG, "Notification channel 'ribo_chat_channel_v3' uspješno konfiguriran.");
                 }
             } catch (Exception e) {
                 Log.w(TAG, "Greška pri kreiranju notification kanala: " + e.getMessage());
@@ -63,7 +67,7 @@ public class ChatNotificationHelper {
         try {
             createNotificationChannel(context);
 
-            // Buđenje ekrana na zaključanom mobitelu poput dolazne SMS poruke
+            // Upali zaslon na zaključanom mobitelu kako bi korisnik odmah vidio obavijest na Lockscreenu
             try {
                 PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
                 if (pm != null) {
@@ -71,12 +75,12 @@ public class ChatNotificationHelper {
                         PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE,
                         "RiboPrognoza:ChatScreenWake"
                     );
-                    screenLock.acquire(4000); // Drži ekran upaljenim 4 sekunde da korisnik vidi poruku
+                    screenLock.acquire(5000);
                 }
             } catch (Exception ignored) {}
 
             Intent intent = new Intent(context, MainActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
             intent.putExtra("openChat", true);
             intent.putExtra("messageId", messageId);
 
@@ -98,13 +102,17 @@ public class ChatNotificationHelper {
                 .setColor(Color.parseColor("#0891b2"))
                 .setContentTitle("🎣 LiveChat: " + displayName)
                 .setContentText(displayBody)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(displayBody))
+                .setTicker("🎣 " + displayName + ": " + displayBody)
+                .setStyle(new NotificationCompat.BigTextStyle()
+                    .setBigContentTitle("🎣 LiveChat: " + displayName)
+                    .bigText(displayBody))
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setSound(defaultSound)
-                .setVibrate(new long[]{0, 350, 150, 350})
-                .setDefaults(Notification.DEFAULT_LIGHTS)
+                .setVibrate(new long[]{0, 400, 150, 400})
+                .setDefaults(Notification.DEFAULT_ALL)
+                .setFullScreenIntent(pendingIntent, true)
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent);
 
@@ -118,7 +126,7 @@ public class ChatNotificationHelper {
             }
 
             notificationManager.notify(notifId, builder.build());
-            Log.i(TAG, "Uspješno poslana nativna obavijest s ikonom udice za poruku od: " + displayName);
+            Log.i(TAG, "Uspješno poslana SMS/Lockscreen obavijest s ikonom udice od: " + displayName);
         } catch (Exception e) {
             Log.e(TAG, "Greška pri prikazu obavijesti: " + e.getMessage());
         }

@@ -784,15 +784,15 @@ try {
 
     // 3. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.6.3',
+      version: '1.6.4',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-09',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.4.apk',
       changelog: [
-        'Automatsko Live Web ažuriranje (OTA) odmah pri pokretanju aplikacije bez preuzimanja APK datoteka',
-        'Potpuno uklonjena sigurnosna blokiranja i Google Play Protect upozorenja pri nadogradnji',
-        'Pouzdan rad LiveChat obavijesti s ikonom udice i zvukom čak i kada je aplikacija ugašena (poput SMS-a)',
-        'Trajno i neraskidivo vezanje imena korisnika za ID uređaja u LiveChatu'
+        'Pouzdan rad pozadinskih LiveChat obavijesti kada je aplikacija potpuno ugašena (goAsync WakeLock + Exact Alarm + onTaskRemoved zaštita)',
+        'Skočne (Heads-Up) obavijesti na vrhu ekrana, prikaz ikone udice na Lockscreenu i zvučni alarm pri svakoj novoj poruci',
+        'Potpuna dvosmjerna sinkronizacija pročitanih i odgovorenih poruka unutar LiveChata',
+        'Ispravljen naziv APK paketa s jasno prikazanom verzijom aplikacije (RiboPrognoza_v1.6.4.apk)'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -1511,15 +1511,15 @@ app.post('/api/admin/chat/clear', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.6.3',
+    version: '1.6.4',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-09',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.4.apk',
     changelog: [
-      'Automatsko Live Web ažuriranje (OTA) odmah pri pokretanju aplikacije bez preuzimanja APK datoteka',
-      'Potpuno uklonjena sigurnosna blokiranja i Google Play Protect upozorenja pri nadogradnji',
-      'Pouzdan rad LiveChat obavijesti s ikonom udice i zvukom čak i kada je aplikacija ugašena (poput SMS-a)',
-      'Trajno i neraskidivo vezanje imena korisnika za ID uređaja u LiveChatu'
+      'Pouzdan rad pozadinskih LiveChat obavijesti kada je aplikacija potpuno ugašena (goAsync WakeLock + Exact Alarm + onTaskRemoved zaštita)',
+      'Skočne (Heads-Up) obavijesti na vrhu ekrana, prikaz ikone udice na Lockscreenu i zvučni alarm pri svakoj novoj poruci',
+      'Potpuna dvosmjerna sinkronizacija pročitanih i odgovorenih poruka unutar LiveChata',
+      'Ispravljen naziv APK paketa s jasno prikazanom verzijom aplikacije (RiboPrognoza_v1.6.4.apk)'
     ],
     isCritical: false,
     updateType: 'live_web'

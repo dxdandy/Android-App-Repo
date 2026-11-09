@@ -3,6 +3,7 @@ import { registerPlugin } from '@capacitor/core';
 interface ChatNativeNotifierPlugin {
   setDeviceId(options: { deviceId: string }): Promise<void>;
   setInChat(options: { inChat: boolean }): Promise<void>;
+  setLastSeenMessage(options: { messageId: string; createdAt?: number }): Promise<void>;
   checkNow(): Promise<void>;
   sendTestNotification(options?: { title?: string; text?: string }): Promise<{ success: boolean }>;
 }
@@ -36,6 +37,23 @@ export async function setNativeInChatStatus(inChat: boolean): Promise<void> {
     }
   } catch (err) {
     console.debug('ChatNativeNotifier.setInChat info:', err);
+  }
+}
+
+/**
+ * Sinkronizira ID zadnje viđene ili poslane poruke s nativnim pozadinskim servisom
+ */
+export async function syncLastSeenMessageToNative(messageId: string, createdAt?: number): Promise<void> {
+  if (typeof window === 'undefined' || !messageId) return;
+  try {
+    if ((window as any).Capacitor?.isNativePlatform?.()) {
+      await ChatNativeNotifier.setLastSeenMessage({
+        messageId: messageId.trim(),
+        createdAt: createdAt || Date.now()
+      });
+    }
+  } catch (err) {
+    console.debug('ChatNativeNotifier.setLastSeenMessage info:', err);
   }
 }
 

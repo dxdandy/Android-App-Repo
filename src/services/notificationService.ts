@@ -85,9 +85,9 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
     // Kreiraj kanal visoke važnosti (heads-up, status bar, zaključani zaslon i Always On Display)
     await LocalNotifications.createChannel({
-      id: 'ribo_chat_channel_v3',
-      name: 'RiboPrognoza LiveChat Poruke',
-      description: 'Zvučne i znakovne obavijesti s ikonom udice za nove poruke u chatu',
+      id: 'ribo_chat_sms_channel_v4',
+      name: 'RiboPrognoza LiveChat SMS Obavijesti',
+      description: 'Hitne zvučne, skočne i Lockscreen obavijesti s ikonom udice za nove poruke',
       importance: 5, // IMPORTANCE_HIGH
       visibility: 1, // VISIBILITY_PUBLIC (prikaz na Lock screenu i AOD)
       sound: 'beep.wav',
@@ -156,7 +156,7 @@ export async function showIncomingMessageNotification(
           id: notifId,
           title,
           body,
-          channelId: 'ribo_chat_channel_v3',
+          channelId: 'ribo_chat_sms_channel_v4',
           smallIcon: 'ic_stat_hook',
           iconColor: '#0891b2',
           sound: 'beep.wav',
@@ -245,8 +245,8 @@ export async function showAppUpdateAvailableNotification(
           id: notifId,
           title,
           body,
-          channelId: 'ribo_chat_channel',
-          smallIcon: 'ic_stat_fish',
+          channelId: 'ribo_chat_sms_channel_v4',
+          smallIcon: 'ic_stat_hook',
           iconColor: '#0891b2',
           sound: 'beep.wav',
           actionTypeId: '',

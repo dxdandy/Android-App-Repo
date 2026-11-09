@@ -16,6 +16,8 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
             android:exported="true">
 
             <intent-filter>
@@ -35,27 +37,29 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Zadana ikona i kanal za obavijesti (Usklađeno s ikonom udice) -->
+        <!-- Zadana ikona i kanal za obavijesti (Usklađeno s ikonom udice i v4 SMS kanalom) -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/ic_stat_fish" />
+            android:resource="@drawable/ic_stat_hook" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/colorPrimary" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="ribo_chat_channel" />
+            android:value="ribo_chat_sms_channel_v4" />
 
         <!-- Pozadinski servisi i prijamnici za LiveChat obavijesti i kada je aplikacija ugašena -->
         <service
             android:name=".ChatBackgroundService"
             android:enabled="true"
+            android:stopWithTask="false"
+            android:foregroundServiceType="dataSync"
             android:exported="false" />
 
         <receiver
             android:name=".ChatAlarmReceiver"
             android:enabled="true"
-            android:exported="false" />
+            android:exported="true" />
 
         <receiver
             android:name=".BootReceiver"
@@ -78,6 +82,11 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />

@@ -11,30 +11,41 @@ import android.util.Log;
 import java.util.concurrent.Executors;
 
 /**
- * Prijamnik alarma koji budi uređaj i provjerava Firestore čak i kada je aplikacija potpuno ugašena
+ * Prijamnik alarma koji budi uređaj i provjerava Firestore čak i kada je aplikacija potpuno ugašena.
+ * Koristi goAsync() kako Android sustav ne bi ugasio proces prije završetka mrežnog upita.
  */
 public class ChatAlarmReceiver extends BroadcastReceiver {
     private static final String TAG = "ChatAlarmReceiver";
-    public static final int ALARM_INTERVAL_MS = 25 * 1000; // Provjera svakih 25 sekundi
+    public static final int ALARM_INTERVAL_MS = 15 * 1000; // Provjera svakih 15 sekundi
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "ChatAlarmReceiver probuđen, provjeravam Firestore za nove poruke...");
+        // 1. Odmah zakaži idući alarm kako niz nikada ne bi bio prekinut
+        scheduleNextAlarm(context);
 
-        Executors.newSingleThreadExecutor().execute(() -> {
-            ChatPollHelper.checkAndNotify(context);
-        });
-
+        // 2. Pokušaj održati pozadinski servis aktivnim
         try {
             Intent serviceIntent = new Intent(context, ChatBackgroundService.class);
             context.startService(serviceIntent);
         } catch (Exception ignored) {}
 
-        // Zakaži sljedeće buđenje kako bi aplikacija primala obavijesti poput SMS-a bez prestanka
-        scheduleNextAlarm(context);
+        // 3. Koristi goAsync() kako Android ne bi uspavao proces dok traje HTTPS upit prema Firestoreu
+        final PendingResult pendingResult = goAsync();
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                ChatPollHelper.checkAndNotify(context.getApplicationContext());
+            } catch (Exception e) {
+                Log.w(TAG, "Greška u ChatAlarmReceiver provjeri: " + e.getMessage());
+            } finally {
+                try {
+                    pendingResult.finish();
+                } catch (Exception ignored) {}
+            }
+        });
     }
 
     public static void scheduleNextAlarm(Context context) {
+        if (context == null) return;
         try {
             AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             if (alarmManager == null) return;
@@ -49,7 +60,12 @@ public class ChatAlarmReceiver extends BroadcastReceiver {
             long triggerAtMillis = SystemClock.elapsedRealtime() + ALARM_INTERVAL_MS;
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
+                try {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
+                } catch (SecurityException se) {
+                    // Fallback za uređaje s restrikcijom egzaktnih alarma (Android 12/13/14+)
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
+                }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
             } else {

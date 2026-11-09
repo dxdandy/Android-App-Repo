@@ -11,6 +11,7 @@ import {
   setAdminUnlocked
 } from './licenseService';
 import { updateAppBadge } from './notificationService';
+import { syncLastSeenMessageToNative } from './nativeNotifierService';
 import { 
   collection, 
   doc, 
@@ -289,6 +290,11 @@ export function subscribeToChatMessages(
   );
 
   const unsubscribeMessages = onSnapshot(q, snapshot => {
+    snapshot.docChanges().forEach(change => {
+      if (change.type === 'removed') {
+        messageMap.delete(change.doc.id);
+      }
+    });
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
       const newMsg: ChatMessage = {
@@ -298,7 +304,8 @@ export function subscribeToChatMessages(
         text: data.text || '',
         timestamp: data.timestamp || '',
         createdAt: data.createdAt || 0,
-        readBy: data.readBy || []
+        readBy: data.readBy || [],
+        replyTo: data.replyTo || undefined
       };
       messageMap.set(newMsg.id, newMsg);
     });
@@ -558,6 +565,9 @@ export async function sendChatMessage(
       })
     }
   ).catch(() => {});
+
+  // Sinkroniziraj s nativnim servisom kako ne bi slao duplu obavijest
+  syncLastSeenMessageToNative(newMsg.id, newMsg.createdAt).catch(() => {});
 
   return { 
     success: true, 

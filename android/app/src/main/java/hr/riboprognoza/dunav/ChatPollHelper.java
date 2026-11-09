@@ -15,8 +15,7 @@ import org.json.JSONObject;
 
 /**
  * Pomoćna klasa za direktnu provjeru novih poruka u Google Cloud Firestore bazi
- * Radi 100% u pozadini, bez ovisnosti o web pregledniku ili privremenim poslužiteljima.
- * Upit ide izravno na službeni Google Firestore REST API s visokom dostupnošću (99.999%).
+ * Radi 100% u pozadini i kada je aplikacija potpuno ugašena.
  */
 public class ChatPollHelper {
     private static final String TAG = "ChatPollHelper";
@@ -42,7 +41,7 @@ public class ChatPollHelper {
             PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
             if (pm != null) {
                 wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RiboPrognoza:ChatPollWakeLock");
-                wakeLock.acquire(8000); // Drži CPU budnim max 8 sekundi za mrežni upit
+                wakeLock.acquire(9000);
             }
         } catch (Exception ignored) {}
 
@@ -52,11 +51,6 @@ public class ChatPollHelper {
             String lastNotifiedId = prefs.getString(KEY_LAST_NOTIFIED_ID, "");
             long lastNotifiedTime = prefs.getLong(KEY_LAST_NOTIFIED_TIME, 0);
             boolean inChat = prefs.getBoolean(KEY_IN_CHAT, false);
-
-            if (inChat) {
-                // Korisnik je aktivno unutar otvorenog chata, nema potrebe slati vanjsku obavijest
-                return;
-            }
 
             URL url = new URL(FIRESTORE_QUERY_URL);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -100,35 +94,59 @@ public class ChatPollHelper {
                             createdAt = cat.optLong("integerValue", 0);
                         }
 
-                        // Ako prvi put pokrećemo i nema prethodne zabilježene poruke
-                        if (lastNotifiedTime == 0 && lastNotifiedId.isEmpty()) {
-                            // Inicijaliziraj na trenutnu zadnju poruku kako ne bismo slali obavijesti za stare poruke
-                            prefs.edit()
-                                .putString(KEY_LAST_NOTIFIED_ID, msgId)
-                                .putLong(KEY_LAST_NOTIFIED_TIME, createdAt > 0 ? createdAt : System.currentTimeMillis())
-                                .apply();
+                        if (msgId.isEmpty()) {
+                            conn.disconnect();
                             return;
                         }
 
-                        // Provjeri je li poruka nova i nije od ovog istog uređaja
-                        boolean isNew = !msgId.isEmpty() && !msgId.equals(lastNotifiedId);
-                        boolean isFromOther = myDeviceId.isEmpty() || !senderDeviceId.equalsIgnoreCase(myDeviceId);
-                        boolean isFresh = createdAt == 0 || (createdAt >= lastNotifiedTime);
+                        // Ako je korisnik trenutno u otvorenom prozoru chata, samo tiho ažuriraj zadnju viđenu poruku
+                        if (inChat) {
+                            if (!msgId.equals(lastNotifiedId)) {
+                                prefs.edit()
+                                    .putString(KEY_LAST_NOTIFIED_ID, msgId)
+                                    .putLong(KEY_LAST_NOTIFIED_TIME, createdAt > 0 ? createdAt : System.currentTimeMillis())
+                                    .apply();
+                            }
+                            conn.disconnect();
+                            return;
+                        }
 
-                        if (isNew && isFromOther && isFresh) {
+                        // Ako nikada prije nismo spremili ID zadnje poruke:
+                        // Ako je poruka stara više od 90 sekundi, zabilježi je kao početno stanje bez stare obavijesti
+                        if (lastNotifiedTime == 0 && lastNotifiedId.isEmpty()) {
+                            long ageMs = createdAt > 0 ? Math.abs(System.currentTimeMillis() - createdAt) : 999999L;
+                            if (ageMs > 90000L || (!myDeviceId.isEmpty() && senderDeviceId.equalsIgnoreCase(myDeviceId))) {
+                                prefs.edit()
+                                    .putString(KEY_LAST_NOTIFIED_ID, msgId)
+                                    .putLong(KEY_LAST_NOTIFIED_TIME, createdAt > 0 ? createdAt : System.currentTimeMillis())
+                                    .apply();
+                                conn.disconnect();
+                                return;
+                            }
+                        }
+
+                        // Provjeri je li poruka nova i nije od ovog istog uređaja
+                        boolean isNew = !msgId.equals(lastNotifiedId);
+                        boolean isFromOther = myDeviceId.isEmpty() || !senderDeviceId.equalsIgnoreCase(myDeviceId);
+
+                        if (isNew && isFromOther) {
                             Log.i(TAG, "Nova poruka pronađena u pozadini od: " + senderName + " (" + msgId + ")");
                             prefs.edit()
                                 .putString(KEY_LAST_NOTIFIED_ID, msgId)
                                 .putLong(KEY_LAST_NOTIFIED_TIME, createdAt > 0 ? createdAt : System.currentTimeMillis())
                                 .apply();
 
-                            // Prikaži glasnu zvučnu i vizualnu obavijest poput SMS poruke s ikonom udice
+                            // Prikaži glasnu zvučnu, skočnu i Lockscreen obavijest s ikonom udice
                             ChatNotificationHelper.showNotification(context, senderName, text, msgId);
+                        } else if (isNew) {
+                            // Poruka je od nas samih - samo spremi ID kao zadnju viđenu
+                            prefs.edit()
+                                .putString(KEY_LAST_NOTIFIED_ID, msgId)
+                                .putLong(KEY_LAST_NOTIFIED_TIME, createdAt > 0 ? createdAt : System.currentTimeMillis())
+                                .apply();
                         }
                     }
                 }
-            } else {
-                Log.w(TAG, "Firestore HTTP response code: " + responseCode);
             }
             conn.disconnect();
         } catch (Exception e) {

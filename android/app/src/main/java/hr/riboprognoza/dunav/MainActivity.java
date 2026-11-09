@@ -43,6 +43,34 @@ public class MainActivity extends BridgeActivity {
 
         // 5. Očisti privremene instalacijske datoteke
         cleanOldApkFiles();
+
+        // 6. Ako je aplikacija otvorena klikom na obavijest s Lockscreena ili statusne trake, otvori LiveChat
+        handleNotificationIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleNotificationIntent(intent);
+    }
+
+    private void handleNotificationIntent(Intent intent) {
+        try {
+            if (intent != null && intent.getBooleanExtra("openChat", false)) {
+                intent.removeExtra("openChat");
+                if (this.bridge != null && this.bridge.getWebView() != null) {
+                    this.bridge.getWebView().postDelayed(() -> {
+                        try {
+                            this.bridge.getWebView().evaluateJavascript(
+                                "try { localStorage.setItem('ribo_pending_open_chat_on_resume', 'true'); window.dispatchEvent(new Event('focus')); } catch(e){}",
+                                null
+                            );
+                        } catch (Exception ignored) {}
+                    }, 400);
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     private void requestNotificationPermissionNative() {
@@ -278,6 +306,24 @@ public class MainActivity extends BridgeActivity {
                 call.resolve();
             } catch (Exception e) {
                 call.reject("Greška pri postavljanju inChat statusa: " + e.getMessage());
+            }
+        }
+
+        @PluginMethod
+        public void setLastSeenMessage(PluginCall call) {
+            try {
+                String messageId = call.getString("messageId", "");
+                Long createdAt = call.getLong("createdAt", System.currentTimeMillis());
+                if (messageId != null && !messageId.trim().isEmpty()) {
+                    getContext().getSharedPreferences(ChatPollHelper.PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit()
+                        .putString(ChatPollHelper.KEY_LAST_NOTIFIED_ID, messageId.trim())
+                        .putLong(ChatPollHelper.KEY_LAST_NOTIFIED_TIME, createdAt != null ? createdAt : System.currentTimeMillis())
+                        .apply();
+                }
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Greška pri spremanju zadnje poruke: " + e.getMessage());
             }
         }
 

@@ -1,13 +1,13 @@
 {
-  "version": "1.6.3",
+  "version": "1.6.4",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-09",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.4.apk",
   "changelog": [
-    "Automatsko Live Web ažuriranje (OTA) odmah pri pokretanju aplikacije bez preuzimanja APK datoteka",
-    "Potpuno uklonjena sigurnosna blokiranja i Google Play Protect upozorenja pri nadogradnji",
-    "Pouzdan rad LiveChat obavijesti s ikonom udice i zvukom čak i kada je aplikacija ugašena (poput SMS-a)",
-    "Trajno i neraskidivo vezanje imena korisnika za ID uređaja u LiveChatu"
+    "Kompletan nadzor LiveChata u pozadini: zvučna obavijest, ikona udice na Lockscreenu i skočna obavijest (Heads-Up) i kada je aplikacija potpuno ugašena",
+    "Napredni Android prijamnik (goAsync + točni alarmi + automatsko buđenje zaslona pri dolasku poruke)",
+    "Automatsko Live Web ažuriranje (OTA) odmah po pokretanju bez preuzimanja APK-a i bez sigurnosnih blokada",
+    "Prikaz točne verzije u nazivu APK datoteke (RiboPrognoza_v1.6.4.apk)"
   ],
   "isCritical": false,
   "updateType": "live_web"

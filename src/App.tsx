@@ -45,7 +45,8 @@ import {
 } from './services/notificationService';
 import { 
   syncDeviceIdToNative, 
-  setNativeInChatStatus 
+  setNativeInChatStatus,
+  syncLastSeenMessageToNative
 } from './services/nativeNotifierService';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { 
@@ -376,6 +377,7 @@ export default function App() {
               showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
             }
             lastNotifiedMsgIdRef.current = newestMsg.id;
+            syncLastSeenMessageToNative(newestMsg.id, newestMsg.createdAt).catch(() => {});
             try {
               localStorage.setItem('ribo_last_notified_msg_id', newestMsg.id);
             } catch {}
@@ -388,6 +390,7 @@ export default function App() {
             }
           } else if (!lastNotifiedMsgIdRef.current) {
             lastNotifiedMsgIdRef.current = newestMsg.id;
+            syncLastSeenMessageToNative(newestMsg.id, newestMsg.createdAt).catch(() => {});
             try {
               localStorage.setItem('ribo_last_notified_msg_id', newestMsg.id);
             } catch {}

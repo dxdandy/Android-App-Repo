@@ -62,15 +62,14 @@ jobs:
           fi
           echo "Pronađen APK: $APK_FILE"
           cp "$APK_FILE" "RiboPrognoza_v${VERSION}.apk"
-          cp "$APK_FILE" "RiboPrognoza.apk"
-          echo "Pripremljene APK datoteke:"
-          ls -la RiboPrognoza*.apk
+          echo "Pripremljena APK datoteka s verzijom u nazivu:"
+          ls -la "RiboPrognoza_v${VERSION}.apk"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RiboPrognoza-APK
-          path: RiboPrognoza*.apk
+          name: RiboPrognoza_v${{ env.APP_VERSION }}
+          path: RiboPrognoza_v${{ env.APP_VERSION }}.apk
           if-no-files-found: error
 
       - name: Publish GitHub Release with APK
@@ -79,12 +78,11 @@ jobs:
         continue-on-error: true
         with:
           tag_name: latest
-          name: RiboPrognoza Najnovija Verzija (APK)
+          name: RiboPrognoza v${{ env.APP_VERSION }} (APK)
           body: |
-            Nova verzija aplikacije RiboPrognoza (${{ env.APP_VERSION }}).
-            Preuzmite `RiboPrognoza_v${{ env.APP_VERSION }}.apk` ili `RiboPrognoza.apk` na svoj Android telefon i instalirajte nadogradnju.
+            Nova verzija aplikacije RiboPrognoza (v${{ env.APP_VERSION }}).
+            Preuzmite `RiboPrognoza_v${{ env.APP_VERSION }}.apk` na svoj Android telefon.
           files: |
-            RiboPrognoza_v*.apk
-            RiboPrognoza.apk
+            RiboPrognoza_v${{ env.APP_VERSION }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
