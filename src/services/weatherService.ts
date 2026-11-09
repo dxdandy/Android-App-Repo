@@ -9,12 +9,16 @@ import {
 } from '../types/fishing';
 import { getApiUrl, safeFetchJson } from './licenseService';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
 
 export const CACHE_ALJMAS_KEY = 'ribo_cache_aljmas_station_data';
 export const CACHE_BOGOJEVO_KEY = 'ribo_cache_bogojevo_station_data';
 
 export const MVODOSTAJI_ALJMAS_URL = 'https://mvodostaji.voda.hr/Home/PregledVodostajaPostaje?sektorID=2&bpID=34&postajaID=1582';
+export const SEATEMP_ALJMAS_VUKOVAR_URL = 'https://hr.seatemperature.net/current/croatia/water-temp-in-vukovar-in-danube';
 export const HIDMET_BOGOJEVO_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42020';
+export const HIDMET_BOGOJEVO_TEMP_URL = 'https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42015';
 export const VENTUSKY_ALJMAS_URL = 'https://www.ventusky.com/45.529;18.95';
 export const VENTUSKY_BOGOJEVO_URL = 'https://www.ventusky.com/45.53;19.13';
 export const YR_ALJMAS_URL = 'https://www.yr.no/en/forecast/daily-table/2-3244159/Croatia/Vukovar-Srijem%20County/Aljmas';
@@ -684,14 +688,60 @@ async function fetchDirectVentuskyPressure(lat: number, lon: number, yrLocationI
   return null;
 }
 
+/**
+ * Izravan dohvat temperature vode Dunava za Aljmaš (s hr.seatemperature.net - oznaka Danas)
+ */
+async function fetchDirectAljmasWaterTemp(): Promise<number | null> {
+  try {
+    const html = await fetchUniversalText(SEATEMP_ALJMAS_VUKOVAR_URL);
+    if (html) {
+      const danasBlockMatch = html.match(/<div class="temp-value">\s*([+-]?\d+[.,]?\d*)\s*<span>°C<\/span><\/div>\s*<div class="temp-label">\s*Danas\s*<\/div>/i)
+        || html.match(/<div class="temp-block[^"]*">\s*<div class="temp-value">\s*([+-]?\d+[.,]?\d*)/i)
+        || html.match(/danas je\s*([+-]?\d+[.,]?\d*)\s*°C/i);
+      if (danasBlockMatch && danasBlockMatch[1]) {
+        const val = parseFloat(danasBlockMatch[1].replace(',', '.'));
+        if (!isNaN(val)) return val;
+      }
+    }
+  } catch (err) {
+    console.warn('Greška pri izravnom dohvatu temperature vode za Aljmaš:', err);
+  }
+  return null;
+}
+
+/**
+ * Izravan dohvat temperature vode Dunava za Bogojevo (s hidmet.gov.rs hm_id=42015)
+ */
+async function fetchDirectBogojevoWaterTemp(): Promise<number | null> {
+  try {
+    const html = await fetchUniversalText(HIDMET_BOGOJEVO_TEMP_URL);
+    if (html) {
+      const tempMatch = html.match(/temp\.gif[^>]*\/>(?:&nbsp;|\s)*([+-]?\d+[.,]?\d*)/i);
+      if (tempMatch && tempMatch[1]) {
+        const val = parseFloat(tempMatch[1].replace(',', '.'));
+        if (!isNaN(val)) return val;
+      }
+    }
+  } catch (err) {
+    console.warn('Greška pri izravnom dohvatu temperature vode za Bogojevo:', err);
+  }
+  return null;
+}
+
 export function getStoredAljmasData(): StationWaterData | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(CACHE_ALJMAS_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Ako je zaostala stara neispravna vrijednost -76 ili unreduced tlak (<1012 dok je stvarni tlak normalan), očisti
-    if (parsed && (parsed.waterLevelCm === -76 || typeof parsed.waterLevelCm !== 'number' || (parsed.airPressureHpa && parsed.airPressureHpa < 1012))) {
+    // Očisti ako je zaostala stara neispravna vrijednost -76, stari tlak ili stara fiksna temp vode 11.4
+    if (
+      parsed &&
+      (parsed.waterLevelCm === -76 ||
+        typeof parsed.waterLevelCm !== 'number' ||
+        parsed.waterTempC === 11.4 ||
+        (parsed.airPressureHpa && parsed.airPressureHpa < 1012))
+    ) {
       localStorage.removeItem(CACHE_ALJMAS_KEY);
       return null;
     }
@@ -707,8 +757,14 @@ export function getStoredBogojevoData(): StationWaterData | null {
     const raw = localStorage.getItem(CACHE_BOGOJEVO_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Ako je zaostala stara neispravna vrijednost -83 ili unreduced tlak (<1012 dok je stvarni tlak normalan), očisti
-    if (parsed && (parsed.waterLevelCm === -83 || typeof parsed.waterLevelCm !== 'number' || (parsed.airPressureHpa && parsed.airPressureHpa < 1012))) {
+    // Očisti ako je zaostala stara neispravna vrijednost -83, stari tlak ili stara fiksna temp vode 11.6
+    if (
+      parsed &&
+      (parsed.waterLevelCm === -83 ||
+        typeof parsed.waterLevelCm !== 'number' ||
+        parsed.waterTempC === 11.6 ||
+        (parsed.airPressureHpa && parsed.airPressureHpa < 1012))
+    ) {
       localStorage.removeItem(CACHE_BOGOJEVO_KEY);
       return null;
     }
@@ -719,13 +775,13 @@ export function getStoredBogojevoData(): StationWaterData | null {
 }
 
 /**
- * Dohvat službenih podataka za Aljmaš (mvodostaji.voda.hr + meteo Aljmaš + Yr.no + Ventusky)
+ * Dohvat službenih podataka za Aljmaš (mvodostaji.voda.hr + seatemperature.net + Yr.no + Ventusky + Firestore sinkronizacija)
  */
 export async function fetchAljmasStationData(): Promise<StationWaterData> {
   const meteo = await fetchMeteoForCoords(45.5269, 18.9489);
   const cached = getStoredAljmasData();
 
-  let waterLevelCm = cached ? cached.waterLevelCm : -35;
+  let waterLevelCm = cached ? cached.waterLevelCm : -70;
   let waterLevelTrend: WaterTrend = cached ? cached.waterLevelTrend : 'stagnira';
   let waterLevelChangeCm = cached ? cached.waterLevelChangeCm : 0;
   let timeOfMeasurement = cached ? cached.timeOfMeasurement : '08:00';
@@ -733,15 +789,15 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
   let maxLevelCm = cached?.maxLevelCm || 820;
   let maxLevelDate = cached?.maxLevelDate || '25.06.1965.';
   let prepLevelCm = cached?.prepLevelCm || 400;
-  let airTempC = cached?.airTempC ?? 8.4;
-  let waterTempC = cached?.waterTempC || 11.4;
+  let airTempC = cached?.airTempC ?? 11.4;
+  let waterTempC = cached?.waterTempC ?? 9.8;
   let isLive = Boolean(cached?.isLive);
   let history: WaterLevelHistoryItem[] = cached?.recentHistory && cached.recentHistory.length > 0
     ? cached.recentHistory
     : [
-      { date: dateOfMeasurement, time: '08:00', level: -35, trendChange: 0 },
-      { date: dateOfMeasurement, time: '07:00', level: -35, trendChange: 0 },
-      { date: dateOfMeasurement, time: '06:00', level: -35, trendChange: 0 }
+      { date: dateOfMeasurement, time: '08:00', level: -70, trendChange: 0 },
+      { date: dateOfMeasurement, time: '07:00', level: -70, trendChange: 0 },
+      { date: dateOfMeasurement, time: '06:00', level: -70, trendChange: 0 }
     ];
 
   let airPressureHpa = meteo.airPressureHpa;
@@ -749,44 +805,88 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
 
   let fetchedFromBackend = false;
 
-  // 1. Pokušaj dohvata preko poslužitelja
+  // 1. Pokušaj dohvata preko poslužitelja (u web pregledniku)
   try {
-    const res = await safeFetchJson<any>(getApiUrl('/api/water/aljmas'));
-    if (res.ok && res.data && res.data.waterLevelCm !== undefined && res.data.waterLevelCm !== -76) {
-      const data = res.data;
-      waterLevelCm = data.waterLevelCm;
-      waterLevelTrend = data.waterLevelTrend || 'stagnira';
-      waterLevelChangeCm = data.waterLevelChangeCm || 0;
-      timeOfMeasurement = data.timeOfMeasurement || timeOfMeasurement;
-      dateOfMeasurement = data.dateOfMeasurement || dateOfMeasurement;
-      maxLevelCm = data.maxLevelCm || 820;
-      maxLevelDate = data.maxLevelDate || maxLevelDate;
-      prepLevelCm = data.prepLevelCm || 400;
-      if (data.airTempC !== undefined) airTempC = data.airTempC;
-      if (data.waterTempC !== undefined) waterTempC = data.waterTempC;
-      if (data.airPressureHpa !== undefined) {
-        airPressureHpa = data.airPressureHpa;
-        if (airPressureHpa > 1019) airPressureTrend = 'rast';
-        else if (airPressureHpa < 1012) airPressureTrend = 'pad';
-        else airPressureTrend = 'stabilan';
+    const isCapacitorNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+    if (!isCapacitorNative) {
+      const res = await safeFetchJson<any>(getApiUrl('/api/water/aljmas'));
+      if (res.ok && res.data && res.data.waterLevelCm !== undefined && res.data.waterLevelCm !== -76) {
+        const data = res.data;
+        waterLevelCm = data.waterLevelCm;
+        waterLevelTrend = data.waterLevelTrend || 'stagnira';
+        waterLevelChangeCm = data.waterLevelChangeCm || 0;
+        timeOfMeasurement = data.timeOfMeasurement || timeOfMeasurement;
+        dateOfMeasurement = data.dateOfMeasurement || dateOfMeasurement;
+        maxLevelCm = data.maxLevelCm || 820;
+        maxLevelDate = data.maxLevelDate || maxLevelDate;
+        prepLevelCm = data.prepLevelCm || 400;
+        if (data.airTempC !== undefined) airTempC = data.airTempC;
+        if (data.waterTempC !== undefined) waterTempC = data.waterTempC;
+        if (data.airPressureHpa !== undefined) {
+          airPressureHpa = data.airPressureHpa;
+          if (airPressureHpa > 1019) airPressureTrend = 'rast';
+          else if (airPressureHpa < 1012) airPressureTrend = 'pad';
+          else airPressureTrend = 'stabilan';
+        }
+        isLive = Boolean(data.isLive);
+        if (Array.isArray(data.recentHours) && data.recentHours.length > 0) {
+          history = data.recentHours.map((r: any) => ({
+            date: r.date,
+            time: r.time,
+            level: r.level,
+            trendChange: r.trendChange
+          }));
+        }
+        fetchedFromBackend = true;
       }
-      isLive = Boolean(data.isLive);
-      if (Array.isArray(data.recentHours) && data.recentHours.length > 0) {
-        history = data.recentHours.map((r: any) => ({
-          date: r.date,
-          time: r.time,
-          level: r.level,
-          trendChange: r.trendChange
-        }));
-      }
-      fetchedFromBackend = true;
     }
   } catch {}
 
-  // 2. Ako poslužitelj nije dostupan na mobilnom uređaju, dohvati izravno sa službene stranice!
+  // 2. Provjeri Firestore sinkronizirane podatke poslužitelja (water_stations/aljmas) kako bi mobitel i računalo bili 100% identični
   if (!fetchedFromBackend) {
     try {
-      const directHtml = await fetchUniversalText(MVODOSTAJI_ALJMAS_URL);
+      const snap = await Promise.race([
+        getDoc(doc(db, 'water_stations', 'aljmas')),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 3500))
+      ]);
+      if (snap && (snap as any).exists && (snap as any).exists()) {
+        const data = (snap as any).data();
+        if (data && typeof data.waterLevelCm === 'number') {
+          waterLevelCm = data.waterLevelCm;
+          waterLevelTrend = data.waterLevelTrend || 'stagnira';
+          waterLevelChangeCm = data.waterLevelChangeCm || 0;
+          timeOfMeasurement = data.timeOfMeasurement || timeOfMeasurement;
+          dateOfMeasurement = data.dateOfMeasurement || dateOfMeasurement;
+          if (typeof data.airTempC === 'number') airTempC = data.airTempC;
+          if (typeof data.waterTempC === 'number') waterTempC = data.waterTempC;
+          if (typeof data.airPressureHpa === 'number') {
+            airPressureHpa = data.airPressureHpa;
+            if (airPressureHpa > 1019) airPressureTrend = 'rast';
+            else if (airPressureHpa < 1012) airPressureTrend = 'pad';
+            else airPressureTrend = 'stabilan';
+          }
+          if (Array.isArray(data.recentHours) && data.recentHours.length > 0) {
+            history = data.recentHours.map((r: any) => ({
+              date: r.date,
+              time: r.time,
+              level: r.level,
+              trendChange: r.trendChange
+            }));
+          }
+          isLive = true;
+        }
+      }
+    } catch {}
+
+    // 3. Također dohvati izravno sa službenih stranica (mvodostaji.voda.hr, seatemperature.net, Yr.no, Ventusky)
+    try {
+      const [directHtml, directWaterTemp, yr, vPressure] = await Promise.all([
+        fetchUniversalText(MVODOSTAJI_ALJMAS_URL),
+        fetchDirectAljmasWaterTemp(),
+        fetchDirectYrNoForecast('2-3244159'),
+        fetchDirectVentuskyPressure(45.529, 18.95, '2-3244159')
+      ]);
+
       if (directHtml) {
         const parsed = parseAljmasHtml(directHtml);
         if (parsed) {
@@ -802,28 +902,23 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
           isLive = true;
         }
       }
-    } catch (err) {
-      console.warn('Greška pri izravnom dohvatu Aljmaš stranice:', err);
-    }
 
-    // Izravan dohvat temperature i tlaka s Yr.no
-    try {
-      const yr = await fetchDirectYrNoForecast('2-3244159');
-      if (typeof yr.temperature === 'number') {
+      if (typeof directWaterTemp === 'number') {
+        waterTempC = directWaterTemp;
+      }
+
+      if (yr && typeof yr.temperature === 'number') {
         airTempC = yr.temperature;
       }
-      if (typeof yr.pressure === 'number') {
+      if (yr && typeof yr.pressure === 'number') {
         airPressureHpa = yr.pressure;
       }
-    } catch {}
-
-    // Izravan dohvat tlaka s Ventusky (uz Yr.no i MSL fallback)
-    try {
-      const vPressure = await fetchDirectVentuskyPressure(45.529, 18.95, '2-3244159');
       if (typeof vPressure === 'number') {
         airPressureHpa = vPressure;
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Greška pri izravnom dohvatu Aljmaš podataka:', err);
+    }
 
     if (airPressureHpa > 1019) airPressureTrend = 'rast';
     else if (airPressureHpa < 1012) airPressureTrend = 'pad';
@@ -869,21 +964,21 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
 }
 
 /**
- * Dohvat službenih podataka za Bogojevo (hidmet.gov.rs + meteo Bogojevo + Yr.no + Ventusky)
+ * Dohvat službenih podataka za Bogojevo (hidmet.gov.rs + hm_id=42015 temp vode + Yr.no + Ventusky + Firestore sinkronizacija)
  */
 export async function fetchBogojevoStationData(): Promise<StationWaterData> {
   const meteo = await fetchMeteoForCoords(45.5342, 19.1231);
   const cached = getStoredBogojevoData();
 
-  let waterLevelCm = cached ? cached.waterLevelCm : -44;
-  let waterLevelTrend: WaterTrend = cached ? cached.waterLevelTrend : 'u_porastu';
-  let waterLevelChangeCm = cached ? cached.waterLevelChangeCm : 10;
-  let flowM3s = cached?.flowM3s !== undefined ? cached.flowM3s : 1200;
-  let forecastDays: number[] = cached?.forecastDays || [-44, -41, -43, -50];
+  let waterLevelCm = cached ? cached.waterLevelCm : -77;
+  let waterLevelTrend: WaterTrend = cached ? cached.waterLevelTrend : 'opada';
+  let waterLevelChangeCm = cached ? cached.waterLevelChangeCm : -3;
+  let flowM3s = cached?.flowM3s !== undefined ? cached.flowM3s : 1010;
+  let forecastDays: number[] = cached?.forecastDays || [-78, -76, -72, -74];
   let regularDefenseCm = cached?.regularDefenseCm || 600;
   let emergencyDefenseCm = cached?.emergencyDefenseCm || 700;
-  let airTempC = cached?.airTempC ?? 8.6;
-  let waterTempC = cached?.waterTempC !== undefined ? cached.waterTempC : 11.6;
+  let airTempC = cached?.airTempC ?? 9.3;
+  let waterTempC = cached?.waterTempC ?? 8.1;
   let isLive = Boolean(cached?.isLive);
   let timeOfMeasurement = cached?.timeOfMeasurement || '07:00';
   let dateOfMeasurement = cached?.dateOfMeasurement || new Date().toLocaleDateString('hr-HR');
@@ -892,35 +987,71 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
 
   let fetchedFromBackend = false;
 
-  // 1. Pokušaj dohvata preko poslužitelja
+  // 1. Pokušaj dohvata preko poslužitelja (u web pregledniku)
   try {
-    const res = await safeFetchJson<any>(getApiUrl('/api/water/bogojevo'));
-    if (res.ok && res.data && res.data.waterLevelCm !== undefined && res.data.waterLevelCm !== -83) {
-      const data = res.data;
-      waterLevelCm = data.waterLevelCm;
-      waterLevelChangeCm = data.waterLevelChangeCm !== undefined ? data.waterLevelChangeCm : waterLevelChangeCm;
-      waterLevelTrend = data.waterLevelTrend || 'u_porastu';
-      flowM3s = data.flowM3s !== undefined ? data.flowM3s : 1200;
-      forecastDays = data.forecastDays || forecastDays;
-      regularDefenseCm = data.regularDefenseCm || 600;
-      emergencyDefenseCm = data.emergencyDefenseCm || 700;
-      if (data.airTempC !== undefined) airTempC = data.airTempC;
-      if (data.waterTempC !== undefined) waterTempC = data.waterTempC;
-      if (data.airPressureHpa !== undefined) {
-        airPressureHpa = data.airPressureHpa;
-        if (airPressureHpa > 1019) airPressureTrend = 'rast';
-        else if (airPressureHpa < 1012) airPressureTrend = 'pad';
-        else airPressureTrend = 'stabilan';
+    const isCapacitorNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+    if (!isCapacitorNative) {
+      const res = await safeFetchJson<any>(getApiUrl('/api/water/bogojevo'));
+      if (res.ok && res.data && res.data.waterLevelCm !== undefined && res.data.waterLevelCm !== -83) {
+        const data = res.data;
+        waterLevelCm = data.waterLevelCm;
+        waterLevelChangeCm = data.waterLevelChangeCm !== undefined ? data.waterLevelChangeCm : waterLevelChangeCm;
+        waterLevelTrend = data.waterLevelTrend || 'opada';
+        flowM3s = data.flowM3s !== undefined ? data.flowM3s : 1010;
+        forecastDays = data.forecastDays || forecastDays;
+        regularDefenseCm = data.regularDefenseCm || 600;
+        emergencyDefenseCm = data.emergencyDefenseCm || 700;
+        if (data.airTempC !== undefined) airTempC = data.airTempC;
+        if (data.waterTempC !== undefined) waterTempC = data.waterTempC;
+        if (data.airPressureHpa !== undefined) {
+          airPressureHpa = data.airPressureHpa;
+          if (airPressureHpa > 1019) airPressureTrend = 'rast';
+          else if (airPressureHpa < 1012) airPressureTrend = 'pad';
+          else airPressureTrend = 'stabilan';
+        }
+        isLive = Boolean(data.isLive);
+        fetchedFromBackend = true;
       }
-      isLive = Boolean(data.isLive);
-      fetchedFromBackend = true;
     }
   } catch {}
 
-  // 2. Ako poslužitelj nije dostupan na mobilnom uređaju, dohvati izravno sa službene RHMZ stranice!
+  // 2. Provjeri Firestore sinkronizirane podatke poslužitelja (water_stations/bogojevo) kako bi mobitel i računalo bili 100% identični
   if (!fetchedFromBackend) {
     try {
-      const directHtml = await fetchUniversalText(HIDMET_BOGOJEVO_URL);
+      const snap = await Promise.race([
+        getDoc(doc(db, 'water_stations', 'bogojevo')),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 3500))
+      ]);
+      if (snap && (snap as any).exists && (snap as any).exists()) {
+        const data = (snap as any).data();
+        if (data && typeof data.waterLevelCm === 'number') {
+          waterLevelCm = data.waterLevelCm;
+          waterLevelChangeCm = data.waterLevelChangeCm !== undefined ? data.waterLevelChangeCm : waterLevelChangeCm;
+          waterLevelTrend = data.waterLevelTrend || 'opada';
+          flowM3s = data.flowM3s !== undefined ? data.flowM3s : flowM3s;
+          forecastDays = data.forecastDays || forecastDays;
+          if (typeof data.airTempC === 'number') airTempC = data.airTempC;
+          if (typeof data.waterTempC === 'number') waterTempC = data.waterTempC;
+          if (typeof data.airPressureHpa === 'number') {
+            airPressureHpa = data.airPressureHpa;
+            if (airPressureHpa > 1019) airPressureTrend = 'rast';
+            else if (airPressureHpa < 1012) airPressureTrend = 'pad';
+            else airPressureTrend = 'stabilan';
+          }
+          isLive = true;
+        }
+      }
+    } catch {}
+
+    // 3. Također dohvati izravno sa službenih RHMZ / Yr.no / Ventusky stranica
+    try {
+      const [directHtml, directWaterTemp, yr, vPressure] = await Promise.all([
+        fetchUniversalText(HIDMET_BOGOJEVO_URL),
+        fetchDirectBogojevoWaterTemp(),
+        fetchDirectYrNoForecast('2-12503703'),
+        fetchDirectVentuskyPressure(45.53, 19.13, '2-12503703')
+      ]);
+
       if (directHtml) {
         const parsed = parseBogojevoHtml(directHtml);
         if (parsed) {
@@ -932,28 +1063,23 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
           isLive = true;
         }
       }
-    } catch (err) {
-      console.warn('Greška pri izravnom dohvatu Bogojevo stranice:', err);
-    }
 
-    // Izravan dohvat temperature i tlaka s Yr.no
-    try {
-      const yr = await fetchDirectYrNoForecast('2-12503703');
-      if (typeof yr.temperature === 'number') {
+      if (typeof directWaterTemp === 'number') {
+        waterTempC = directWaterTemp;
+      }
+
+      if (yr && typeof yr.temperature === 'number') {
         airTempC = yr.temperature;
       }
-      if (typeof yr.pressure === 'number') {
+      if (yr && typeof yr.pressure === 'number') {
         airPressureHpa = yr.pressure;
       }
-    } catch {}
-
-    // Izravan dohvat tlaka s Ventusky (uz Yr.no i MSL fallback)
-    try {
-      const vPressure = await fetchDirectVentuskyPressure(45.53, 19.13, '2-12503703');
       if (typeof vPressure === 'number') {
         airPressureHpa = vPressure;
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Greška pri izravnom dohvatu Bogojevo podataka:', err);
+    }
 
     if (airPressureHpa > 1019) airPressureTrend = 'rast';
     else if (airPressureHpa < 1012) airPressureTrend = 'pad';

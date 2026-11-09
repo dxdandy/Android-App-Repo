@@ -54,6 +54,29 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["counts", "updatedAt"]
+    },
+    "WaterStation": {
+      "title": "WaterStation",
+      "description": "Sinkronizirani službeni podaci o vodostaju, temperaturi vode, zraka i tlaku za Aljmaš i Bogojevo",
+      "type": "object",
+      "properties": {
+        "waterLevelCm": { "type": "number" },
+        "waterTempC": { "type": "number" },
+        "airTempC": { "type": "number" },
+        "airPressureHpa": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["waterLevelCm", "waterTempC", "updatedAt"]
+    },
+    "OtaBundle": {
+      "title": "OtaBundle",
+      "description": "Live Web OTA paket koda za automatsku nadogradnju aplikacije bez APK instalacije",
+      "type": "object",
+      "properties": {
+        "version": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["version"]
     }
   },
   "firestore": {
@@ -72,6 +95,14 @@
     "/catch_stats/{docId}": {
       "schema": { "$ref": "#/entities/CatchStats" },
       "description": "Zajednička tablica evidencije ulova po vrstama ribe"
+    },
+    "/water_stations/{stationId}": {
+      "schema": { "$ref": "#/entities/WaterStation" },
+      "description": "Sinkronizirani hidrometeo podaci za Aljmaš i Bogojevo"
+    },
+    "/ota_bundle/{chunkId}": {
+      "schema": { "$ref": "#/entities/OtaBundle" },
+      "description": "Dijelovi (chunks) kompiliranog Live Web OTA paketa"
     }
   }
 }

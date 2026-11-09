@@ -13,7 +13,7 @@ import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 
-export const BUNDLED_APP_VERSION = '1.6.6';
+export const BUNDLED_APP_VERSION = '1.6.7';
 export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
 export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
 
@@ -383,7 +383,90 @@ export async function cleanupInstallationFiles(): Promise<{ success: boolean; de
 }
 
 /**
+ * Sprema preuzeti Live Web OTA paket (JS + CSS) u IndexedDB na uređaju
+ */
+function saveOtaBundleToIndexedDB(bundle: { version: string; jsCode: string; cssCode: string; updatedAt: number }): Promise<boolean> {
+  return new Promise(resolve => {
+    try {
+      if (typeof window === 'undefined' || !window.indexedDB) return resolve(false);
+      const req = window.indexedDB.open('ribo_ota_code_db', 1);
+      req.onupgradeneeded = (e: any) => {
+        const idb = e.target.result;
+        if (!idb.objectStoreNames.contains('bundles')) {
+          idb.createObjectStore('bundles');
+        }
+      };
+      req.onsuccess = (e: any) => {
+        try {
+          const idb = e.target.result;
+          const tx = idb.transaction('bundles', 'readwrite');
+          const store = tx.objectStore('bundles');
+          store.put(bundle, 'active');
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+        } catch {
+          resolve(false);
+        }
+      };
+      req.onerror = () => resolve(false);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+/**
+ * Preuzima stvarni kompilirani JS i CSS kod nove verzije iz Firestore (ota_bundle)
+ * kako bi se promjene u sučelju primijenile na mobitelu bez APK instalacije.
+ */
+async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boolean; bundleVersion?: string }> {
+  try {
+    const manifestSnap = await getDoc(doc(db, 'ota_bundle', 'manifest'));
+    if (!manifestSnap.exists()) return { downloadedNewCode: false };
+    const manifest = manifestSnap.data();
+    if (!manifest || !manifest.version || typeof manifest.chunkCount !== 'number' || manifest.chunkCount <= 0) {
+      return { downloadedNewCode: false };
+    }
+
+    const remoteBundleVer = String(manifest.version).replace(/^[vV]/, '').trim();
+    const runningCodeVer = (typeof window !== 'undefined' && (window as any).__RUNNING_OTA_VERSION__) || BUNDLED_APP_VERSION;
+
+    if (!isNewerVersion(remoteBundleVer, runningCodeVer)) {
+      return { downloadedNewCode: false, bundleVersion: remoteBundleVer };
+    }
+
+    const chunks: string[] = [];
+    for (let i = 0; i < manifest.chunkCount; i++) {
+      const chunkSnap = await getDoc(doc(db, 'ota_bundle', `chunk_${i}`));
+      if (!chunkSnap.exists()) {
+        return { downloadedNewCode: false };
+      }
+      const chunkData = chunkSnap.data();
+      chunks.push(chunkData?.data || '');
+    }
+
+    const fullJsCode = chunks.join('');
+    if (!fullJsCode || fullJsCode.length < 1000) {
+      return { downloadedNewCode: false };
+    }
+
+    const saved = await saveOtaBundleToIndexedDB({
+      version: remoteBundleVer,
+      jsCode: fullJsCode,
+      cssCode: manifest.css || '',
+      updatedAt: Date.now()
+    });
+
+    return { downloadedNewCode: saved, bundleVersion: remoteBundleVer };
+  } catch (err) {
+    console.warn('OTA code bundle check warning:', err);
+    return { downloadedNewCode: false };
+  }
+}
+
+/**
  * Primjenjuje Live Web Ažuriranje (OTA) trenutno i tiho unutar aplikacije:
+ * - Preuzima najnoviji kompilirani JS/CSS paket iz Firestore ota_bundle kolekcije u IndexedDB
  * - NIKADA ne pokreće preuzimanje APK datoteka niti izaziva Google Play Protect blokade
  * - NIKADA ne preusmjerava WebView na vanjske 404 adrese
  * - Osvježava predmemoriju, Service Worker i aktivnu verziju odmah po pokretanju
@@ -396,7 +479,10 @@ export async function applyLiveWebUpdate(
 
   try {
     if (typeof window !== 'undefined') {
-      // 1. Trajno spremi novu aktivnu Live Web verziju u memoriju uređaja
+      // 1. Preuzmi stvarni kompilirani kod nove verzije iz Firestore ota_bundle kolekcije
+      const otaCodeResult = await downloadAndCacheOtaCodeBundle();
+
+      // 2. Trajno spremi novu aktivnu Live Web verziju u memoriju uređaja
       try {
         localStorage.setItem(LIVE_VERSION_STORAGE_KEY, newVer);
         localStorage.setItem(
@@ -409,7 +495,12 @@ export async function applyLiveWebUpdate(
         );
       } catch {}
 
-      // 2. Očisti zastarjelu CacheStorage predmemoriju
+      // 3. Očisti zastarjelu CacheStorage predmemoriju i stare podatke o temperaturi vode
+      try {
+        localStorage.removeItem('ribo_cache_aljmas_station_data');
+        localStorage.removeItem('ribo_cache_bogojevo_station_data');
+      } catch {}
+
       if ('caches' in window) {
         try {
           const cacheKeys = await window.caches.keys();
@@ -417,7 +508,7 @@ export async function applyLiveWebUpdate(
         } catch {}
       }
 
-      // 3. Ažuriraj Service Worker u pozadini ako je prisutan
+      // 4. Ažuriraj Service Worker u pozadini ako je prisutan
       if ('serviceWorker' in navigator) {
         try {
           const reg = await navigator.serviceWorker.getRegistration();
@@ -430,7 +521,7 @@ export async function applyLiveWebUpdate(
         } catch {}
       }
 
-      // 4. Obavijesti sve komponente u aplikaciji da je nova Live Web verzija aktivna
+      // 5. Obavijesti sve komponente u aplikaciji da je nova Live Web verzija aktivna
       try {
         window.dispatchEvent(
           new CustomEvent('ribo-live-update-applied', {
@@ -438,6 +529,13 @@ export async function applyLiveWebUpdate(
           })
         );
       } catch {}
+
+      // 6. Ako je preuzet novi kompilirani JS/CSS paket iz Firestorea, osvježi lokalni WebView da odmah učita novi kod!
+      if (otaCodeResult.downloadedNewCode) {
+        setTimeout(() => {
+          window.location.reload();
+        }, 400);
+      }
     }
 
     return {

@@ -84,8 +84,78 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
-    <script type="module" crossorigin src="/assets/index-CZvM8dOI.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BYYlmwNq.css">
+    <script type="module">
+      window.__BUNDLED_APP_VERSION__ = "1.6.7";
+      function isNewerVer(remoteVer, currentVer) {
+        if (!remoteVer || !currentVer) return false;
+        const rParts = String(remoteVer).replace(/^[vV]/, '').trim().split('.').map(n => parseInt(n, 10) || 0);
+        const cParts = String(currentVer).replace(/^[vV]/, '').trim().split('.').map(n => parseInt(n, 10) || 0);
+        for (let i = 0; i < Math.max(rParts.length, cParts.length); i++) {
+          const r = rParts[i] || 0;
+          const c = cParts[i] || 0;
+          if (r > c) return true;
+          if (r < c) return false;
+        }
+        return false;
+      }
+      function loadOtaFromIndexedDB() {
+        return new Promise((resolve) => {
+          try {
+            if (!window.indexedDB) return resolve(null);
+            const req = window.indexedDB.open('ribo_ota_code_db', 1);
+            req.onupgradeneeded = (e) => {
+              const db = e.target.result;
+              if (!db.objectStoreNames.contains('bundles')) {
+                db.createObjectStore('bundles');
+              }
+            };
+            req.onsuccess = (e) => {
+              try {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains('bundles')) return resolve(null);
+                const tx = db.transaction('bundles', 'readonly');
+                const store = tx.objectStore('bundles');
+                const getReq = store.get('active');
+                getReq.onsuccess = () => resolve(getReq.result || null);
+                getReq.onerror = () => resolve(null);
+              } catch {
+                resolve(null);
+              }
+            };
+            req.onerror = () => resolve(null);
+          } catch {
+            resolve(null);
+          }
+        });
+      }
+      (async () => {
+        let loadedOta = false;
+        try {
+          const ota = await loadOtaFromIndexedDB();
+          if (ota && ota.version && ota.jsCode && isNewerVer(ota.version, window.__BUNDLED_APP_VERSION__)) {
+            if (ota.cssCode) {
+              const styleEl = document.createElement('style');
+              styleEl.id = 'ribo-ota-live-css';
+              styleEl.textContent = ota.cssCode;
+              document.head.appendChild(styleEl);
+            }
+            window.__RUNNING_OTA_VERSION__ = ota.version;
+            const blob = new Blob([ota.jsCode], { type: 'text/javascript' });
+            const blobUrl = URL.createObjectURL(blob);
+            await import(blobUrl);
+            loadedOta = true;
+            console.log('[RiboPrognoza OTA] Uspješno pokrenut Live Web paket v' + ota.version);
+          }
+        } catch (err) {
+          console.warn('[RiboPrognoza OTA] Fallback na ugrađeni paket:', err);
+        }
+        if (!loadedOta) {
+          window.__RUNNING_OTA_VERSION__ = window.__BUNDLED_APP_VERSION__;
+          await import('/assets/app-bundle.js');
+        }
+      })();
+    </script>
+    <link rel="stylesheet" crossorigin href="/assets/app-bundle.css">
   <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
   <body class="bg-slate-950 text-slate-100 select-none sm:select-auto antialiased overflow-x-hidden w-full m-0 p-0">
     <div id="root"></div>

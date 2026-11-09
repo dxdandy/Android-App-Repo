@@ -361,7 +361,7 @@ app.get('/api/water/aljmas', async (_req, res) => {
     const airPressureHpa = await fetchAljmasAirPressure();
     const airTemp = await fetchAljmasAirTemp();
 
-    res.json({
+    const aljmasPayload = {
       success: true,
       stationName: 'Dunav - Aljmaš (Ušće Drave)',
       riverKm: 'rkm 1380,300',
@@ -381,19 +381,26 @@ app.get('/api/water/aljmas', async (_req, res) => {
       waterTempSourceUrl: SEATEMP_ALJMAS_VUKOVAR_URL,
       airPressureSourceUrl: VENTUSKY_ALJMAS_URL,
       airTempSourceUrl: YR_ALJMAS_URL,
-      isLive: true
-    });
+      isLive: true,
+      updatedAt: Date.now()
+    };
+
+    if (serverDb) {
+      setDoc(doc(serverDb, 'water_stations', 'aljmas'), aljmasPayload, { merge: true }).catch(() => {});
+    }
+
+    res.json(aljmasPayload);
   } catch (error) {
     console.warn('Greška pri dohvatu Aljmaš vodostaja s mvodostaji.voda.hr, fallback na snapshot:', error);
     res.json({
       success: false,
       stationName: 'Dunav - Aljmaš (Ušće Drave)',
       riverKm: 'rkm 1380,300',
-      waterLevelCm: -35,
-      waterLevelTrend: 'stagnira',
-      waterLevelChangeCm: 0,
-      waterTempC: 11.4,
-      airPressureHpa: 1021,
+      waterLevelCm: -70,
+      waterLevelTrend: 'opada',
+      waterLevelChangeCm: -1,
+      waterTempC: 9.8,
+      airPressureHpa: 1025,
       timeOfMeasurement: '08:00',
       dateOfMeasurement: '30.10.2026.',
       maxLevelCm: 820,
@@ -462,7 +469,7 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       }
     }
 
-    res.json({
+    const bogojevoPayload = {
       success: true,
       stationName: 'RHMZ Dunav - Bogojevo',
       waterBody: 'Dunav',
@@ -480,20 +487,27 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       waterTempSourceUrl: HIDMET_BOGOJEVO_TEMP_URL,
       airPressureSourceUrl: VENTUSKY_BOGOJEVO_URL,
       airTempSourceUrl: YR_BOGOJEVO_URL,
-      isLive: true
-    });
+      isLive: true,
+      updatedAt: Date.now()
+    };
+
+    if (serverDb) {
+      setDoc(doc(serverDb, 'water_stations', 'bogojevo'), bogojevoPayload, { merge: true }).catch(() => {});
+    }
+
+    res.json(bogojevoPayload);
   } catch (error) {
     console.warn('Greška pri dohvatu Bogojevo vodostaja s hidmet.gov.rs, fallback na snapshot:', error);
     res.json({
       success: false,
       stationName: 'RHMZ Dunav - Bogojevo',
       waterBody: 'Dunav',
-      waterLevelCm: -44,
-      waterLevelChangeCm: 10,
-      waterLevelTrend: 'u_porastu',
-      waterTempC: 11.6,
-      airPressureHpa: 1022,
-      flowM3s: 1200,
+      waterLevelCm: -77,
+      waterLevelChangeCm: -2,
+      waterLevelTrend: 'opada',
+      waterTempC: 8.1,
+      airPressureHpa: 1025,
+      flowM3s: 1180,
       forecastDays: [-92, -86, -90, -96],
       regularDefenseCm: 600,
       emergencyDefenseCm: 700,
@@ -807,20 +821,52 @@ try {
 
     // 3. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.6.6',
+      version: '1.6.7',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-09',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.6.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.7.apk',
       changelog: [
-        'Usklađeni gumbi u zaglavlju (Osnovni mod, Pro mod, Lovostaj, Evidencija ulova) u jedan fiksni red bez klizanja',
-        'Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)',
-        'Vertikalna tablica s fiksnim imenima ribolovaca i zbrojevima po vrstama (Bucov, Smuđ, Štuka, Som, Bikonja, Šaran, Mrena, Klen, Buljo)',
-        'Pouzdan rad pozadinskih LiveChat obavijesti i automatsko Live Web ažuriranje (OTA)'
+        'Usklađen prikaz temperature vode Dunava između računala i mobitela (Aljmaš s hr.seatemperature.net i Bogojevo s hidmet.gov.rs hm_id=42015 + Firestore sinkronizacija)',
+        'Novi sustav stvarnog OTA ažuriranja koda (Firestore + IndexedDB) koji odmah primjenjuje sve promjene sučelja na mobitelu',
+        'Sva 4 gumba u zaglavlju (Osnovni mod, Pro mod, Lovostaj, Evidencija ulova) u jednom fiksnom redu bez klizanja',
+        'Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)'
       ],
       isCritical: false,
       updateType: 'live_web',
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch(() => {});
+
+    // 3b. Objavi kompilirani JS i CSS bundle u Firestore ota_bundle za stvarno OTA ažuriranje na mobitelu
+    const publishOtaBundleToFirestore = async () => {
+      try {
+        const jsPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
+        const cssPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.css');
+        if (!fs.existsSync(jsPath)) return;
+        const jsContent = fs.readFileSync(jsPath, 'utf-8');
+        const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf-8') : '';
+        const CHUNK_SIZE = 400000; // 400 KB po Firestore dokumentu (limit je 1 MB)
+        const totalChunks = Math.ceil(jsContent.length / CHUNK_SIZE);
+        for (let i = 0; i < totalChunks; i++) {
+          const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
+            version: '1.6.7',
+            index: i,
+            data: slice,
+            updatedAt: Date.now()
+          });
+        }
+        await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
+          version: '1.6.7',
+          totalChunks,
+          css: cssContent,
+          updatedAt: Date.now()
+        });
+        console.log(`[OTA] Objavljen kompilirani kod v1.6.7 u Firestore ota_bundle (${totalChunks} dijelova).`);
+      } catch (err) {
+        console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
+      }
+    };
+    publishOtaBundleToFirestore();
 
     // 4. Sinkroniziraj sve poruke iz Firestore u lokalnu bazu poslužitelja u stvarnom vremenu
     onSnapshot(collection(serverDb, 'chat_messages'), snapshot => {
@@ -1555,15 +1601,15 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.6.6',
+    version: '1.6.7',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-09',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.6.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.7.apk',
     changelog: [
-      'Usklađeni gumbi u zaglavlju (Osnovni mod, Pro mod, Lovostaj, Evidencija ulova) u jedan fiksni red bez klizanja',
-      'Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)',
-      'Vertikalna tablica s fiksnim imenima ribolovaca i zbrojevima po vrstama (Bucov, Smuđ, Štuka, Som, Bikonja, Šaran, Mrena, Klen, Buljo)',
-      'Pouzdan rad pozadinskih LiveChat obavijesti i automatsko Live Web ažuriranje (OTA)'
+      'Usklađen prikaz temperature vode Dunava između računala i mobitela (Aljmaš s hr.seatemperature.net i Bogojevo s hidmet.gov.rs hm_id=42015 + Firestore sinkronizacija)',
+      'Novi sustav stvarnog OTA ažuriranja koda (Firestore + IndexedDB) koji odmah primjenjuje sve promjene sučelja na mobitelu',
+      'Sva 4 gumba u zaglavlju (Osnovni mod, Pro mod, Lovostaj, Evidencija ulova) u jednom fiksnom redu bez klizanja',
+      'Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)'
     ],
     isCritical: false,
     updateType: 'live_web'
@@ -1631,6 +1677,13 @@ export function injectQuery(url, queryToInject) {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ribolovni Dnevnik server sluša na http://0.0.0.0:${PORT}`);
+    // Automatski osvježi mjerne postaje Aljmaš i Bogojevo odmah po pokretanju i svakih 5 minuta kako bi Firestore imao identične podatke za mobitel
+    const syncStations = () => {
+      fetch(`http://127.0.0.1:${PORT}/api/water/aljmas`).catch(() => {});
+      fetch(`http://127.0.0.1:${PORT}/api/water/bogojevo`).catch(() => {});
+    };
+    setTimeout(syncStations, 1500);
+    setInterval(syncStations, 5 * 60 * 1000);
   });
 }
 

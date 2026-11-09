@@ -56,7 +56,7 @@ export default defineConfig(() => {
                 cacheName: 'weather-api-cache',
                 expiration: {
                   maxEntries: 30,
-                  maxAgeSeconds: 60 * 60 * 6, // 6 hours
+                  maxAgeSeconds: 60 * 60 * 6,
                 },
                 cacheableResponse: {
                   statuses: [0, 200],
@@ -71,6 +71,20 @@ export default defineConfig(() => {
         },
       }),
     ],
+    build: {
+      rollupOptions: {
+        output: {
+          inlineDynamicImports: true,
+          entryFileNames: 'assets/app-bundle.js',
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+              return 'assets/app-bundle.css';
+            }
+            return 'assets/[name]-[hash][extname]';
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),

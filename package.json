@@ -1,16 +1,16 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "1.6.6",
+  "version": "1.6.7",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
-    "build": "vite build",
+    "build": "vite build && node scripts/prepare-ota.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "cap:build": "vite build && npx cap sync android",
+    "cap:build": "vite build && node scripts/prepare-ota.mjs && npx cap sync android",
     "cap:open": "npx cap open android"
   },
   "dependencies": {

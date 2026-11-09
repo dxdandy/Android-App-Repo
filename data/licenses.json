@@ -18,7 +18,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": false,
     "createdAt": "2026-11-01T12:00:00.000Z",
-    "lastSeenAt": "2026-11-09T11:20:21.395Z",
+    "lastSeenAt": "2026-11-09T14:11:34.968Z",
     "notes": "Korisnik 1"
   },
   {
@@ -29,7 +29,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": false,
     "createdAt": "2026-11-01T14:00:00.000Z",
-    "lastSeenAt": "2026-11-09T11:20:09.625Z",
+    "lastSeenAt": "2026-11-09T14:04:46.929Z",
     "notes": "Korisnik 2"
   },
   {
@@ -40,7 +40,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": true,
     "createdAt": "2026-11-05T08:00:00.000Z",
-    "lastSeenAt": "2026-11-09T10:48:34.855Z",
+    "lastSeenAt": "2026-11-09T13:04:36.830Z",
     "notes": "Korisnik 3"
   },
   {
@@ -51,7 +51,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": true,
     "createdAt": "2026-11-05T08:30:00.000Z",
-    "lastSeenAt": "2026-11-09T10:55:07.189Z",
+    "lastSeenAt": "2026-11-09T14:03:48.421Z",
     "notes": "Krasni"
   },
   {
@@ -64,5 +64,15 @@
     "createdAt": "2026-11-02T10:00:00.000Z",
     "lastSeenAt": "2026-11-05T12:11:11.073Z",
     "notes": "Testni račun"
+  },
+  {
+    "deviceId": "RP-RSPP-8VUB",
+    "activationKey": "AKT-8VGZ-B26J",
+    "userName": "Ribič (8VUB)",
+    "status": "active",
+    "chatEnabled": true,
+    "nameSetByAdmin": false,
+    "createdAt": "2026-11-09T14:04:29.853Z",
+    "lastSeenAt": "2026-11-09T14:10:35.608Z"
   }
 ]

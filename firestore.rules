@@ -25,5 +25,15 @@ service cloud.firestore {
     match /catch_stats/{docId} {
       allow read, write: if true;
     }
+
+    // Sinkronizirani hidrometeo podaci (vodostaj, temp vode, temp zraka, tlak) za Aljmaš i Bogojevo
+    match /water_stations/{stationId} {
+      allow read, write: if true;
+    }
+
+    // Live Web OTA kompilirani paketi za nadogradnju koda bez instalacije APK-a
+    match /ota_bundle/{chunkId} {
+      allow read, write: if true;
+    }
   }
 }
