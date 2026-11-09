@@ -7,7 +7,8 @@ import {
   CheckCircle2, 
   Ruler, 
   Calendar,
-  Sparkles
+  Sparkles,
+  ChevronLeft
 } from 'lucide-react';
 
 interface LovostajModalProps {
@@ -278,6 +279,16 @@ export const LovostajModal: React.FC<LovostajModalProps> = ({ isOpen, onClose })
         {/* Zaglavlje modala - podignuto malo gore, kompaktno i bez kraćenja naslova */}
         <div className="px-3 py-2.5 sm:px-5 sm:py-3.5 border-b border-slate-800 bg-slate-950/90 flex items-center justify-between gap-2.5 shrink-0">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            {/* Gumb za povratak unatrag na Osnovni mod */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-teal-300 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-slate-700/80 shrink-0 active:scale-95 shadow-sm"
+              title="Povratak u Osnovni mod"
+            >
+              <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+            </button>
+
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shrink-0 text-base sm:text-lg shadow-sm">
               🐟
             </div>

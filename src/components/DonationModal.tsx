@@ -7,7 +7,8 @@ import {
   X, 
   Sparkles,
   Coffee,
-  ShieldCheck
+  ShieldCheck,
+  ChevronLeft
 } from 'lucide-react';
 
 interface DonationModalProps {

@@ -5,7 +5,8 @@ import {
   CheckCircle2, 
   Sparkles, 
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft
 } from 'lucide-react';
 import { 
   AppVersionInfo, 
@@ -79,8 +80,17 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
         </button>
 
         {/* Zaglavlje s ikonom */}
-        <div className="flex items-center space-x-3.5">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-slate-950 shadow-lg shrink-0 bg-gradient-to-tr from-cyan-500 to-emerald-400 shadow-cyan-500/20">
+        <div className="flex items-center space-x-3">
+          <button
+            type="button"
+            onClick={handleClose}
+            className="w-10 h-10 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-teal-300 hover:text-white border border-slate-700/80 flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95 shadow-sm"
+            title="Povratak u Osnovni mod"
+          >
+            <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-950 shadow-lg shrink-0 bg-gradient-to-tr from-cyan-500 to-emerald-400 shadow-cyan-500/20">
             <Zap className="w-6 h-6" />
           </div>
           <div>

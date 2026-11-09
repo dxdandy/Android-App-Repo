@@ -10,7 +10,8 @@ import {
   History, 
   ShieldCheck, 
   UserCheck,
-  RotateCcw
+  RotateCcw,
+  ChevronLeft
 } from 'lucide-react';
 import {
   ANGLERS,
@@ -256,6 +257,17 @@ export const CatchLogModal: React.FC<CatchLogModalProps> = ({ isOpen, onClose })
       <div className="bg-slate-900 border-b border-slate-800 px-2.5 sm:px-5 py-2 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] shrink-0">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
+            {/* Gumb za povratak unatrag na Osnovni mod */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-8 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white border border-slate-700/80 flex items-center gap-1 transition-colors cursor-pointer shrink-0 active:scale-95 shadow-sm"
+              title="Povratak u Osnovni mod"
+            >
+              <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+              <span className="text-[11px] font-bold hidden xs:inline">Natrag</span>
+            </button>
+
             <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center shrink-0">
               <Trophy className="w-4 h-4 text-amber-400" />
             </div>

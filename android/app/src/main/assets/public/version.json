@@ -1,13 +1,13 @@
 {
-  "version": "1.6.7",
+  "version": "1.6.8",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-09",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.7.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.8.apk",
   "changelog": [
-    "Usklađen prikaz temperature vode Dunava između računala i mobitela (Aljmaš s hr.seatemperature.net i Bogojevo s hidmet.gov.rs hm_id=42015 + Firestore sinkronizacija)",
-    "Novi sustav stvarnog OTA ažuriranja koda (Firestore + IndexedDB) koji odmah primjenjuje sve promjene sučelja na mobitelu",
-    "Sva 4 gumba u zaglavlju (Osnovni mod, Pro mod, Lovostaj, Evidencija ulova) u jednom fiksnom redu bez klizanja",
-    "Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)"
+    "Dodana podrška za geste povratka (Edge Swipe): povlačenje prstom s lijevog ili desnog ruba ekrana prema centru zatvara otvorene odjeljke (LiveChat, Ulovi, Lovostaj, Pro mod, Admin) i vraća u Osnovni mod",
+    "Dodana puna podrška za sistemsku strelicu i hardverski gumb unatrag na Android mobitelima za trenutni povratak u Osnovni mod",
+    "Dodane vidljive strelice za povratak (< Natrag) u zaglavljima svih odjeljaka za jednostavniju navigaciju",
+    "Poboljšana fluidnost i taktilni odziv (haptic feedback) pri izvođenju gesti povratka"
   ],
   "isCritical": false,
   "updateType": "live_web"

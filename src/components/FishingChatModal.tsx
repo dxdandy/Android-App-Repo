@@ -599,8 +599,18 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
         <div className="absolute -right-20 -top-20 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Zaglavlje Chata */}
-        <div className="p-3.5 sm:p-4 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="p-3 sm:p-4 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            {/* Gumb za povratak unatrag na Osnovni mod */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-teal-300 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-slate-700/80 shrink-0 active:scale-95 shadow-sm"
+              title="Povratak u Osnovni mod"
+            >
+              <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+            </button>
+
             <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-300 shrink-0">
               <MessageSquare className="w-5 h-5" />
             </div>

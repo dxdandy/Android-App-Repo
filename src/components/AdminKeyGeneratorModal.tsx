@@ -24,7 +24,8 @@ import {
   Search,
   UserPlus,
   ShieldAlert,
-  Ban
+  Ban,
+  ChevronLeft
 } from 'lucide-react';
 import { 
   generateActivationKey, 
@@ -364,6 +365,15 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
 
         {/* Naslov */}
         <div className="flex items-center space-x-3 mb-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-10 h-10 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-amber-400 hover:text-white border border-slate-700/80 flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95 shadow-sm"
+            title="Povratak u Osnovni mod"
+          >
+            <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
           <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
             <KeyRound className="w-5 h-5" />
           </div>
@@ -1054,7 +1064,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onTestUpdatePopup && onTestUpdatePopup({
-                        version: '1.6.7',
+                        version: '1.6.8',
                         name: 'RiboPrognoza',
                         releaseDate: new Date().toISOString().split('T')[0],
                         changelog: [

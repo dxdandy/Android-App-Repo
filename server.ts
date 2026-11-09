@@ -821,15 +821,15 @@ try {
 
     // 3. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.6.7',
+      version: '1.6.8',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-09',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.7.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.8.apk',
       changelog: [
-        'Usklađen prikaz temperature vode Dunava između računala i mobitela (Aljmaš s hr.seatemperature.net i Bogojevo s hidmet.gov.rs hm_id=42015 + Firestore sinkronizacija)',
-        'Novi sustav stvarnog OTA ažuriranja koda (Firestore + IndexedDB) koji odmah primjenjuje sve promjene sučelja na mobitelu',
-        'Sva 4 gumba u zaglavlju (Osnovni mod, Pro mod, Lovostaj, Evidencija ulova) u jednom fiksnom redu bez klizanja',
-        'Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)'
+        'Podrška za geste povratka (Edge Swipe): povlačenje prstom s lijevog ili desnog ruba ekrana zatvara otvorene odjeljke (LiveChat, Ulovi, Lovostaj, Pro mod) i vraća u Osnovni mod',
+        'Puna podrška za sistemsku strelicu i hardverski gumb unatrag na Android uređajima',
+        'Vidljivi gumbi za povratak (< Natrag) u zaglavlju svakog odjeljka aplikacije',
+        'Taktilni odziv (vibracija) pri aktivaciji gesti povratka'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -849,19 +849,19 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.6.7',
+            version: '1.6.8',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.6.7',
+          version: '1.6.8',
           totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.6.7 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.6.8 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
@@ -1601,15 +1601,15 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.6.7',
+    version: '1.6.8',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-09',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.7.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.8.apk',
     changelog: [
-      'Usklađen prikaz temperature vode Dunava između računala i mobitela (Aljmaš s hr.seatemperature.net i Bogojevo s hidmet.gov.rs hm_id=42015 + Firestore sinkronizacija)',
-      'Novi sustav stvarnog OTA ažuriranja koda (Firestore + IndexedDB) koji odmah primjenjuje sve promjene sučelja na mobitelu',
-      'Sva 4 gumba u zaglavlju (Osnovni mod, Pro mod, Lovostaj, Evidencija ulova) u jednom fiksnom redu bez klizanja',
-      'Evidencija ulova po vrstama ribe za ribolovce (Sikac, Krasni, Domo, Mališa)'
+      'Podrška za geste povratka (Edge Swipe): povlačenje prstom s lijevog ili desnog ruba ekrana zatvara otvorene odjeljke (LiveChat, Ulovi, Lovostaj, Pro mod) i vraća u Osnovni mod',
+      'Puna podrška za sistemsku strelicu i hardverski gumb unatrag na Android uređajima',
+      'Vidljivi gumbi za povratak (< Natrag) u zaglavlju svakog odjeljka aplikacije',
+      'Taktilni odziv (vibracija) pri aktivaciji gesti povratka'
     ],
     isCritical: false,
     updateType: 'live_web'

@@ -32,6 +32,7 @@ import { DonationModal } from './components/DonationModal';
 import { FishingChatModal } from './components/FishingChatModal';
 import { LovostajModal } from './components/LovostajModal';
 import { CatchLogModal } from './components/CatchLogModal';
+import { EdgeSwipeBackGesture } from './components/EdgeSwipeBackGesture';
 import { isAppActivated, verifyLicenseWithServer, getDeviceId } from './services/licenseService';
 import { 
   fetchChatMessages, 
@@ -424,6 +425,68 @@ export default function App() {
     } catch {}
   };
 
+  // Provjera je li otvoren bilo koji modal ili je aktivan Pro mod
+  const isAnyModalOpen = 
+    showCatchLogModal || 
+    showChatModal || 
+    showLovostajModal || 
+    showAdminModal || 
+    showDonationModal || 
+    showUpdateModal;
+
+  const isAnySubSectionActive = isAnyModalOpen || viewMode === 'expert';
+
+  // Središnja funkcija za povratak unatrag (identično kliku na 'X' ili povratku na Osnovni mod)
+  const handleGlobalBack = useCallback(() => {
+    // 1. Evidencija ulova
+    if (showCatchLogModal) {
+      setShowCatchLogModal(false);
+      return;
+    }
+    // 2. LiveChat
+    if (showChatModal) {
+      handleCloseChat();
+      return;
+    }
+    // 3. Lovostaj
+    if (showLovostajModal) {
+      setShowLovostajModal(false);
+      return;
+    }
+    // 4. Admin kontrolni panel
+    if (showAdminModal) {
+      setShowAdminModal(false);
+      return;
+    }
+    // 5. Donacije
+    if (showDonationModal) {
+      setShowDonationModal(false);
+      return;
+    }
+    // 6. Modal ažuriranja
+    if (showUpdateModal) {
+      setShowUpdateModal(false);
+      return;
+    }
+    // 7. Pro mod (povratak na Osnovni mod)
+    if (viewMode === 'expert') {
+      setViewMode('basic');
+      try {
+        localStorage.setItem('ribo_app_view_mode', 'basic');
+      } catch {}
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+  }, [
+    showCatchLogModal,
+    showChatModal,
+    showLovostajModal,
+    showAdminModal,
+    showDonationModal,
+    showUpdateModal,
+    viewMode
+  ]);
+
   // Ručna provjera nadogradnji (iz footera ili postavki) - automatski primjenjuje Live Web ažuriranje
   const handleManualCheckUpdate = async () => {
     setIsCheckingUpdate(true);
@@ -487,6 +550,11 @@ export default function App() {
   if (!isActivated) {
     return (
       <>
+        <EdgeSwipeBackGesture
+          isActive={showAdminModal || showUpdateModal}
+          onBack={handleGlobalBack}
+          targetLabel="Zatvori"
+        />
         <ActivationLockScreen
           onActivated={() => setIsActivated(true)}
           onOpenAdminGenerator={() => setShowAdminModal(true)}
@@ -512,6 +580,13 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-20 md:pb-10 selection:bg-cyan-500 selection:text-white w-full max-w-full overflow-x-hidden pt-[calc(4.25rem+env(safe-area-inset-top,0px))] sm:pt-[calc(4.5rem+env(safe-area-inset-top,0px))]">
       
+      {/* Detekcija gesti ruba ekrana i hardverskog gumba / strelice za povratak u Osnovni mod */}
+      <EdgeSwipeBackGesture
+        isActive={isAnySubSectionActive}
+        onBack={handleGlobalBack}
+        targetLabel={viewMode === 'expert' && !isAnyModalOpen ? 'Osnovni mod' : 'Osnovni mod'}
+      />
+
       {/* Offline Status Badge */}
       <OfflineIndicator />
 
