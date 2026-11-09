@@ -18,7 +18,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": false,
     "createdAt": "2026-11-01T12:00:00.000Z",
-    "lastSeenAt": "2026-11-09T10:15:30.640Z",
+    "lastSeenAt": "2026-11-09T11:20:21.395Z",
     "notes": "Korisnik 1"
   },
   {
@@ -29,7 +29,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": false,
     "createdAt": "2026-11-01T14:00:00.000Z",
-    "lastSeenAt": "2026-11-09T10:15:44.188Z",
+    "lastSeenAt": "2026-11-09T11:20:09.625Z",
     "notes": "Korisnik 2"
   },
   {
@@ -40,7 +40,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": true,
     "createdAt": "2026-11-05T08:00:00.000Z",
-    "lastSeenAt": "2026-11-09T09:18:38.264Z",
+    "lastSeenAt": "2026-11-09T10:48:34.855Z",
     "notes": "Korisnik 3"
   },
   {
@@ -51,7 +51,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": true,
     "createdAt": "2026-11-05T08:30:00.000Z",
-    "lastSeenAt": "2026-11-09T09:41:50.450Z",
+    "lastSeenAt": "2026-11-09T10:55:07.189Z",
     "notes": "Krasni"
   },
   {

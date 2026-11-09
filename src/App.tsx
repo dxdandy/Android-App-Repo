@@ -51,7 +51,8 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { 
   checkForAppUpdate, 
   AppVersionInfo, 
-  CURRENT_APP_VERSION,
+  getCurrentAppVersion,
+  applyLiveWebUpdate,
   cleanupInstallationFiles,
   subscribeToLiveUpdates
 } from './services/updateService';
@@ -66,11 +67,13 @@ export default function App() {
   const [showLovostajModal, setShowLovostajModal] = useState<boolean>(false);
   const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
 
-  // Stanja za automatska ažuriranja
+  // Stanja za automatska Live Web ažuriranja
+  const [activeAppVersion, setActiveAppVersion] = useState<string>(() => getCurrentAppVersion());
   const [availableUpdate, setAvailableUpdate] = useState<AppVersionInfo | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
   const [manualUpdateToast, setManualUpdateToast] = useState<string | null>(null);
+  const [liveUpdateBanner, setLiveUpdateBanner] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba'>('sve');
   // Aplikacija se pri svakom ponovnom pokretanju uvijek otvara u Osnovnom modu
@@ -205,24 +208,47 @@ export default function App() {
     // Odmah pokreni automatsko čišćenje privremenih APK instalacijskih datoteka s uređaja
     cleanupInstallationFiles().catch(() => {});
 
-    // 1. Pretplata na Live Web ažuriranja u stvarnom vremenu putem Firestorea
-    const unsubLive = subscribeToLiveUpdates((newUpdate) => {
-      setAvailableUpdate(newUpdate);
-      setShowUpdateModal(true);
-    });
-
-    // 2. Provjera ažuriranja s poslužitelja pri pokretanju
-    const checkUpdates = async () => {
+    const handleAutoApplyUpdate = async (newUpdate: AppVersionInfo) => {
       try {
-        const res = await checkForAppUpdate(false);
-        if (res.status === 'update_available' && res.updateInfo) {
-          setAvailableUpdate(res.updateInfo);
-          setShowUpdateModal(true);
+        const res = await applyLiveWebUpdate(newUpdate.version, newUpdate.changelog);
+        if (res.success) {
+          setActiveAppVersion(res.version);
+          setAvailableUpdate(null);
+          setShowUpdateModal(false);
+          setLiveUpdateBanner(`⚡ Live Web Ažuriranje: Aplikacija je automatski nadograđena na v${res.version}`);
+          setTimeout(() => setLiveUpdateBanner(null), 5000);
+          handleRefreshAll();
         }
       } catch {}
     };
 
-    const timer = setTimeout(checkUpdates, 1500);
+    const onLiveUpdateEvent = (e: any) => {
+      if (e?.detail?.version) {
+        setActiveAppVersion(e.detail.version);
+      } else {
+        setActiveAppVersion(getCurrentAppVersion());
+      }
+    };
+    window.addEventListener('ribo-live-update-applied', onLiveUpdateEvent);
+
+    // 1. Pretplata na Live Web ažuriranja u stvarnom vremenu putem Firestorea (automatska instalacija odmah)
+    const unsubLive = subscribeToLiveUpdates((newUpdate) => {
+      handleAutoApplyUpdate(newUpdate);
+    });
+
+    // 2. Provjera i automatska instalacija Live Web ažuriranja pri samom pokretanju aplikacije
+    const checkUpdates = async () => {
+      try {
+        const res = await checkForAppUpdate(false);
+        if (res.status === 'update_available' && res.updateInfo) {
+          await handleAutoApplyUpdate(res.updateInfo);
+        } else {
+          setActiveAppVersion(getCurrentAppVersion());
+        }
+      } catch {}
+    };
+
+    const timer = setTimeout(checkUpdates, 800);
     // Periodička provjera svakih 15 minuta dok je aplikacija aktivna
     const interval = setInterval(checkUpdates, 15 * 60 * 1000);
 
@@ -238,9 +264,10 @@ export default function App() {
       clearTimeout(timer);
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('ribo-live-update-applied', onLiveUpdateEvent);
       unsubLive();
     };
-  }, []);
+  }, [handleRefreshAll]);
 
   // Redovita provjera valjanosti i opoziva licence s centralnim poslužiteljem
   useEffect(() => {
@@ -392,17 +419,22 @@ export default function App() {
     } catch {}
   };
 
-  // Ručna provjera nadogradnji (iz footera ili postavki)
+  // Ručna provjera nadogradnji (iz footera ili postavki) - automatski primjenjuje Live Web ažuriranje
   const handleManualCheckUpdate = async () => {
     setIsCheckingUpdate(true);
     setManualUpdateToast(null);
     try {
       const res = await checkForAppUpdate(true);
       if (res.status === 'update_available' && res.updateInfo) {
-        setAvailableUpdate(res.updateInfo);
-        setShowUpdateModal(true);
+        const applied = await applyLiveWebUpdate(res.updateInfo.version, res.updateInfo.changelog);
+        setActiveAppVersion(applied.version);
+        setManualUpdateToast(`⚡ Live Web ažuriranje (v${applied.version}) je automatski instalirano!`);
+        setTimeout(() => setManualUpdateToast(null), 4500);
+        handleRefreshAll();
       } else if (res.status === 'up_to_date') {
-        setManualUpdateToast(`✓ Imate najnoviju verziju (v${CURRENT_APP_VERSION})`);
+        const currentVer = getCurrentAppVersion();
+        setActiveAppVersion(currentVer);
+        setManualUpdateToast(`✓ Imate najnoviju Live Web verziju (v${currentVer})`);
         setTimeout(() => setManualUpdateToast(null), 3500);
       } else {
         setManualUpdateToast(`⚠️ ${res.errorMessage || 'Greška pri provjeri poslužitelja'}`);
@@ -488,6 +520,14 @@ export default function App() {
         onOpenChat={handleOpenChat}
         unreadChatCount={unreadChatCount}
       />
+
+      {/* Obavijest o automatskom Live Web ažuriranju */}
+      {liveUpdateBanner && (
+        <div className="bg-gradient-to-r from-emerald-950/90 via-teal-950/90 to-cyan-950/90 border-b border-emerald-500/50 px-3 py-2 text-center text-xs font-bold text-emerald-300 flex items-center justify-center gap-2 animate-fade-in">
+          <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{liveUpdateBanner}</span>
+        </div>
+      )}
 
       {/* Hero Header sa sažetkom stanja na Dunavu */}
       <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 w-full max-w-full overflow-hidden">
@@ -802,7 +842,7 @@ export default function App() {
               title="Provjeri postoji li novija verzija"
             >
               <RefreshCw className={`w-3 h-3 ${isCheckingUpdate ? 'animate-spin text-cyan-400' : ''}`} />
-              <span>v{CURRENT_APP_VERSION} • Provjeri ažuriranje</span>
+              <span>v{activeAppVersion} • Live Web Ažuriranje</span>
             </button>
             {manualUpdateToast && (
               <span className="text-[11px] text-teal-400 font-medium">

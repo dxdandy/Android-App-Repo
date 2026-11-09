@@ -998,12 +998,26 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
               </div>
             )}
 
-            {/* TAB 4: AŽURIRANJA I APK */}
+            {/* TAB 4: LIVE WEB AŽURIRANJA (OTA) */}
             {activeTab === 'azuriranja' && (
               <div className="space-y-3">
+                <div className="p-3 bg-emerald-950/30 rounded-2xl border border-emerald-500/40 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-emerald-300 uppercase tracking-wider">
+                      ⚡ Aktivni sustav: Live Web Ažuriranje (OTA)
+                    </span>
+                    <span className="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-500/40">
+                      v{CURRENT_APP_VERSION}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-snug">
+                    Nova ažuriranja i promjene instaliraju se <strong>automatski odmah po pokretanju aplikacije</strong> putem Live Web (OTA) sinkronizacije, bez preuzimanja APK datoteka i bez sigurnosnih blokada mobitela.
+                  </p>
+                </div>
+
                 <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
                   <label className="block text-xs text-slate-300 font-bold">
-                    GitHub repozitorij za APK ažuriranja:
+                    GitHub repozitorij za Live Web sinkronizaciju:
                   </label>
                   <input
                     type="text"
@@ -1026,7 +1040,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
 
                 <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
                   <span className="text-xs text-slate-300 font-bold block">
-                    Dijagnostika & Testiranje skočnog prozora:
+                    Dijagnostika & Testiranje Live Web ažuriranja:
                   </span>
                   <div className="flex gap-2 flex-wrap">
                     <button
@@ -1040,21 +1054,20 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onTestUpdatePopup && onTestUpdatePopup({
-                        version: '1.6.0',
+                        version: '1.6.3',
                         name: 'RiboPrognoza',
                         releaseDate: new Date().toISOString().split('T')[0],
-                        apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.6.0.apk',
                         changelog: [
-                          'Hitni ispravak: uklonjena greška 404 Page not found',
-                          'Pouzdan sustav obavijesti s ikonom udice i zvukom',
-                          'Optimiziran stabilan rad u pozadini i na zaključanom zaslonu'
+                          'Automatsko Live Web ažuriranje (OTA) odmah po pokretanju bez APK instalacije',
+                          'Nema sigurnosnih blokada ni Google Play Protect upozorenja pri nadogradnji',
+                          'Pouzdan sustav obavijesti s ikonom udice i zvukom čak i kada je aplikacija ugašena'
                         ],
                         isCritical: false,
-                        updateType: 'apk'
+                        updateType: 'live_web'
                       })}
                       className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold cursor-pointer hover:bg-emerald-500/30 transition-colors"
                     >
-                      Testiraj Update Popup
+                      ⚡ Testiraj Live Web Ažuriranje
                     </button>
                     <button
                       type="button"

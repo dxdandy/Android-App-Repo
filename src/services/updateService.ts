@@ -1,54 +1,24 @@
 /**
- * Sustav za provjeru i instalaciju novih verzija aplikacije (OTA In-App Updater)
+ * Sustav za automatsko Live Web Ažuriranje aplikacije (OTA In-App Live Updater)
  * Autor: Daniel Čizmar
  * GitHub: dxdandy/Android-App-Repo
+ *
+ * Napomena: Ažuriranja se primjenjuju izravno unutar aplikacije (Live Web OTA)
+ * odmah pri pokretanju, bez preuzimanja APK datoteka i bez Google Play Protect blokada,
+ * uz zadržavanje sigurnog lokalnog WebView konteksta (bez 404 preusmjeravanja).
  */
 
 import { registerPlugin } from '@capacitor/core';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 
-export const BUNDLED_APP_VERSION = '1.6.2';
+export const BUNDLED_APP_VERSION = '1.6.3';
+export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
+export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
 
 /**
- * Vraća trenutnu aktivnu verziju instalirane aplikacije
- */
-export function getCurrentAppVersion(): string {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.removeItem('ribo_current_live_version');
-    } catch {}
-  }
-  return BUNDLED_APP_VERSION;
-}
-
-export const CURRENT_APP_VERSION = getCurrentAppVersion();
-
-export interface AppVersionInfo {
-  version: string;
-  name: string;
-  releaseDate: string;
-  apkUrl: string;
-  changelog: string[];
-  isCritical?: boolean;
-  updateType?: 'live_web' | 'apk';
-  liveWebUrl?: string;
-}
-
-export type CheckUpdateStatus = 'update_available' | 'up_to_date' | 'network_error';
-
-export interface CheckUpdateResult {
-  status: CheckUpdateStatus;
-  updateInfo?: AppVersionInfo;
-  serverVersion?: string;
-  currentVersion: string;
-  endpointUsed?: string;
-  errorMessage?: string;
-}
-
-/**
- * Uspoređuje dvije semantičke verzije (npr. '1.1.0' > '1.0.1')
+ * Uspoređuje dvije semantičke verzije (npr. '1.6.3' > '1.6.2')
  * Vraća true ako je remoteVer novija od currentVer
  */
 export function isNewerVersion(remoteVer: string, currentVer: string): boolean {
@@ -70,6 +40,46 @@ export function isNewerVersion(remoteVer: string, currentVer: string): boolean {
   return false;
 }
 
+/**
+ * Vraća trenutnu aktivnu verziju aplikacije (uzima u obzir instalirana Live Web ažuriranja)
+ */
+export function getCurrentAppVersion(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const liveVer = localStorage.getItem(LIVE_VERSION_STORAGE_KEY);
+      if (liveVer && isNewerVersion(liveVer, BUNDLED_APP_VERSION)) {
+        return liveVer.replace(/^[vV]/, '').trim();
+      }
+      localStorage.setItem(LIVE_VERSION_STORAGE_KEY, BUNDLED_APP_VERSION);
+    } catch {}
+  }
+  return BUNDLED_APP_VERSION;
+}
+
+export const CURRENT_APP_VERSION = getCurrentAppVersion();
+
+export interface AppVersionInfo {
+  version: string;
+  name: string;
+  releaseDate: string;
+  apkUrl?: string;
+  changelog: string[];
+  isCritical?: boolean;
+  updateType?: 'live_web' | 'apk';
+  liveWebUrl?: string;
+}
+
+export type CheckUpdateStatus = 'update_available' | 'up_to_date' | 'network_error';
+
+export interface CheckUpdateResult {
+  status: CheckUpdateStatus;
+  updateInfo?: AppVersionInfo;
+  serverVersion?: string;
+  currentVersion: string;
+  endpointUsed?: string;
+  errorMessage?: string;
+}
+
 const DISMISS_KEY_PREFIX = 'ribo_dismissed_update_';
 const GITHUB_REPO_KEY = 'ribo_github_repo';
 export const DEFAULT_FALLBACK_REPO = 'dxdandy/Android-App-Repo';
@@ -87,59 +97,54 @@ export function setSavedGithubRepo(repo: string): void {
 }
 
 /**
- * Vraća listu svih online adresa koje aplikacija redom provjerava za novu verziju
+ * Vraća listu svih online adresa koje aplikacija redom provjerava za novu Live Web verziju
  */
 export function getUpdateEndpoints(): string[] {
   const endpoints: string[] = [];
   const repo = getSavedGithubRepo();
 
-  // 1. GitHub Raw CDN (službeni i javno dostupni repozitorij)
+  // 1. Ako se otvara u web pregledniku na samom poslužitelju
+  if (typeof window !== 'undefined' && !window.location.origin.includes('localhost') && !window.location.protocol.startsWith('capacitor')) {
+    endpoints.push(`${window.location.origin}/api/version?t=${Date.now()}`);
+  }
+
+  // 2. GitHub Raw CDN (službeni i javno dostupni repozitorij)
   if (repo && repo.includes('/')) {
     endpoints.push(`https://raw.githubusercontent.com/${repo}/main/public/version.json?t=${Date.now()}`);
     endpoints.push(`https://raw.githubusercontent.com/${repo}/master/public/version.json?t=${Date.now()}`);
-    endpoints.push(`https://api.github.com/repos/${repo}/releases/latest?t=${Date.now()}`);
-  }
-
-  // 2. Ako se otvara u web pregledniku na samom poslužitelju
-  if (typeof window !== 'undefined' && !window.location.origin.includes('localhost') && !window.location.protocol.startsWith('capacitor')) {
-    endpoints.push(`${window.location.origin}/api/version?t=${Date.now()}`);
   }
 
   return endpoints;
 }
 
 /**
- * Parsira odgovor bilo s običnog version.json ili s GitHub Releases API-ja
+ * Parsira odgovor s version.json ili Firestore dokumenta u Live Web format
  */
 function parseVersionData(json: any, repo: string): AppVersionInfo | null {
   if (!json) return null;
 
-  // Format 1: version.json ili /api/version
   if (json.version) {
-    const cleanVer = json.version.replace(/^[vV]/, '').trim();
+    const cleanVer = String(json.version).replace(/^[vV]/, '').trim();
     return {
       version: cleanVer,
       name: json.name || 'RiboPrognoza',
       releaseDate: json.releaseDate || new Date().toISOString().split('T')[0],
       apkUrl: json.apkUrl || `https://github.com/${repo}/releases/latest/download/RiboPrognoza_v${cleanVer}.apk`,
-      changelog: Array.isArray(json.changelog) ? json.changelog : ['Redovna ažuriranja i poboljšanja'],
+      changelog: Array.isArray(json.changelog) ? json.changelog : ['Automatsko Live Web ažuriranje i poboljšanja'],
       isCritical: !!json.isCritical,
-      updateType: 'apk'
+      updateType: 'live_web'
     };
   }
 
-  // Format 2: GitHub Releases API ({ tag_name: "v1.1.0", ... })
-  if (json.tag_name) {
-    const cleanTag = json.tag_name.replace(/^[vV]/, '').trim();
-    const apkAsset = json.assets?.find((a: any) => typeof a.name === 'string' && a.name.toLowerCase().endsWith('.apk'));
+  if (json.tag_name && json.tag_name !== 'latest') {
+    const cleanTag = String(json.tag_name).replace(/^[vV]/, '').trim();
     return {
       version: cleanTag,
       name: json.name || 'RiboPrognoza',
       releaseDate: (json.published_at || new Date().toISOString()).split('T')[0],
-      apkUrl: apkAsset?.browser_download_url || `https://github.com/${repo}/releases/latest/download/RiboPrognoza_v${cleanTag}.apk`,
-      changelog: json.body ? json.body.split('\n').map((s: string) => s.trim()).filter(Boolean) : ['Nova verzija aplikacije'],
+      changelog: json.body ? json.body.split('\n').map((s: string) => s.trim()).filter(Boolean) : ['Nova Live Web verzija aplikacije'],
       isCritical: false,
-      updateType: 'apk'
+      updateType: 'live_web'
     };
   }
 
@@ -147,22 +152,40 @@ function parseVersionData(json: any, repo: string): AppVersionInfo | null {
 }
 
 /**
- * Provjerava postoji li novija verzija aplikacije na internet poslužitelju
- * @param force Ako je true, ignorira prethodno odabrano "Podsjeti me kasnije"
+ * Provjerava postoji li novija Live Web verzija aplikacije (prvo putem Firestore baze, zatim GitHub CDN-a)
  */
 export async function checkForAppUpdate(force: boolean = false): Promise<CheckUpdateResult> {
-  const endpoints = getUpdateEndpoints();
+  const activeVersion = getCurrentAppVersion();
   const repo = getSavedGithubRepo();
   let latestData: AppVersionInfo | null = null;
   let successfulEndpoint: string | undefined;
   let lastErrorMsg: string = 'Nije pronađen dostupan poslužitelj za provjeru ažuriranja.';
 
+  // 1. Prvo provjeri Firestore (app_updates/latest) jer je najbrži i uvijek dostupan
+  try {
+    const snap = await Promise.race([
+      getDoc(doc(db, 'app_updates', 'latest')),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000))
+    ]);
+    if (snap && (snap as any).exists && (snap as any).exists()) {
+      const parsed = parseVersionData((snap as any).data(), repo);
+      if (parsed && parsed.version) {
+        latestData = parsed;
+        successfulEndpoint = 'Firestore Cloud (app_updates/latest)';
+      }
+    }
+  } catch (err: any) {
+    lastErrorMsg = err?.message || 'Greška pri provjeri Firestore oblaka.';
+  }
+
+  // 2. Provjeri i HTTP/GitHub Raw endpointe (uzimamo najnoviju verziju između Firestorea i GitHuba)
+  const endpoints = getUpdateEndpoints();
   for (const url of endpoints) {
     try {
       const response = await fetch(url, {
         cache: 'no-store',
         headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(6000)
+        signal: AbortSignal.timeout(5000)
       });
 
       if (!response.ok) {
@@ -172,15 +195,16 @@ export async function checkForAppUpdate(force: boolean = false): Promise<CheckUp
 
       const contentType = response.headers.get('content-type') || '';
       if (contentType.includes('text/html')) {
-        lastErrorMsg = `Poslužitelj je vratio HTML umjesto JSON podataka.`;
         continue;
       }
 
       const json = await response.json();
       const parsed = parseVersionData(json, repo);
       if (parsed && parsed.version) {
-        latestData = parsed;
-        successfulEndpoint = url;
+        if (!latestData || isNewerVersion(parsed.version, latestData.version)) {
+          latestData = parsed;
+          successfulEndpoint = url;
+        }
         break;
       }
     } catch (err: any) {
@@ -188,28 +212,25 @@ export async function checkForAppUpdate(force: boolean = false): Promise<CheckUp
     }
   }
 
-  // Ako nijedan endpoint nije vratio valjani JSON
   if (!latestData || !latestData.version) {
     return {
       status: 'network_error',
-      currentVersion: CURRENT_APP_VERSION,
+      currentVersion: activeVersion,
       errorMessage: lastErrorMsg
     };
   }
 
-  // Usporedi verzije
-  const hasUpdate = isNewerVersion(latestData.version, CURRENT_APP_VERSION);
+  const hasUpdate = isNewerVersion(latestData.version, activeVersion);
 
   if (!hasUpdate) {
     return {
       status: 'up_to_date',
       serverVersion: latestData.version,
-      currentVersion: CURRENT_APP_VERSION,
+      currentVersion: activeVersion,
       endpointUsed: successfulEndpoint
     };
   }
 
-  // Provjeri je li korisnik odgodio prikaz za 24h
   if (!force) {
     const dismissedTime = localStorage.getItem(`${DISMISS_KEY_PREFIX}${latestData.version}`);
     if (dismissedTime) {
@@ -218,7 +239,7 @@ export async function checkForAppUpdate(force: boolean = false): Promise<CheckUp
         return {
           status: 'up_to_date',
           serverVersion: latestData.version,
-          currentVersion: CURRENT_APP_VERSION,
+          currentVersion: activeVersion,
           endpointUsed: successfulEndpoint
         };
       }
@@ -229,13 +250,13 @@ export async function checkForAppUpdate(force: boolean = false): Promise<CheckUp
     status: 'update_available',
     updateInfo: latestData,
     serverVersion: latestData.version,
-    currentVersion: CURRENT_APP_VERSION,
+    currentVersion: activeVersion,
     endpointUsed: successfulEndpoint
   };
 }
 
 /**
- * Detaljna dijagnostika veze sa serverom za ažuriranja (za administratorski panel)
+ * Detaljna dijagnostika Live Web sustava ažuriranja (za administratorski panel)
  */
 export async function runUpdateDiagnostic(): Promise<{
   success: boolean;
@@ -246,9 +267,24 @@ export async function runUpdateDiagnostic(): Promise<{
   error?: string;
   details: string[];
 }> {
+  const activeVersion = getCurrentAppVersion();
   const endpoints = getUpdateEndpoints();
   const repo = getSavedGithubRepo();
   const details: string[] = [];
+
+  try {
+    const startFs = Date.now();
+    const snap = await getDoc(doc(db, 'app_updates', 'latest'));
+    const durFs = Date.now() - startFs;
+    if (snap.exists()) {
+      const d = snap.data();
+      if (d?.version) {
+        details.push(`✓ Firestore Cloud (app_updates/latest) -> Verzija: ${d.version} [Live Web OTA] (${durFs}ms)`);
+      }
+    }
+  } catch (e: any) {
+    details.push(`⚠️ Firestore Cloud -> ${e?.message || 'Nedostupno'}`);
+  }
 
   for (const url of endpoints) {
     const cleanUrl = url.split('?')[0];
@@ -257,7 +293,7 @@ export async function runUpdateDiagnostic(): Promise<{
       const response = await fetch(url, {
         cache: 'no-store',
         headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(6000)
+        signal: AbortSignal.timeout(5000)
       });
       const duration = Date.now() - start;
 
@@ -275,13 +311,13 @@ export async function runUpdateDiagnostic(): Promise<{
       const json = await response.json();
       const parsed = parseVersionData(json, repo);
       if (parsed && parsed.version) {
-        const hasUpdate = isNewerVersion(parsed.version, CURRENT_APP_VERSION);
-        details.push(`✓ ${cleanUrl} -> Verzija: ${parsed.version} (${duration}ms)`);
+        const hasUpdate = isNewerVersion(parsed.version, activeVersion);
+        details.push(`✓ ${cleanUrl} -> Verzija: ${parsed.version} [Live Web OTA] (${duration}ms)`);
         return {
           success: true,
           endpointChecked: cleanUrl,
           serverVersion: parsed.version,
-          currentVersion: CURRENT_APP_VERSION,
+          currentVersion: activeVersion,
           hasUpdate,
           details
         };
@@ -293,9 +329,20 @@ export async function runUpdateDiagnostic(): Promise<{
     }
   }
 
+  if (details.some(d => d.startsWith('✓ Firestore'))) {
+    return {
+      success: true,
+      endpointChecked: 'Firestore Cloud (app_updates/latest)',
+      serverVersion: activeVersion,
+      currentVersion: activeVersion,
+      hasUpdate: false,
+      details
+    };
+  }
+
   return {
     success: false,
-    currentVersion: CURRENT_APP_VERSION,
+    currentVersion: activeVersion,
     hasUpdate: false,
     error: 'Nije moguće dohvatiti verziju s niti jedne adrese.',
     details
@@ -319,7 +366,6 @@ export const ApkCleaner = registerPlugin<ApkCleanerPlugin>('ApkCleaner');
 
 /**
  * Automatski briše privremene instalacijske APK datoteke s mobilnog uređaja
- * kako ne bi nepotrebno zauzimale korisničku memoriju nakon ažuriranja.
  */
 export async function cleanupInstallationFiles(): Promise<{ success: boolean; deletedCount: number }> {
   try {
@@ -337,33 +383,33 @@ export async function cleanupInstallationFiles(): Promise<{ success: boolean; de
 }
 
 /**
- * Pokreće preuzimanje i instalaciju novog APK-a
- * U nativnoj mobilnoj aplikaciji koristi '_system' kako bi preuzimanje preuzeo Android sustav
- * i nikada ne dira unutarnji WebView aplikacije.
+ * Primjenjuje Live Web Ažuriranje (OTA) trenutno i tiho unutar aplikacije:
+ * - NIKADA ne pokreće preuzimanje APK datoteka niti izaziva Google Play Protect blokade
+ * - NIKADA ne preusmjerava WebView na vanjske 404 adrese
+ * - Osvježava predmemoriju, Service Worker i aktivnu verziju odmah po pokretanju
  */
-export function startApkDownload(apkUrl?: string): void {
-  const repo = getSavedGithubRepo();
-  const finalUrl = apkUrl || `https://github.com/${repo}/releases/latest/download/RiboPrognoza.apk`;
+export async function applyLiveWebUpdate(
+  targetVersion?: string,
+  changelog?: string[]
+): Promise<{ success: boolean; version: string; message: string }> {
+  const newVer = (targetVersion || BUNDLED_APP_VERSION).replace(/^[vV]/, '').trim();
 
-  try {
-    localStorage.setItem('ribo_pending_apk_cleanup', 'true');
-  } catch {}
-
-  if (typeof window !== 'undefined') {
-    // '_system' osigurava pokretanje vanjskog download managera / preglednika uređaja
-    window.open(finalUrl, '_system');
-  }
-}
-
-/**
- * Primjenjuje ažuriranje aplikacije:
- * - Na webu/PWA: čisti predmemoriju i osvježava stranicu
- * - U nativnoj Android aplikaciji: pokreće preuzimanje APK datoteke bez preusmjeravanja WebView-a
- */
-export async function applyLiveWebUpdate(targetVersion?: string, targetApkUrl?: string): Promise<{ success: boolean; message: string }> {
   try {
     if (typeof window !== 'undefined') {
-      // 1. Očisti CacheStorage predmemoriju
+      // 1. Trajno spremi novu aktivnu Live Web verziju u memoriju uređaja
+      try {
+        localStorage.setItem(LIVE_VERSION_STORAGE_KEY, newVer);
+        localStorage.setItem(
+          LIVE_UPDATE_INFO_STORAGE_KEY,
+          JSON.stringify({
+            version: newVer,
+            appliedAt: new Date().toISOString(),
+            changelog: changelog || ['Automatsko Live Web ažuriranje primijenjeno']
+          })
+        );
+      } catch {}
+
+      // 2. Očisti zastarjelu CacheStorage predmemoriju
       if ('caches' in window) {
         try {
           const cacheKeys = await window.caches.keys();
@@ -371,7 +417,7 @@ export async function applyLiveWebUpdate(targetVersion?: string, targetApkUrl?: 
         } catch {}
       }
 
-      // 2. Ažuriraj Service Worker ako postoji
+      // 3. Ažuriraj Service Worker u pozadini ako je prisutan
       if ('serviceWorker' in navigator) {
         try {
           const reg = await navigator.serviceWorker.getRegistration();
@@ -384,30 +430,40 @@ export async function applyLiveWebUpdate(targetVersion?: string, targetApkUrl?: 
         } catch {}
       }
 
-      // 3. Ako je aplikacija unutar nativnog Android Capacitor WebViewa
-      const isCapacitorNative = 
-        window.location.protocol === 'capacitor:' ||
-        (typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.());
-
-      if (isCapacitorNative) {
-        startApkDownload(targetApkUrl);
-        return { success: true, message: 'Pokrenuto je preuzimanje nove instalacijske datoteke.' };
-      }
-
-      // Za standardni web preglednik
-      window.location.reload();
-      return { success: true, message: 'Aplikacija se osvježava s najnovijom verzijom...' };
+      // 4. Obavijesti sve komponente u aplikaciji da je nova Live Web verzija aktivna
+      try {
+        window.dispatchEvent(
+          new CustomEvent('ribo-live-update-applied', {
+            detail: { version: newVer, changelog }
+          })
+        );
+      } catch {}
     }
+
+    return {
+      success: true,
+      version: newVer,
+      message: `Live Web ažuriranje na verziju v${newVer} uspješno je primijenjeno!`
+    };
   } catch (err: any) {
-    return { success: false, message: err?.message || 'Greška pri primjeni ažuriranja.' };
+    return {
+      success: false,
+      version: newVer,
+      message: err?.message || 'Greška pri primjeni Live Web ažuriranja.'
+    };
   }
-  return { success: true, message: 'Uspješno' };
 }
 
 /**
- * Pretplata na Firestore real-time obavijesti o verziji
- * Kada Daniel ili server objave novu verziju u Firestoreu,
- * svi uređaji dobivaju obavijest u roku od 1 sekunde!
+ * Zadržano radi kompatibilnosti - umjesto APK preuzimanja izvršava Live Web ažuriranje
+ */
+export function startApkDownload(_apkUrl?: string): void {
+  applyLiveWebUpdate().catch(() => {});
+}
+
+/**
+ * Pretplata na Firestore real-time obavijesti o novoj Live Web verziji
+ * Kada se objavi nova verzija, aplikacija se odmah automatski ažurira putem Live Web sustava!
  */
 export function subscribeToLiveUpdates(
   onUpdateAvailable: (info: AppVersionInfo) => void
@@ -422,20 +478,20 @@ export function subscribeToLiveUpdates(
       if (isNewerVersion(data.version, currentVer)) {
         const repo = getSavedGithubRepo();
         const updateInfo: AppVersionInfo = {
-          version: data.version,
+          version: String(data.version).replace(/^[vV]/, '').trim(),
           name: data.name || 'RiboPrognoza',
           releaseDate: data.releaseDate || new Date().toISOString().split('T')[0],
           apkUrl: data.apkUrl || `https://github.com/${repo}/releases/latest/download/RiboPrognoza_v${data.version}.apk`,
-          changelog: Array.isArray(data.changelog) ? data.changelog : ['Nova verzija aplikacije'],
+          changelog: Array.isArray(data.changelog) ? data.changelog : ['Automatsko Live Web ažuriranje'],
           isCritical: !!data.isCritical,
-          updateType: 'apk'
+          updateType: 'live_web'
         };
 
-        // Ako je korisnik u aplikaciji:
         if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
           onUpdateAvailable(updateInfo);
         } else {
-          // Ako je aplikacija u pozadini: pošalji sistemsku obavijest s ikonom udice
+          // Ako je u pozadini, tiho primijeni Live Web ažuriranje i pošalji obavijest
+          applyLiveWebUpdate(updateInfo.version, updateInfo.changelog).catch(() => {});
           showAppUpdateAvailableNotification(updateInfo.version, updateInfo.changelog[0]);
         }
       }

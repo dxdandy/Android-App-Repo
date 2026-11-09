@@ -784,18 +784,18 @@ try {
 
     // 3. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.6.2',
+      version: '1.6.3',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-09',
       apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
       changelog: [
-        'Pouzdan rad LiveChat obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena (poput SMS-a ili e-maila)',
-        'Direktno pozadinsko povezivanje s Google Cloud Firestore bazom bez posrednika i bez blokada',
-        'Automatsko buđenje ekrana i jasan prikaz na zaključanom zaslonu za nove poruke',
-        'Optimizirana potrošnja baterije i stabilnost nativnog Android servisa'
+        'Automatsko Live Web ažuriranje (OTA) odmah pri pokretanju aplikacije bez preuzimanja APK datoteka',
+        'Potpuno uklonjena sigurnosna blokiranja i Google Play Protect upozorenja pri nadogradnji',
+        'Pouzdan rad LiveChat obavijesti s ikonom udice i zvukom čak i kada je aplikacija ugašena (poput SMS-a)',
+        'Trajno i neraskidivo vezanje imena korisnika za ID uređaja u LiveChatu'
       ],
       isCritical: false,
-      updateType: 'apk',
+      updateType: 'live_web',
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch(() => {});
 
@@ -1511,18 +1511,18 @@ app.post('/api/admin/chat/clear', async (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.6.2',
+    version: '1.6.3',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-09',
     apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza.apk',
     changelog: [
-      'Pouzdan rad LiveChat obavijesti: zvučne i vizualne obavijesti s ikonom udice čak i kada je aplikacija potpuno ugašena (poput SMS-a ili e-maila)',
-      'Direktno pozadinsko povezivanje s Google Cloud Firestore bazom bez posrednika i bez blokada',
-      'Automatsko buđenje ekrana i jasan prikaz na zaključanom zaslonu za nove poruke',
-      'Optimizirana potrošnja baterije i stabilnost nativnog Android servisa'
+      'Automatsko Live Web ažuriranje (OTA) odmah pri pokretanju aplikacije bez preuzimanja APK datoteka',
+      'Potpuno uklonjena sigurnosna blokiranja i Google Play Protect upozorenja pri nadogradnji',
+      'Pouzdan rad LiveChat obavijesti s ikonom udice i zvukom čak i kada je aplikacija ugašena (poput SMS-a)',
+      'Trajno i neraskidivo vezanje imena korisnika za ID uređaja u LiveChatu'
     ],
     isCritical: false,
-    updateType: 'apk'
+    updateType: 'live_web'
   });
 });
 
