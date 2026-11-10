@@ -4,7 +4,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, query, orderBy, limitToLast } from 'firebase/firestore';
+import { getFirestore, setLogLevel, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, query, orderBy, limitToLast } from 'firebase/firestore';
+
+// Isključi interne @firebase/firestore GrpcConnection obavijesti o zatvaranju neaktivnih (idle) streamova
+setLogLevel('silent');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

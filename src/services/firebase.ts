@@ -1,6 +1,9 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, setLogLevel, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+
+// Isključi interne @firebase/firestore poruke o zatvaranju neaktivnih (idle) streamova
+setLogLevel('silent');
 
 const app = getApps().length === 0
   ? initializeApp({
