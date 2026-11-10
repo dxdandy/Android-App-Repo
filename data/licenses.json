@@ -68,12 +68,12 @@
   {
     "deviceId": "RP-RSPP-8VUB",
     "activationKey": "AKT-8VGZ-B26J",
-    "userName": "Ribič (8VUB)",
+    "userName": "Krasni",
     "status": "active",
     "chatEnabled": true,
-    "nameSetByAdmin": false,
+    "nameSetByAdmin": true,
     "createdAt": "2026-11-09T14:04:29.853Z",
-    "lastSeenAt": "2026-11-09T14:49:10.028Z"
+    "lastSeenAt": "2026-11-10T19:52:05.432Z"
   },
   {
     "deviceId": "RP-HGT8-UC5D",

@@ -325,12 +325,11 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
   };
 
   const handleDeleteChatMessage = async (msgId: string) => {
-    if (!window.confirm('Želite li obrisati ovu poruku iz chata?')) return;
     try {
-      await deleteChatMessageAsAdmin(pinInput || '2026', msgId);
       setChatMessages(prev => prev.filter(m => m.id !== msgId));
+      await deleteChatMessageAsAdmin(pinInput || '2026', msgId);
     } catch (err: any) {
-      alert('Greška pri brisanju poruke: ' + err.message);
+      console.error('Greška pri brisanju poruke:', err);
     }
   };
 
@@ -1064,7 +1063,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onTestUpdatePopup && onTestUpdatePopup({
-                        version: '1.8.0',
+                        version: '1.8.1',
                         name: 'RiboPrognoza',
                         releaseDate: new Date().toISOString().split('T')[0],
                         changelog: [

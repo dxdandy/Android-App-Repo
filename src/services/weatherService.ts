@@ -412,8 +412,8 @@ async function fetchUniversalText(url: string, timeoutMs = 8000): Promise<string
       if (response && response.status === 200 && response.data) {
         return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
       }
-    } catch (e) {
-      console.warn(`CapacitorHttp native fetch failed for ${url}:`, e);
+    } catch {
+      // Tiho prijeđi na standardni web fetch
     }
   }
 
@@ -471,8 +471,8 @@ async function fetchUniversalJson<T>(url: string, timeoutMs = 6000): Promise<T |
           return JSON.parse(response.data) as T;
         }
       }
-    } catch (e) {
-      console.warn(`CapacitorHttp native json failed for ${url}:`, e);
+    } catch {
+      // Tiho prijeđi na standardni web fetch
     }
   }
 
@@ -703,8 +703,8 @@ async function fetchDirectAljmasWaterTemp(): Promise<number | null> {
         if (!isNaN(val)) return val;
       }
     }
-  } catch (err) {
-    console.warn('Greška pri izravnom dohvatu temperature vode za Aljmaš:', err);
+  } catch {
+    // Tiho prijeđi na pohranjeni podatak
   }
   return null;
 }
@@ -722,8 +722,8 @@ async function fetchDirectBogojevoWaterTemp(): Promise<number | null> {
         if (!isNaN(val)) return val;
       }
     }
-  } catch (err) {
-    console.warn('Greška pri izravnom dohvatu temperature vode za Bogojevo:', err);
+  } catch {
+    // Tiho prijeđi na pohranjeni podatak
   }
   return null;
 }
@@ -916,8 +916,8 @@ export async function fetchAljmasStationData(): Promise<StationWaterData> {
       if (typeof vPressure === 'number') {
         airPressureHpa = vPressure;
       }
-    } catch (err) {
-      console.warn('Greška pri izravnom dohvatu Aljmaš podataka:', err);
+    } catch {
+      // Tiho prijeđi na pohranjeni podatak
     }
 
     if (airPressureHpa > 1019) airPressureTrend = 'rast';
@@ -1077,8 +1077,8 @@ export async function fetchBogojevoStationData(): Promise<StationWaterData> {
       if (typeof vPressure === 'number') {
         airPressureHpa = vPressure;
       }
-    } catch (err) {
-      console.warn('Greška pri izravnom dohvatu Bogojevo podataka:', err);
+    } catch {
+      // Tiho prijeđi na pohranjeni podatak
     }
 
     if (airPressureHpa > 1019) airPressureTrend = 'rast';

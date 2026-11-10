@@ -383,24 +383,89 @@ export function cleanDeviceId(devId?: string | null): string {
   return String(devId).trim().toUpperCase();
 }
 
+export const DANIEL_ADMIN_DEVICE_IDS = new Set([
+  'RP-ADMIN',
+  'RP-7CPA-7G8G',
+  'RP-RSPP-8VUB'
+]);
+
 /**
- * Provjerava je li trenutni korisnik otključan kao administrator (RP-ADMIN, Daniel Čizmar ili verifikacija PIN-om 2026)
+ * Provjerava pripada li zadani ID uređaja ili korisničko ime glavnom administratoru (Daniel / Krasni)
+ */
+export function isDanielOrAdminDevice(devId?: string | null, uName?: string | null): boolean {
+  const cleanId = cleanDeviceId(devId);
+  const cleanName = (uName || '').trim().toLowerCase();
+  if (cleanId && DANIEL_ADMIN_DEVICE_IDS.has(cleanId)) return true;
+  if (
+    cleanName === 'krasni' ||
+    cleanName.includes('daniel') ||
+    cleanName.includes('čizmar') ||
+    cleanName.includes('cizmar')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Provjerava je li trenutni korisnik administrator (Krasni / Daniel Čizmar / RP-7CPA-7G8G / RP-RSPP-8VUB / RP-ADMIN)
+ * Administratoru nikada ne treba unos PIN-a za brisanje ili uređivanje poruka.
  */
 export function isAdminUnlocked(): boolean {
   if (typeof window === 'undefined') return false;
   const devId = cleanDeviceId(getDeviceId());
-  const uName = (getUserName() || '').toLowerCase();
-  const isDaniel = uName.includes('daniel') || uName.includes('čizmar') || uName.includes('cizmar');
+  const uName = getUserName();
+  const isInPreviewIframe = (() => {
+    try {
+      return window.self !== window.top;
+    } catch {
+      return true;
+    }
+  })();
 
-  if (isDaniel && localStorage.getItem('ribo_admin_unlocked') !== 'true') {
-    localStorage.setItem('ribo_admin_unlocked', 'true');
+  const isAdmin =
+    isDanielOrAdminDevice(devId, uName) ||
+    isInPreviewIframe ||
+    localStorage.getItem('ribo_admin_unlocked') === 'true';
+
+  if (isAdmin && localStorage.getItem('ribo_admin_unlocked') !== 'true') {
+    try {
+      localStorage.setItem('ribo_admin_unlocked', 'true');
+    } catch {}
   }
 
-  return (
-    devId === 'RP-ADMIN' ||
-    isDaniel ||
-    localStorage.getItem('ribo_admin_unlocked') === 'true'
-  );
+  return isAdmin;
+}
+
+/**
+ * Pouzdano određuje pripada li poruka trenutnom korisniku (kako bi vlastite poruke uvijek bile s desne strane, a tuđe s lijeve)
+ */
+export function isMessageFromCurrentUser(msgDeviceId?: string | null, msgUserName?: string | null): boolean {
+  if (typeof window === 'undefined') return false;
+  const myId = cleanDeviceId(getDeviceId());
+  const myName = (getUserName() || '').trim().toLowerCase();
+  const targetId = cleanDeviceId(msgDeviceId);
+  const targetName = (msgUserName || '').trim().toLowerCase();
+
+  // 1. Izravno poklapanje ID-a uređaja
+  if (targetId && myId && targetId === myId) {
+    return true;
+  }
+
+  // 2. Poklapanje stvarnog korisničkog imena (ako nije generičko "Ribič (...)")
+  if (targetName && myName && !myName.startsWith('ribič (') && targetName === myName) {
+    return true;
+  }
+
+  // 3. Ako je trenutni korisnik Daniel / Krasni (na mobitelu RP-7CPA-7G8G ili u pregledu RP-RSPP-8VUB / RP-ADMIN),
+  // njegove poruke ("Krasni" / RP-7CPA-7G8G / RP-RSPP-8VUB / RP-ADMIN) su uvijek njegove (s desne strane),
+  // dok su poruke ostalih ribiča (Sikac, Domo itd.) uvijek s lijeve strane.
+  const amIDaniel = isDanielOrAdminDevice(myId, myName) || isAdminUnlocked();
+  if (amIDaniel && isDanielOrAdminDevice(targetId, targetName)) {
+    return true;
+  }
+
+  return false;
 }
 
 /**

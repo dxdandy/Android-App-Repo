@@ -9,7 +9,8 @@ import {
   getLocalLicenses,
   renameUserAsAdmin,
   isAdminUnlocked,
-  setAdminUnlocked
+  setAdminUnlocked,
+  isMessageFromCurrentUser
 } from './licenseService';
 import { updateAppBadge } from './notificationService';
 import { syncLastSeenMessageToNative } from './nativeNotifierService';
@@ -28,7 +29,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 
-export { updateAppBadge, renameUserAsAdmin, isAdminUnlocked, setAdminUnlocked };
+export { updateAppBadge, renameUserAsAdmin, isAdminUnlocked, setAdminUnlocked, isMessageFromCurrentUser };
 
 export interface ChatReadReceipt {
   deviceId: string;
@@ -90,11 +91,33 @@ const FIRESTORE_REST_BASE =
 // Evidencija već poslanih potvrda čitanja u ovoj sesiji kako se nikada ne bi slali dupli upiti
 const sentReadReceiptsSet = new Set<string>();
 
+const DELETED_CHAT_IDS_STORAGE_KEY = 'ribo_deleted_chat_msg_ids';
+
+function loadDeletedMessageIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set<string>();
+  try {
+    const raw = localStorage.getItem(DELETED_CHAT_IDS_STORAGE_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set<string>(arr);
+    }
+  } catch {}
+  return new Set<string>();
+}
+
+function saveDeletedMessageIds(set: Set<string>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const arr = Array.from(set).slice(-200);
+    localStorage.setItem(DELETED_CHAT_IDS_STORAGE_KEY, JSON.stringify(arr));
+  } catch {}
+}
+
 // Dijeljena mapa poruka i imena za sve komponente u aplikaciji (Singleton)
 const sharedMessageMap = new Map<string, ChatMessage>();
 const sharedUserNamesMap = new Map<string, string>();
 const activeSubscribers = new Set<(result: FetchChatResult) => void>();
-const deletedMessageIds = new Set<string>();
+const deletedMessageIds = loadDeletedMessageIds();
 
 let sharedUnsubscribeLicenses: Unsubscribe | null = null;
 let sharedUnsubscribeMessages: Unsubscribe | null = null;
@@ -237,7 +260,7 @@ function emitToAllSubscribers(): void {
   }
 
   const sorted = Array.from(sharedMessageMap.values())
-    .filter(m => m && m.id && m.id !== '_room_state_' && (m.text || m.imageUrl))
+    .filter(m => m && m.id && m.id !== '_room_state_' && !deletedMessageIds.has(m.id) && (m.text || m.imageUrl))
     .map(msg => normalizeChatMessage(msg.id, msg))
     .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
@@ -258,7 +281,26 @@ function emitToAllSubscribers(): void {
  */
 function ingestRoomStateFields(docFields: Record<string, any>, isRestFormat: boolean): boolean {
   let hasChanges = false;
-  const roomEntries: { key: string; msg: ChatMessage }[] = [];
+
+  // Provjeri popis obrisanih poruka (_deleted_ids) kako bi se odmah uklonile kod svih korisnika
+  const rawDeleted = isRestFormat ? docFields?._deleted_ids?.stringValue : docFields?._deleted_ids;
+  if (typeof rawDeleted === 'string' && rawDeleted) {
+    try {
+      const delArr = JSON.parse(rawDeleted);
+      if (Array.isArray(delArr)) {
+        delArr.forEach((delId: string) => {
+          if (delId) {
+            deletedMessageIds.add(delId);
+            if (sharedMessageMap.has(delId)) {
+              sharedMessageMap.delete(delId);
+              hasChanges = true;
+            }
+          }
+        });
+        saveDeletedMessageIds(deletedMessageIds);
+      }
+    } catch {}
+  }
 
   for (const [k, valObj] of Object.entries(docFields || {})) {
     if (!k.startsWith('m_')) continue;
@@ -274,7 +316,6 @@ function ingestRoomStateFields(docFields: Record<string, any>, isRestFormat: boo
           }
           continue;
         }
-        roomEntries.push({ key: k, msg: parsed });
         const existing = sharedMessageMap.get(parsed.id);
         const norm = normalizeChatMessage(parsed.id, parsed);
         if (
@@ -322,6 +363,9 @@ async function syncRoomStateViaRestPatch(changedMsg?: ChatMessage, deletedMsgId?
     if (deletedMsgId) {
       const delKey = sanitizeFieldKey(deletedMsgId);
       queryParams.push(`updateMask.fieldPaths=${encodeURIComponent(delKey)}`);
+      queryParams.push('updateMask.fieldPaths=_deleted_ids');
+      const recentDeleted = Array.from(deletedMessageIds).slice(-80);
+      fieldsPayload._deleted_ids = { stringValue: JSON.stringify(recentDeleted) };
     }
 
     const url = `${FIRESTORE_REST_BASE}/app_updates/chat_room_state?${queryParams.join('&')}`;
@@ -603,7 +647,8 @@ export async function editMyChatMessage(
     return { success: false, error: 'Poruka nije pronađena.' };
   }
 
-  if (targetMsg.deviceId !== myDeviceId && !isAdminUnlocked()) {
+  const canEdit = isMessageFromCurrentUser(targetMsg.deviceId, targetMsg.userName) || isAdminUnlocked();
+  if (!canEdit) {
     return { success: false, error: 'Možete uređivati samo vlastite poruke.' };
   }
 
@@ -733,7 +778,7 @@ function ensureSharedSubscriptionStarted(deviceId: string): void {
         }
       });
       snapshot.forEach(docSnap => {
-        if (docSnap.id === '_room_state_') return;
+        if (docSnap.id === '_room_state_' || deletedMessageIds.has(docSnap.id)) return;
         const data = docSnap.data();
         const newMsg = normalizeChatMessage(docSnap.id, data);
         sharedMessageMap.set(newMsg.id, newMsg);
@@ -796,8 +841,10 @@ function ensureSharedSubscriptionStarted(deviceId: string): void {
             emitToAllSubscribers();
           } else if (Array.isArray(res.data.messages)) {
             let hasNew = false;
+            const serverIds = new Set<string>();
             res.data.messages.forEach(m => {
-              if (!m || !m.id) return;
+              if (!m || !m.id || deletedMessageIds.has(m.id)) return;
+              serverIds.add(m.id);
               const existing = sharedMessageMap.get(m.id);
               const existingReadLen = existing?.readBy?.length || 0;
               const newReadLen = m.readBy?.length || 0;
@@ -816,7 +863,20 @@ function ensureSharedSubscriptionStarted(deviceId: string): void {
                 hasNew = true;
               }
             });
-            if (hasNew) emitToAllSubscribers();
+            // Ako je poruka obrisana na poslužitelju (a starija je od 5 sekundi), ukloni je i iz lokalne mape
+            const now = Date.now();
+            Array.from(sharedMessageMap.keys()).forEach(id => {
+              const msg = sharedMessageMap.get(id);
+              if (msg && !serverIds.has(id) && now - (msg.createdAt || 0) > 5000) {
+                sharedMessageMap.delete(id);
+                deletedMessageIds.add(id);
+                hasNew = true;
+              }
+            });
+            if (hasNew) {
+              saveDeletedMessageIds(deletedMessageIds);
+              emitToAllSubscribers();
+            }
           }
         }
       } catch {}
@@ -1078,35 +1138,22 @@ export async function deleteChatMessage(
   }
 
   const myDeviceId = cleanDeviceId(getDeviceId());
-  const myUserName = (getUserName() || '').trim().toLowerCase();
   let targetMsg = sharedMessageMap.get(messageId);
   if (!targetMsg) {
     const cached = getLocalChatCache();
     targetMsg = cached.find(m => m.id === messageId);
   }
 
-  const isAdmin = 
-    isAdminUnlocked() || 
-    myDeviceId === 'RP-ADMIN' || 
-    myUserName.includes('daniel') || 
-    myUserName.includes('čizmar') || 
-    myUserName.includes('cizmar');
-
-  const targetDeviceId = cleanDeviceId(targetMsg?.deviceId);
-  const targetUserName = (targetMsg?.userName || '').trim().toLowerCase();
-
-  const isMine = Boolean(
-    (targetDeviceId && targetDeviceId === myDeviceId) ||
-    (targetUserName && myUserName && targetUserName === myUserName) ||
-    (myUserName.includes('daniel') && targetUserName.includes('daniel'))
-  );
+  const isAdmin = isAdminUnlocked();
+  const isMine = targetMsg ? isMessageFromCurrentUser(targetMsg.deviceId, targetMsg.userName) : true;
 
   if (targetMsg && !isMine && !isAdmin) {
-    return { success: false, error: 'Možete obrisati samo vlastite poruke ili unesite administratorski PIN.' };
+    return { success: false, error: 'Možete obrisati samo vlastite poruke.' };
   }
 
   // Zabilježi da je ova poruka obrisana tako da se nikada ne vrati iz stare predmemorije
   deletedMessageIds.add(messageId);
+  saveDeletedMessageIds(deletedMessageIds);
 
   // Odmah ukloni poruku lokalno (0ms kašnjenja, bez ikakvog traga)
   sharedMessageMap.delete(messageId);

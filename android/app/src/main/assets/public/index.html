@@ -65,6 +65,13 @@
             e.preventDefault();
           }
         }, true);
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (var i = 0; i < regs.length; i++) {
+              regs[i].unregister();
+            }
+          }).catch(function() {});
+        }
       })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -85,7 +92,19 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
     <script type="module">
-      window.__BUNDLED_APP_VERSION__ = "1.7.7";
+      window.__BUNDLED_APP_VERSION__ = "1.8.1";
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(regs => {
+            regs.forEach(r => r.unregister());
+          }).catch(() => {});
+        }
+        if ('caches' in window) {
+          window.caches.keys().then(keys => {
+            keys.forEach(k => window.caches.delete(k));
+          }).catch(() => {});
+        }
+      } catch {}
       function isNewerVer(remoteVer, currentVer) {
         if (!remoteVer || !currentVer) return false;
         const rParts = String(remoteVer).replace(/^[vV]/, '').trim().split('.').map(n => parseInt(n, 10) || 0);
@@ -167,7 +186,7 @@
       })();
     </script>
     <link rel="stylesheet" crossorigin href="/assets/app-bundle.css">
-  <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
+  <link rel="manifest" href="/manifest.webmanifest"></head>
   <body class="bg-slate-950 text-slate-100 select-none sm:select-auto antialiased overflow-x-hidden w-full m-0 p-0">
     <div id="root"></div>
   </body>

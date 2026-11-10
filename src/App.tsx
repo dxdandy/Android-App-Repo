@@ -234,13 +234,21 @@ export default function App() {
 
     const handleAutoApplyUpdate = async (newUpdate: AppVersionInfo) => {
       try {
+        const cleanVer = String(newUpdate.version || '').replace(/^[vV]/, '').trim();
+        const bannerKey = `ribo_ota_banner_shown_${cleanVer}`;
+        if (localStorage.getItem(bannerKey) === 'true') {
+          setActiveAppVersion(getCurrentAppVersion());
+          return;
+        }
+        localStorage.setItem(bannerKey, 'true');
+
         const res = await applyLiveWebUpdate(newUpdate.version, newUpdate.changelog);
         if (res.success) {
           setActiveAppVersion(res.version);
           setAvailableUpdate(null);
           setShowUpdateModal(false);
           setLiveUpdateBanner(`⚡ Live Web Ažuriranje: Aplikacija je automatski nadograđena na v${res.version}`);
-          setTimeout(() => setLiveUpdateBanner(null), 5000);
+          setTimeout(() => setLiveUpdateBanner(null), 4000);
           handleRefreshAll();
         }
       } catch {}

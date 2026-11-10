@@ -1,12 +1,12 @@
 {
-  "version": "1.7.4",
+  "version": "1.8.1",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-10",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.4.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.1.apk",
   "changelog": [
-    "Optimizacija baterije (Battery Saver): uklonjeno učestalo buđenje procesora (Frequent wakeups) dok je zaslon mobitela ugašen",
-    "Pametni pozadinski rad: automatsko pauziranje nepotrebnih mrežnih provjera dok je mobitel zaključan uz zadržavanje obavijesti o porukama",
-    "LiveChat lajkanje poruka (6 osnovnih emojija + prošireni (+) izbornik) i dvostruka sinkronizacija poruka"
+    "LiveChat: Trenutačno brisanje poruka jednim klikom (bez PIN-a i bez potvrda) - korisnici brišu vlastite poruke, a administrator sve poruke",
+    "LiveChat: Popravljeno poravnanje vlastitih poruka s desne strane i poruka ostalih ribiča s lijeve strane",
+    "Zaustavljena petlja višestrukog ažuriranja i uklonjen stari Service Worker cache"
   ],
   "isCritical": false,
   "updateType": "live_web"

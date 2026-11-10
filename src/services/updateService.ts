@@ -14,7 +14,7 @@ import { db } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 import { getApiUrl } from './licenseService';
 
-export const BUNDLED_APP_VERSION = '1.8.0';
+export const BUNDLED_APP_VERSION = '1.8.1';
 export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
 export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
 
@@ -95,26 +95,23 @@ export function isNewerVersion(remoteVer: string, currentVer: string): boolean {
  * Vraća trenutnu aktivnu verziju aplikacije (uzima u obzir instalirana Live Web ažuriranja)
  */
 export function getCurrentAppVersion(): string {
+  let bestVer = BUNDLED_APP_VERSION;
   if (typeof window !== 'undefined') {
     try {
-      // Ako se trenutno u memoriji izvršava OTA paket, to je stvarna verzija koda!
       const runningOtaVer = (window as any).__RUNNING_OTA_VERSION__;
-      if (runningOtaVer && isNewerVersion(runningOtaVer, BUNDLED_APP_VERSION)) {
-        return runningOtaVer.replace(/^[vV]/, '').trim();
+      if (runningOtaVer && isNewerVersion(runningOtaVer, bestVer)) {
+        bestVer = runningOtaVer.replace(/^[vV]/, '').trim();
       }
 
-      // Ako je zabilježena verzija u localStorageu, ali stvarni kod nije primijenjen, nemoj lažno prikazivati noviju verziju
       const liveVer = localStorage.getItem(LIVE_VERSION_STORAGE_KEY);
-      if (liveVer && isNewerVersion(liveVer, BUNDLED_APP_VERSION)) {
-        // Provjeri poklapa li se s pokrenutim kodom
-        if (runningOtaVer && runningOtaVer === liveVer) {
-          return liveVer.replace(/^[vV]/, '').trim();
-        }
+      if (liveVer && isNewerVersion(liveVer, bestVer)) {
+        bestVer = liveVer.replace(/^[vV]/, '').trim();
       }
-      localStorage.setItem(LIVE_VERSION_STORAGE_KEY, BUNDLED_APP_VERSION);
+
+      localStorage.setItem(LIVE_VERSION_STORAGE_KEY, bestVer);
     } catch {}
   }
-  return BUNDLED_APP_VERSION;
+  return bestVer;
 }
 
 export const CURRENT_APP_VERSION = getCurrentAppVersion();
@@ -648,23 +645,22 @@ export async function applyLiveWebUpdate(
 
   try {
     if (typeof window !== 'undefined') {
-      // 1. Preuzmi stvarni kompilirani kod nove verzije iz Firestore ota_bundle kolekcije
-      const otaCodeResult = await downloadAndCacheOtaCodeBundle();
+      // 1. Odmah trajno zabilježi novu verziju u localStorage kako se isto ažuriranje NIKADA ne bi ponavljalo u petlji!
+      try {
+        localStorage.setItem(LIVE_VERSION_STORAGE_KEY, newVer);
+        (window as any).__RUNNING_OTA_VERSION__ = newVer;
+        localStorage.setItem(
+          LIVE_UPDATE_INFO_STORAGE_KEY,
+          JSON.stringify({
+            version: newVer,
+            appliedAt: new Date().toISOString(),
+            changelog: changelog || ['Automatsko Live Web ažuriranje primijenjeno']
+          })
+        );
+      } catch {}
 
-      // 2. Trajno spremi novu aktivnu Live Web verziju u memoriju uređaja SAMO ako je kod uspješno preuzet i spremljen u IndexedDB!
-      if (otaCodeResult.downloadedNewCode || isNewerVersion(BUNDLED_APP_VERSION, newVer) === false) {
-        try {
-          localStorage.setItem(LIVE_VERSION_STORAGE_KEY, newVer);
-          localStorage.setItem(
-            LIVE_UPDATE_INFO_STORAGE_KEY,
-            JSON.stringify({
-              version: newVer,
-              appliedAt: new Date().toISOString(),
-              changelog: changelog || ['Automatsko Live Web ažuriranje primijenjeno']
-            })
-          );
-        } catch {}
-      }
+      // 2. Preuzmi kompilirani kod nove verzije
+      const otaCodeResult = await downloadAndCacheOtaCodeBundle();
 
       // 3. Očisti zastarjelu CacheStorage predmemoriju i stare podatke o temperaturi vode
       try {
@@ -679,16 +675,11 @@ export async function applyLiveWebUpdate(
         } catch {}
       }
 
-      // 4. Ažuriraj Service Worker u pozadini ako je prisutan
+      // 4. Ukloni sve stare Service Workere koji su posluživali staru verziju iz predmemorije
       if ('serviceWorker' in navigator) {
         try {
-          const reg = await navigator.serviceWorker.getRegistration();
-          if (reg) {
-            await reg.update();
-            if (reg.waiting) {
-              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-            }
-          }
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
         } catch {}
       }
 
@@ -701,11 +692,15 @@ export async function applyLiveWebUpdate(
         );
       } catch {}
 
-      // 6. Ako je preuzet novi kompilirani JS/CSS paket iz Firestorea, osvježi lokalni WebView da odmah učita novi kod!
-      if (otaCodeResult.downloadedNewCode) {
+      // 6. Osvježi WebView najviše JEDNOM po novoj verziji kako nikada ne bi ušao u petlju
+      const reloadKey = `ribo_ota_reloaded_${newVer}`;
+      if (otaCodeResult.downloadedNewCode && localStorage.getItem(reloadKey) !== 'true') {
+        try {
+          localStorage.setItem(reloadKey, 'true');
+        } catch {}
         setTimeout(() => {
           window.location.reload();
-        }, 400);
+        }, 350);
       }
     }
 

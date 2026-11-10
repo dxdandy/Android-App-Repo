@@ -38,6 +38,51 @@ export const HIDMET_BOGOJEVO_TEMP_URL = 'https://www.hidmet.gov.rs/latin/hidrolo
 export const VENTUSKY_BOGOJEVO_URL = 'https://www.ventusky.com/45.53;19.13';
 export const YR_BOGOJEVO_URL = 'https://www.yr.no/en/forecast/daily-table/2-12503703/Serbia/Vojvodina/West%20Ba%C4%8Dka%20District/Bogojevo%20border%20checkpoint';
 
+// Zadnji uspješno dohvaćeni podaci na poslužitelju (služe kao trenutni snapshot ako vanjski izvor privremeno vrati 502/503)
+let lastAljmasSnapshot: Record<string, any> = {
+  success: true,
+  stationName: 'Dunav - Aljmaš (Ušće Drave)',
+  riverKm: 'rkm 1380,300',
+  waterLevelCm: -70,
+  waterLevelTrend: 'opada',
+  waterLevelChangeCm: -1,
+  airTempC: 11.4,
+  waterTempC: 9.8,
+  airPressureHpa: 1025,
+  timeOfMeasurement: '08:00',
+  dateOfMeasurement: new Date().toLocaleDateString('hr-HR'),
+  maxLevelCm: 820,
+  maxLevelDate: '25.06.1965.',
+  prepLevelCm: 400,
+  recentHours: [],
+  sourceUrl: MVODOSTAJI_ALJMAS_URL,
+  waterTempSourceUrl: SEATEMP_ALJMAS_VUKOVAR_URL,
+  airPressureSourceUrl: VENTUSKY_ALJMAS_URL,
+  airTempSourceUrl: YR_ALJMAS_URL,
+  isLive: true
+};
+
+let lastBogojevoSnapshot: Record<string, any> = {
+  success: true,
+  stationName: 'RHMZ Dunav - Bogojevo',
+  waterBody: 'Dunav',
+  waterLevelCm: -77,
+  waterLevelChangeCm: -2,
+  waterLevelTrend: 'opada',
+  airTempC: 10.4,
+  waterTempC: 8.1,
+  airPressureHpa: 1025,
+  flowM3s: 1180,
+  forecastDays: [-92, -86, -90, -96],
+  regularDefenseCm: 600,
+  emergencyDefenseCm: 700,
+  sourceUrl: HIDMET_BOGOJEVO_URL,
+  waterTempSourceUrl: HIDMET_BOGOJEVO_TEMP_URL,
+  airPressureSourceUrl: VENTUSKY_BOGOJEVO_URL,
+  airTempSourceUrl: YR_BOGOJEVO_URL,
+  isLive: true
+};
+
 /**
  * Dohvat temperature zraka za Aljmaš s Yr.no (lokacija 2-3244159)
  */
@@ -61,8 +106,8 @@ async function fetchAljmasAirTemp(): Promise<number> {
         if (typeof val === 'number') return Math.round(val * 10) / 10;
       }
     }
-  } catch (err) {
-    console.warn('Greška pri dohvatu temperature s Yr.no (Aljmaš):', err);
+  } catch {
+    // Tiho prijeđi na sekundarni izvor (Met.no)
   }
 
   // Službeni Met.no model kao pouzdan fallback
@@ -77,7 +122,7 @@ async function fetchAljmasAirTemp(): Promise<number> {
       if (typeof val === 'number') return Math.round(val * 10) / 10;
     }
   } catch {}
-  return 9.9;
+  return lastAljmasSnapshot.airTempC ?? 9.9;
 }
 
 /**
@@ -103,8 +148,8 @@ async function fetchBogojevoAirTemp(): Promise<number> {
         if (typeof val === 'number') return Math.round(val * 10) / 10;
       }
     }
-  } catch (err) {
-    console.warn('Greška pri dohvatu temperature s Yr.no (Bogojevo):', err);
+  } catch {
+    // Tiho prijeđi na sekundarni izvor (Met.no)
   }
 
   // Službeni Met.no model kao pouzdan fallback
@@ -119,7 +164,7 @@ async function fetchBogojevoAirTemp(): Promise<number> {
       if (typeof val === 'number') return Math.round(val * 10) / 10;
     }
   } catch {}
-  return 10.4;
+  return lastBogojevoSnapshot.airTempC ?? 10.4;
 }
 
 /**
@@ -153,8 +198,8 @@ async function fetchAljmasAirPressure(): Promise<number> {
         if (!isNaN(inhg)) return Math.round(inhg * 33.8639);
       }
     }
-  } catch (err) {
-    console.warn('Greška pri dohvatu tlaka zraka s Ventusky (Aljmaš):', err);
+  } catch {
+    // Tiho prijeđi na Open-Meteo barometar
   }
 
   // Točan live MSL barometar za koordinate Aljmaša kao automatski fallback
@@ -168,7 +213,7 @@ async function fetchAljmasAirPressure(): Promise<number> {
       if (p) return Math.round(p);
     }
   } catch {}
-  return 1021;
+  return lastAljmasSnapshot.airPressureHpa ?? 1021;
 }
 
 /**
@@ -202,8 +247,8 @@ async function fetchBogojevoAirPressure(): Promise<number> {
         if (!isNaN(inhg)) return Math.round(inhg * 33.8639);
       }
     }
-  } catch (err) {
-    console.warn('Greška pri dohvatu tlaka zraka s Ventusky (Bogojevo):', err);
+  } catch {
+    // Tiho prijeđi na Open-Meteo barometar
   }
 
   // Točan live MSL barometar za koordinate Bogojeva kao automatski fallback
@@ -217,7 +262,7 @@ async function fetchBogojevoAirPressure(): Promise<number> {
       if (p) return Math.round(p);
     }
   } catch {}
-  return 1022;
+  return lastBogojevoSnapshot.airPressureHpa ?? 1022;
 }
 
 /**
@@ -233,21 +278,20 @@ async function fetchAljmasWaterTemp(): Promise<number> {
       },
       signal: AbortSignal.timeout(5000)
     });
-    if (!res.ok) throw new Error('seatemperature status ' + res.status);
-    const html = await res.text();
-    // Skroz lijeva temperatura s oznakom "Danas":
-    // <div class="temp-block cold"><div class="temp-value">12.9<span>°C</span></div><div class="temp-label">Danas</div></div>
-    const danasBlockMatch = html.match(/<div class="temp-value">\s*([+-]?\d+[.,]?\d*)\s*<span>°C<\/span><\/div>\s*<div class="temp-label">\s*Danas\s*<\/div>/i)
-      || html.match(/<div class="temp-block[^"]*">\s*<div class="temp-value">\s*([+-]?\d+[.,]?\d*)/i)
-      || html.match(/danas je\s*([+-]?\d+[.,]?\d*)\s*°C/i);
-    if (danasBlockMatch && danasBlockMatch[1]) {
-      const val = parseFloat(danasBlockMatch[1].replace(',', '.'));
-      if (!isNaN(val)) return val;
+    if (res.ok) {
+      const html = await res.text();
+      const danasBlockMatch = html.match(/<div class="temp-value">\s*([+-]?\d+[.,]?\d*)\s*<span>°C<\/span><\/div>\s*<div class="temp-label">\s*Danas\s*<\/div>/i)
+        || html.match(/<div class="temp-block[^"]*">\s*<div class="temp-value">\s*([+-]?\d+[.,]?\d*)/i)
+        || html.match(/danas je\s*([+-]?\d+[.,]?\d*)\s*°C/i);
+      if (danasBlockMatch && danasBlockMatch[1]) {
+        const val = parseFloat(danasBlockMatch[1].replace(',', '.'));
+        if (!isNaN(val)) return val;
+      }
     }
-  } catch (err) {
-    console.warn('Greška pri dohvatu temperature Dunava u Aljmašu (seatemperature.net):', err);
+  } catch {
+    // Fallback na zadnju poznatu temperaturu vode
   }
-  return 12.9;
+  return lastAljmasSnapshot.waterTempC ?? 12.9;
 }
 
 /**
@@ -262,18 +306,18 @@ async function fetchBogojevoWaterTemp(): Promise<number> {
       },
       signal: AbortSignal.timeout(5000)
     });
-    if (!res.ok) throw new Error('hidmet hm_id=42015 status ' + res.status);
-    const html = await res.text();
-    // <img src="../../../repository/ikonice/interf/temp.gif" width="14" height="44" alt="Temperatura vode u profilu" />&nbsp;12.4
-    const tempMatch = html.match(/temp\.gif[^>]*\/>(?:&nbsp;|\s)*([+-]?\d+[.,]?\d*)/i);
-    if (tempMatch && tempMatch[1]) {
-      const val = parseFloat(tempMatch[1].replace(',', '.'));
-      if (!isNaN(val)) return val;
+    if (res.ok) {
+      const html = await res.text();
+      const tempMatch = html.match(/temp\.gif[^>]*\/>(?:&nbsp;|\s)*([+-]?\d+[.,]?\d*)/i);
+      if (tempMatch && tempMatch[1]) {
+        const val = parseFloat(tempMatch[1].replace(',', '.'));
+        if (!isNaN(val)) return val;
+      }
     }
-  } catch (err) {
-    console.warn('Greška pri dohvatu temperature Dunava u Bogojevu (hm_id=42015):', err);
+  } catch {
+    // Fallback na zadnju poznatu temperaturu vode
   }
-  return 12.4;
+  return lastBogojevoSnapshot.waterTempC ?? 12.4;
 }
 
 /**
@@ -348,7 +392,7 @@ app.get('/api/water/aljmas', async (_req, res) => {
     const latest = rows[0] || {
       date: new Date().toLocaleDateString('hr-HR'),
       time: '08:00',
-      level: -35,
+      level: lastAljmasSnapshot.waterLevelCm ?? -35,
       trendClass: 'blue',
       trendChange: 0
     };
@@ -360,9 +404,11 @@ app.get('/api/water/aljmas', async (_req, res) => {
       trend = 'opada';
     }
 
-    const waterTemp = await fetchAljmasWaterTemp();
-    const airPressureHpa = await fetchAljmasAirPressure();
-    const airTemp = await fetchAljmasAirTemp();
+    const [waterTemp, airPressureHpa, airTemp] = await Promise.all([
+      fetchAljmasWaterTemp(),
+      fetchAljmasAirPressure(),
+      fetchAljmasAirTemp()
+    ]);
 
     const aljmasPayload = {
       success: true,
@@ -388,29 +434,24 @@ app.get('/api/water/aljmas', async (_req, res) => {
       updatedAt: Date.now()
     };
 
+    lastAljmasSnapshot = aljmasPayload;
+
     if (serverDb) {
       setDoc(doc(serverDb, 'water_stations', 'aljmas'), aljmasPayload, { merge: true }).catch(() => {});
     }
 
     res.json(aljmasPayload);
-  } catch (error) {
-    console.warn('Greška pri dohvatu Aljmaš vodostaja s mvodostaji.voda.hr, fallback na snapshot:', error);
+  } catch {
+    const [waterTemp, airPressureHpa, airTemp] = await Promise.all([
+      fetchAljmasWaterTemp(),
+      fetchAljmasAirPressure(),
+      fetchAljmasAirTemp()
+    ]);
     res.json({
-      success: false,
-      stationName: 'Dunav - Aljmaš (Ušće Drave)',
-      riverKm: 'rkm 1380,300',
-      waterLevelCm: -70,
-      waterLevelTrend: 'opada',
-      waterLevelChangeCm: -1,
-      waterTempC: 9.8,
-      airPressureHpa: 1025,
-      timeOfMeasurement: '08:00',
-      dateOfMeasurement: '30.10.2026.',
-      maxLevelCm: 820,
-      prepLevelCm: 400,
-      sourceUrl: MVODOSTAJI_ALJMAS_URL,
-      waterTempSourceUrl: SEATEMP_ALJMAS_VUKOVAR_URL,
-      airPressureSourceUrl: VENTUSKY_ALJMAS_URL,
+      ...lastAljmasSnapshot,
+      airTempC: airTemp,
+      waterTempC: waterTemp,
+      airPressureHpa,
       isLive: false,
       message: 'Učitani zadnji važeći podaci mjerne stanice Aljmaš.'
     });
@@ -444,14 +485,15 @@ app.get('/api/water/bogojevo', async (_req, res) => {
     const trendMatch = html.match(/ikonice\/interf\/(rast|pad|stagn|opad)/i);
     const forecastMatch = html.match(/Vodostaj&nbsp;\(cm\):\s*<\/td>(.*?)(?:<\/tr>|Dijagrami)/s);
 
-    const parsedLevel = levelMatch ? parseInt(levelMatch[1], 10) : -44;
-    const parsedChange = changeMatch ? parseInt(changeMatch[1], 10) : 10;
-    const parsedFlow = flowMatch ? parseInt(flowMatch[1], 10) : 1200;
+    const parsedLevel = levelMatch ? parseInt(levelMatch[1], 10) : (lastBogojevoSnapshot.waterLevelCm ?? -44);
+    const parsedChange = changeMatch ? parseInt(changeMatch[1], 10) : (lastBogojevoSnapshot.waterLevelChangeCm ?? 10);
+    const parsedFlow = flowMatch ? parseInt(flowMatch[1], 10) : (lastBogojevoSnapshot.flowM3s ?? 1200);
 
-    // Temperatura vode za Bogojevo s https://www.hidmet.gov.rs/latin/hidrologija/izvestajne/prognoza.php?hm_id=42015
-    const waterTemp = await fetchBogojevoWaterTemp();
-    const airPressureHpa = await fetchBogojevoAirPressure();
-    const airTemp = await fetchBogojevoAirTemp();
+    const [waterTemp, airPressureHpa, airTemp] = await Promise.all([
+      fetchBogojevoWaterTemp(),
+      fetchBogojevoAirPressure(),
+      fetchBogojevoAirTemp()
+    ]);
 
     let parsedTrend: 'u_porastu' | 'opada' | 'stagnira' = 'opada';
     if (trendMatch) {
@@ -483,7 +525,7 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       waterTempC: waterTemp,
       airPressureHpa,
       flowM3s: parsedFlow,
-      forecastDays: forecastDays.length > 0 ? forecastDays : [-92, -86, -90, -96],
+      forecastDays: forecastDays.length > 0 ? forecastDays : (lastBogojevoSnapshot.forecastDays || [-92, -86, -90, -96]),
       regularDefenseCm: 600,
       emergencyDefenseCm: 700,
       sourceUrl: HIDMET_BOGOJEVO_URL,
@@ -494,29 +536,26 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       updatedAt: Date.now()
     };
 
+    lastBogojevoSnapshot = bogojevoPayload;
+
     if (serverDb) {
       setDoc(doc(serverDb, 'water_stations', 'bogojevo'), bogojevoPayload, { merge: true }).catch(() => {});
     }
 
     res.json(bogojevoPayload);
-  } catch (error) {
-    console.warn('Greška pri dohvatu Bogojevo vodostaja s hidmet.gov.rs, fallback na snapshot:', error);
+  } catch {
+    // Ako hidmet.gov.rs privremeno vrati 502 Bad Gateway ili timeout, dohvati svježu temperaturu zraka i tlak
+    // te vrati zadnji važeći snapshot vodostaja bez ispisa greške
+    const [waterTemp, airPressureHpa, airTemp] = await Promise.all([
+      fetchBogojevoWaterTemp(),
+      fetchBogojevoAirPressure(),
+      fetchBogojevoAirTemp()
+    ]);
     res.json({
-      success: false,
-      stationName: 'RHMZ Dunav - Bogojevo',
-      waterBody: 'Dunav',
-      waterLevelCm: -77,
-      waterLevelChangeCm: -2,
-      waterLevelTrend: 'opada',
-      waterTempC: 8.1,
-      airPressureHpa: 1025,
-      flowM3s: 1180,
-      forecastDays: [-92, -86, -90, -96],
-      regularDefenseCm: 600,
-      emergencyDefenseCm: 700,
-      sourceUrl: HIDMET_BOGOJEVO_URL,
-      waterTempSourceUrl: HIDMET_BOGOJEVO_TEMP_URL,
-      airPressureSourceUrl: VENTUSKY_BOGOJEVO_URL,
+      ...lastBogojevoSnapshot,
+      airTempC: airTemp,
+      waterTempC: waterTemp,
+      airPressureHpa,
       isLive: false,
       message: 'Učitani zadnji važeći podaci mjerne stanice Bogojevo.'
     });
@@ -814,14 +853,14 @@ try {
 
     // 2. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.8.0',
+      version: '1.8.1',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-10',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.0.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.1.apk',
       changelog: [
-        'LiveChat: Popravljeno brisanje poruka - korisnici mogu brisati vlastite poruke, a administrator sve poruke bez ikakvog traga',
-        'LiveChat: Dodana opcija unosa PIN-a (2026) za trenutačno brisanje i automatsko prepoznavanje administratora',
-        'Pouzdan i trenutačan prijenos Live Web OTA ažuriranja na mobilne uređaje preko poslužitelja i GitHub Raw CDN-a'
+        'LiveChat: Trenutačno brisanje poruka jednim klikom (bez PIN-a i bez potvrda) - korisnici brišu vlastite poruke, a administrator sve poruke',
+        'LiveChat: Popravljeno poravnanje vlastitih poruka s desne strane i poruka ostalih ribiča s lijeve strane',
+        'Zaustavljena petlja višestrukog ažuriranja i uklonjen stari Service Worker cache'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -841,20 +880,20 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.8.0',
+            version: '1.8.1',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.8.0',
+          version: '1.8.1',
           totalChunks,
           chunkCount: totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.8.0 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.8.1 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
@@ -1619,7 +1658,8 @@ app.delete('/api/chat/messages/:id', (req, res) => {
   const deviceId = (req.headers['x-device-id'] as string) || (req.query.deviceId as string) || '';
   const cleanDeviceId = deviceId ? String(deviceId).trim().toUpperCase() : '';
 
-  const isAdmin = pin === ADMIN_MASTER_PIN || cleanDeviceId === 'RP-ADMIN';
+  const ADMIN_IDS = new Set(['RP-ADMIN', 'RP-7CPA-7G8G', 'RP-RSPP-8VUB']);
+  const isAdmin = pin === ADMIN_MASTER_PIN || ADMIN_IDS.has(cleanDeviceId);
 
   let chat = loadChat();
   const targetMsg = chat.find(m => m.id === id);
@@ -1630,7 +1670,7 @@ app.delete('/api/chat/messages/:id', (req, res) => {
     }
     const targetDevId = targetMsg && targetMsg.deviceId ? String(targetMsg.deviceId).trim().toUpperCase() : '';
     if (targetMsg && targetDevId && targetDevId !== cleanDeviceId) {
-      return res.status(403).json({ error: 'Možete obrisati samo vlastite poruke ili unesite administratorski PIN (2026).' });
+      return res.status(403).json({ error: 'Možete obrisati samo vlastite poruke.' });
     }
   }
 
@@ -1717,14 +1757,14 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.8.0',
+    version: '1.8.1',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-10',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.0.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.1.apk',
     changelog: [
-      'LiveChat: Popravljeno brisanje poruka - korisnici mogu brisati vlastite poruke, a administrator sve poruke bez ikakvog traga',
-      'LiveChat: Dodana opcija unosa PIN-a (2026) za trenutačno brisanje i automatsko prepoznavanje administratora',
-      'Pouzdan i trenutačan prijenos Live Web OTA ažuriranja na mobilne uređaje preko poslužitelja i GitHub Raw CDN-a'
+      'LiveChat: Trenutačno brisanje poruka jednim klikom (bez PIN-a i bez potvrda) - korisnici brišu vlastite poruke, a administrator sve poruke',
+      'LiveChat: Popravljeno poravnanje vlastitih poruka s desne strane i poruka ostalih ribiča s lijeve strane',
+      'Zaustavljena petlja višestrukog ažuriranja i uklonjen stari Service Worker cache'
     ],
     isCritical: false,
     updateType: 'live_web'
@@ -1747,7 +1787,7 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.8.0',
+    version: '1.8.1',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs

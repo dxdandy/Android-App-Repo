@@ -6,20 +6,51 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-const distIndex = path.join(rootDir, 'dist', 'index.html');
+const distDir = path.join(rootDir, 'dist');
+const distIndex = path.join(distDir, 'index.html');
 const pkgPath = path.join(rootDir, 'package.json');
+
+function copyDirRecursive(src, dest) {
+  if (!fs.existsSync(src)) return;
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true });
+  }
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
 
 try {
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-  const bundledVersion = pkg.version || '1.6.7';
+  const bundledVersion = pkg.version || '1.8.1';
 
   if (fs.existsSync(distIndex)) {
     let html = fs.readFileSync(distIndex, 'utf-8');
 
-    // Zamijeni statični <script type="module" crossorigin src="/assets/app-bundle.js"></script>
-    // s pametnim OTA učitavačem koji prvo provjerava je li iz Firestorea preuzet noviji kod u IndexedDB
+    // Ukloni automatsku registraciju Service Workera kako nikada ne bi vraćao staru verziju iz predmemorije
+    html = html.replace(/<script id="vite-plugin-pwa:register-sw"[^>]*><\/script>/gi, '');
+
     const otaLoaderScript = `<script type="module">
       window.__BUNDLED_APP_VERSION__ = "${bundledVersion}";
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(regs => {
+            regs.forEach(r => r.unregister());
+          }).catch(() => {});
+        }
+        if ('caches' in window) {
+          window.caches.keys().then(keys => {
+            keys.forEach(k => window.caches.delete(k));
+          }).catch(() => {});
+        }
+      } catch {}
       function isNewerVer(remoteVer, currentVer) {
         if (!remoteVer || !currentVer) return false;
         const rParts = String(remoteVer).replace(/^[vV]/, '').trim().split('.').map(n => parseInt(n, 10) || 0);
@@ -111,6 +142,19 @@ try {
     }
   }
 
+  // Postavi samo-uklanjajući sw.js i registerSW.js kako niti jedan uređaj ne bi ostao na starom Service Workeru
+  const selfDestroyingSw = `self.addEventListener('install', () => { self.skipWaiting(); });
+self.addEventListener('activate', () => {
+  self.registration.unregister().then(() => self.clients.matchAll()).then((clients) => {
+    clients.forEach(client => { if (client.url && 'navigate' in client) client.navigate(client.url); });
+  });
+});
+`;
+  if (fs.existsSync(distDir)) {
+    fs.writeFileSync(path.join(distDir, 'sw.js'), selfDestroyingSw, 'utf-8');
+    fs.writeFileSync(path.join(distDir, 'registerSW.js'), '// Service Worker disabled to prevent stale cache loops\n', 'utf-8');
+  }
+
   // Kopiraj kompilirani paket u public/live-ota kako bi bio trenutačno dostupan preko GitHub Raw i poslužitelja
   const publicOtaDir = path.join(rootDir, 'public', 'live-ota');
   if (!fs.existsSync(publicOtaDir)) {
@@ -135,6 +179,13 @@ try {
     };
     fs.writeFileSync(path.join(publicOtaDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
     console.log(`[prepare-ota] Uspješno sinkroniziran public/live-ota paket (v${bundledVersion}, ${jsStats.size} B)`);
+  }
+
+  // Automatski sinkroniziraj dist/ u android/app/src/main/assets/public/
+  const androidPublicDir = path.join(rootDir, 'android', 'app', 'src', 'main', 'assets', 'public');
+  if (fs.existsSync(distDir) && fs.existsSync(path.join(rootDir, 'android', 'app'))) {
+    copyDirRecursive(distDir, androidPublicDir);
+    console.log(`[prepare-ota] Uspješno sinkroniziran Android assets/public direktorij (v${bundledVersion})`);
   }
 } catch (err) {
   console.warn('[prepare-ota] Upozorenje:', err);

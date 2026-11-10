@@ -44,7 +44,7 @@ import {
   isAdminUnlocked, 
   setAdminUnlocked 
 } from '../services/chatService';
-import { getDeviceId, getUserName, cleanDeviceId } from '../services/licenseService';
+import { getDeviceId, getUserName, cleanDeviceId, isMessageFromCurrentUser, isDanielOrAdminDevice } from '../services/licenseService';
 import { playNotificationSound } from '../services/notificationService';
 
 interface FishingChatModalProps {
@@ -92,14 +92,12 @@ interface SwipeableMessageRowProps {
   onReply: (msg: ChatMessage) => void;
   onEditMessage: (msg: ChatMessage) => void;
   onDeleteMessage: (msg: ChatMessage) => void;
-  onRequireAdminPin?: (msg: ChatMessage) => void;
   onPreviewImage: (imageUrl: string, caption?: string, sender?: string) => void;
 }
 
 const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   msg,
   isMine,
-  isAdmin,
   canDelete,
   isSenderOnline,
   myDeviceId,
@@ -115,7 +113,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   onReply,
   onEditMessage,
   onDeleteMessage,
-  onRequireAdminPin,
   onPreviewImage
 }) => {
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -219,7 +216,14 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   const myCurrentEmoji = reactionsList.find(r => r.deviceId === myDeviceId)?.emoji || '';
 
   return (
-    <div className="relative overflow-visible my-1 select-none w-full">
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: isMine ? 'flex-end' : 'flex-start',
+        width: '100%'
+      }}
+      className={`relative overflow-visible my-1.5 select-none w-full flex ${isMine ? 'justify-end' : 'justify-start'}`}
+    >
       {swipeOffset !== 0 && (
         <div 
           className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center transition-all pointer-events-none z-10 ${
@@ -239,16 +243,22 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
       <div
         style={{
           transform: `translateX(${swipeOffset}px)`,
-          transition: isSwiping ? 'none' : 'transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1)'
+          transition: isSwiping ? 'none' : 'transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: isMine ? 'flex-end' : 'flex-start',
+          marginLeft: isMine ? 'auto' : '0px',
+          marginRight: isMine ? '0px' : 'auto',
+          maxWidth: '88%'
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
-        className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[90%] sm:max-w-[82%] ${isMine ? 'ml-auto' : 'mr-auto'} group/item relative`}
+        className={`flex flex-col ${isMine ? 'items-end ml-auto' : 'items-start mr-auto'} max-w-[88%] sm:max-w-[80%] group/item relative`}
       >
         {/* Ime pošiljatelja, indikator je li online i brze akcije */}
-        <div className="flex flex-wrap items-center gap-1.5 mb-1 px-1">
+        <div className={`flex flex-wrap items-center gap-1.5 mb-1 px-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
           <button
             type="button"
             onClick={() => onOpenRename(msg.deviceId, msg.userName)}
@@ -312,7 +322,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
               <span>Ispravi</span>
             </button>
           )}
-          {canDelete ? (
+          {canDelete && (
             <button
               type="button"
               onClick={(e) => {
@@ -320,23 +330,10 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
                 onDeleteMessage(msg);
               }}
               className="px-2 py-0.5 rounded-md bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold shadow-xs active:scale-95"
-              title={isAdmin && !isMine ? `Obriši poruku ribiča (${msg.userName}) kao administrator` : "Obriši svoju poruku (bez traga)"}
+              title="Obriši poruku odmah (bez traga)"
             >
               <Trash2 className="w-3 h-3 text-rose-400" />
-              <span>{isAdmin && !isMine ? 'Obriši (Admin)' : 'Obriši'}</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onRequireAdminPin) onRequireAdminPin(msg);
-              }}
-              className="px-1.5 py-0.5 rounded-md bg-slate-800/80 hover:bg-rose-950/40 border border-slate-700/80 hover:border-rose-500/40 text-slate-400 hover:text-rose-300 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-medium"
-              title="Obriši ovu poruku kao administrator (unos PIN-a 2026)"
-            >
-              <Trash2 className="w-2.5 h-2.5 text-slate-400" />
-              <span className="text-[9px]">Admin</span>
+              <span>Obriši</span>
             </button>
           )}
         </div>
@@ -406,7 +403,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
                 </button>
               )}
 
-              {canDelete ? (
+              {canDelete && (
                 <button
                   type="button"
                   onClick={() => {
@@ -414,23 +411,10 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
                     onDeleteMessage(msg);
                   }}
                   className="px-3 py-1.5 rounded-xl bg-rose-500/25 hover:bg-rose-500/35 border border-rose-400/60 text-rose-200 text-xs font-black flex items-center gap-1.5 shadow-lg cursor-pointer active:scale-95"
-                  title="Trajno ukloni ovu poruku bez ikakvog traga"
+                  title="Trajno ukloni ovu poruku odmah bez traga"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-rose-300" />
-                  <span>{isAdmin && !isMine ? '🗑️ Obriši poruku (Admin)' : '🗑️ Obriši poruku'}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onCloseReactionPicker();
-                    if (onRequireAdminPin) onRequireAdminPin(msg);
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer active:scale-95"
-                  title="Administrator može obrisati ovu poruku unosom PIN-a (2026)"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                  <span>🗑️ Obriši kao Admin (PIN 2026)</span>
+                  <span>🗑️ Obriši poruku</span>
                 </button>
               )}
             </div>
@@ -663,17 +647,13 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [adminPinInput, setAdminPinInput] = useState<string>('');
   const [adminPinError, setAdminPinError] = useState<boolean>(false);
   const [pendingRenameTarget, setPendingRenameTarget] = useState<{ deviceId: string; userName: string } | null>(null);
-  const [pendingDeleteTarget, setPendingDeleteTarget] = useState<ChatMessage | null>(null);
-  const [pendingAction, setPendingAction] = useState<'rename' | 'clear' | 'delete' | null>(null);
+  const [pendingAction, setPendingAction] = useState<'rename' | 'clear' | null>(null);
 
-  // Automatska prepoznatljivost Daniela / Administratora
+  // Automatska prepoznatljivost Daniela / Krasnog (Administratora) bez ikakvog traženja PIN-a
   const isUserAdmin = Boolean(
     isAdmin ||
     isAdminUnlocked() ||
-    cleanMyDeviceId === 'RP-ADMIN' ||
-    myUserName.toLowerCase().includes('daniel') ||
-    myUserName.toLowerCase().includes('čizmar') ||
-    myUserName.toLowerCase().includes('cizmar')
+    isDanielOrAdminDevice(cleanMyDeviceId, myUserName)
   );
 
   // Ako je Daniel prijavljen, automatski osiguraj admin stanje
@@ -692,10 +672,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [replyingTo, setReplyingTo] = useState<ChatReplyTo | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
 
-  // Stanje za pojedinačno brisanje poruke (korisnik svoje ili admin bilo čije)
-  const [messageToDelete, setMessageToDelete] = useState<ChatMessage | null>(null);
-  const [isDeletingSingle, setIsDeletingSingle] = useState<boolean>(false);
-
   const handleSelectReply = (msg: ChatMessage) => {
     setEditingMessage(null);
     setReplyingTo({
@@ -707,7 +683,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   };
 
   const handleSelectEditMessage = (msg: ChatMessage) => {
-    const isMsgMine = cleanDeviceId(msg.deviceId) === cleanMyDeviceId || (myUserName.toLowerCase().includes('daniel') && msg.userName.toLowerCase().includes('daniel'));
+    const isMsgMine = isMessageFromCurrentUser(msg.deviceId, msg.userName);
     if (!isMsgMine && !isUserAdmin) return;
     setReplyingTo(null);
     setSelectedImageDataUrl(null);
@@ -718,51 +694,29 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     }, 50);
   };
 
-  const handleDeleteMessage = (msg: ChatMessage) => {
-    setMessageToDelete(msg);
-  };
+  // Trenutačno brisanje poruke na jedan klik (bez PIN-a, bez modala potvrde i bez ikakvog traga)
+  const handleDeleteMessage = async (msg: ChatMessage) => {
+    if (!msg || !msg.id) return;
+    const isMsgMine = isMessageFromCurrentUser(msg.deviceId, msg.userName);
+    if (!isMsgMine && !isUserAdmin) return;
 
-  const handleRequireAdminPin = (msg: ChatMessage) => {
-    if (isUserAdmin) {
-      handleDeleteMessage(msg);
-    } else {
-      setPendingAction('delete');
-      setPendingDeleteTarget(msg);
-      setAdminPinInput('');
-      setAdminPinError(false);
-      setShowPinPrompt(true);
+    const targetId = msg.id;
+    // Odmah ukloni poruku s ekrana (0ms)
+    setMessages(prev => prev.filter(m => m.id !== targetId));
+    if (editingMessage && editingMessage.id === targetId) {
+      setEditingMessage(null);
+      setInputText('');
     }
-  };
+    if (replyingTo && replyingTo.id === targetId) {
+      setReplyingTo(null);
+    }
+    if (selectedMessageForInfo && selectedMessageForInfo.id === targetId) {
+      setSelectedMessageForInfo(null);
+    }
 
-  const handleConfirmDeleteSingleMessage = async () => {
-    if (!messageToDelete) return;
-    setIsDeletingSingle(true);
-    const targetId = messageToDelete.id;
     try {
-      const res = await deleteChatMessage(targetId);
-      if (res.success) {
-        setMessages(prev => prev.filter(m => m.id !== targetId));
-        if (editingMessage && editingMessage.id === targetId) {
-          setEditingMessage(null);
-          setInputText('');
-        }
-        if (replyingTo && replyingTo.id === targetId) {
-          setReplyingTo(null);
-        }
-        if (selectedMessageForInfo && selectedMessageForInfo.id === targetId) {
-          setSelectedMessageForInfo(null);
-        }
-        setMessageToDelete(null);
-        setRenameSuccessToast('✓ Poruka je trajno obrisana bez traga.');
-        setTimeout(() => setRenameSuccessToast(null), 2500);
-      } else {
-        setErrorMessage(res.error || 'Brisanje poruke nije uspjelo.');
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Greška pri brisanju poruke.');
-    } finally {
-      setIsDeletingSingle(false);
-    }
+      await deleteChatMessage(targetId);
+    } catch {}
   };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -986,10 +940,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
         setRenameNewName(pendingRenameTarget.userName);
         setRenameError(null);
         setPendingRenameTarget(null);
-        setPendingAction(null);
-      } else if (pendingAction === 'delete' && pendingDeleteTarget) {
-        setMessageToDelete(pendingDeleteTarget);
-        setPendingDeleteTarget(null);
         setPendingAction(null);
       }
     } else {
@@ -1352,10 +1302,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
               </div>
             ) : (
               messages.map((msg, idx) => {
-                const isMsgMine = Boolean(
-                  (msg.deviceId && myDeviceId && cleanDeviceId(msg.deviceId) === cleanMyDeviceId) ||
-                  (myUserName && msg.userName && myUserName.toLowerCase().includes('daniel') && msg.userName.toLowerCase().includes('daniel'))
-                );
+                const isMsgMine = isMessageFromCurrentUser(msg.deviceId, msg.userName);
                 const canDel = isMsgMine || isUserAdmin;
                 const readCount = msg.readBy?.length || 0;
                 const prevMsg = idx > 0 ? messages[idx - 1] : null;
@@ -1405,7 +1352,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                       onReply={handleSelectReply}
                       onEditMessage={handleSelectEditMessage}
                       onDeleteMessage={handleDeleteMessage}
-                      onRequireAdminPin={handleRequireAdminPin}
                       onPreviewImage={(url, caption, sender) => setLightboxImage({ url, caption, sender })}
                     />
                   </React.Fragment>
@@ -1769,7 +1715,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 )}
               </div>
 
-              {((selectedMessageForInfo.deviceId && cleanDeviceId(selectedMessageForInfo.deviceId) === cleanMyDeviceId) || (myUserName.toLowerCase().includes('daniel') && selectedMessageForInfo.userName.toLowerCase().includes('daniel')) || isUserAdmin) ? (
+              {(isMessageFromCurrentUser(selectedMessageForInfo.deviceId, selectedMessageForInfo.userName) || isUserAdmin) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1780,20 +1726,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                   className="w-full py-2.5 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/50 text-rose-200 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-md active:scale-95"
                 >
                   <Trash2 className="w-4 h-4 text-rose-300" />
-                  <span>{isUserAdmin && cleanDeviceId(selectedMessageForInfo.deviceId) !== cleanMyDeviceId ? '🗑️ Obriši ovu poruku kao Administrator' : '🗑️ Obriši ovu poruku (bez traga)'}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const toDel = selectedMessageForInfo;
-                    setSelectedMessageForInfo(null);
-                    handleRequireAdminPin(toDel);
-                  }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors active:scale-95"
-                >
-                  <Trash2 className="w-4 h-4 text-rose-400" />
-                  <span>🗑️ Obriši kao Administrator (PIN 2026)</span>
+                  <span>🗑️ Obriši ovu poruku odmah (bez traga)</span>
                 </button>
               )}
 
@@ -1985,65 +1918,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                     <Trash2 className="w-3.5 h-3.5" />
                   )}
                   <span>{isClearingChat ? 'Brisanje...' : 'Obriši sve'}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal potvrde za pojedinačno brisanje poruke (bez traga) */}
-        {messageToDelete && (
-          <div 
-            onClick={() => !isDeletingSingle && setMessageToDelete(null)}
-            className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm p-4 flex flex-col justify-center items-center animate-fadeIn select-none"
-          >
-            <div 
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm bg-slate-900 border border-rose-500/50 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col space-y-4 text-center"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center mx-auto shadow-md">
-                <Trash2 className="w-6 h-6" />
-              </div>
-              <div className="space-y-1.5">
-                <h3 className="text-base sm:text-lg font-black text-white">Obriši poruku?</h3>
-                <p className="text-xs text-rose-300 font-bold">
-                  {cleanDeviceId(messageToDelete.deviceId) === cleanMyDeviceId || (myUserName.toLowerCase().includes('daniel') && messageToDelete.userName.toLowerCase().includes('daniel'))
-                    ? 'Poruka će biti trajno uklonjena bez ikakvog traga.'
-                    : `Kao administrator brišete poruku ribiča ${messageToDelete.userName} bez ikakvog traga.`}
-                </p>
-                {messageToDelete.text && (
-                  <p className="text-[11px] text-slate-300 bg-slate-950 p-2.5 rounded-xl border border-slate-800 line-clamp-3 italic">
-                    "{messageToDelete.text}"
-                  </p>
-                )}
-                {messageToDelete.imageUrl && (
-                  <p className="text-[10px] text-teal-300">
-                    📷 Fotografija ulova / stanja Dunava bit će trajno obrisana.
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  disabled={isDeletingSingle}
-                  onClick={() => setMessageToDelete(null)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-colors"
-                >
-                  Odustani
-                </button>
-                <button
-                  type="button"
-                  disabled={isDeletingSingle}
-                  onClick={handleConfirmDeleteSingleMessage}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 disabled:opacity-50 text-white font-black text-xs cursor-pointer shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
-                >
-                  {isDeletingSingle ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-3.5 h-3.5" />
-                  )}
-                  <span>{isDeletingSingle ? 'Brisanje...' : 'Obriši poruku'}</span>
                 </button>
               </div>
             </div>
