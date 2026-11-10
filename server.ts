@@ -814,14 +814,14 @@ try {
 
     // 2. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.7.8',
+      version: '1.7.9',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-10',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.8.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.9.apk',
       changelog: [
-        'LiveChat: Mogućnost pojedinačnog brisanja poruka bez ikakvog traga (korisnici mogu brisati vlastite poruke, a administrator bilo čiju)',
-        'Dodatno poboljšana stabilnost slanja tekstualnih poruka i fotografija s Dunava',
-        'Optimizirano osvježavanje i rad s trajnom evidencijom ulova'
+        'Pouzdan i trenutačan prijenos Live Web OTA ažuriranja na mobilne uređaje izravno s poslužitelja',
+        'Uklonjena ovisnost o dnevnim Firestore kvotama pri preuzimanju i provjeri novih paketa',
+        'LiveChat: Mogućnost pojedinačnog brisanja bilo koje poruke bez ikakvog traga'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -841,20 +841,20 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.7.8',
+            version: '1.7.9',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.7.8',
+          version: '1.7.9',
           totalChunks,
           chunkCount: totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.7.8 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.7.9 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
@@ -1716,18 +1716,51 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.7.8',
+    version: '1.7.9',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-10',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.8.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.9.apk',
     changelog: [
-      'LiveChat: Mogućnost pojedinačnog brisanja poruka bez ikakvog traga (korisnici mogu brisati vlastite poruke, a administrator bilo čiju)',
-      'Dodatno poboljšana stabilnost slanja tekstualnih poruka i fotografija s Dunava',
-      'Optimizirano osvježavanje i rad s trajnom evidencijom ulova'
+      'Pouzdan i trenutačan prijenos Live Web OTA ažuriranja na mobilne uređaje izravno s poslužitelja',
+      'Uklonjena ovisnost o dnevnim Firestore kvotama pri preuzimanju i provjeri novih paketa',
+      'LiveChat: Mogućnost pojedinačnog brisanja bilo koje poruke bez ikakvog traga'
     ],
     isCritical: false,
     updateType: 'live_web'
   });
+});
+
+/**
+ * API: Dohvat manifesta i kompiliranog bundlea za direktno OTA ažuriranje
+ * (osigurava 100% pouzdano ažuriranje na mobitelu čak i ako Firestore free tier kvota dosegne limit!)
+ */
+app.get('/api/ota/manifest', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  const jsPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
+  const cssPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.css');
+  if (!fs.existsSync(jsPath)) {
+    return res.status(404).json({ error: 'OTA bundle nije izgrađen.' });
+  }
+
+  const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf-8') : '';
+  const jsStats = fs.statSync(jsPath);
+
+  res.json({
+    version: '1.7.9',
+    jsSize: jsStats.size,
+    css: cssContent,
+    updatedAt: jsStats.mtimeMs
+  });
+});
+
+app.get('/api/ota/bundle', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+  const jsPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
+  if (!fs.existsSync(jsPath)) {
+    return res.status(404).send('// OTA bundle nije pronađen');
+  }
+  res.sendFile(jsPath);
 });
 
 async function startServer() {

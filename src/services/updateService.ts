@@ -12,8 +12,9 @@ import { registerPlugin } from '@capacitor/core';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
+import { getApiUrl } from './licenseService';
 
-export const BUNDLED_APP_VERSION = '1.7.8';
+export const BUNDLED_APP_VERSION = '1.7.9';
 export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
 export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
 
@@ -163,12 +164,23 @@ export function getUpdateEndpoints(): string[] {
   const endpoints: string[] = [];
   const repo = getSavedGithubRepo();
 
-  // 1. Ako se otvara u web pregledniku na samom poslužitelju
+  // 1. Primarni pouzdani poslužitelj aplikacije (radi u web pregledniku i unutar Android Capacitor WebViewa)
+  try {
+    const backendVersionUrl = getApiUrl(`/api/version?t=${Date.now()}`);
+    if (backendVersionUrl) {
+      endpoints.push(backendVersionUrl);
+    }
+  } catch {}
+
+  // 2. Ako se otvara u web pregledniku na samom poslužitelju
   if (typeof window !== 'undefined' && !window.location.origin.includes('localhost') && !window.location.protocol.startsWith('capacitor')) {
-    endpoints.push(`${window.location.origin}/api/version?t=${Date.now()}`);
+    const originUrl = `${window.location.origin}/api/version?t=${Date.now()}`;
+    if (!endpoints.includes(originUrl)) {
+      endpoints.push(originUrl);
+    }
   }
 
-  // 2. GitHub Raw CDN (službeni i javno dostupni repozitorij)
+  // 3. GitHub Raw CDN (službeni i javno dostupni repozitorij)
   if (repo && repo.includes('/')) {
     endpoints.push(`https://raw.githubusercontent.com/${repo}/main/public/version.json?t=${Date.now()}`);
     endpoints.push(`https://raw.githubusercontent.com/${repo}/master/public/version.json?t=${Date.now()}`);
@@ -212,7 +224,7 @@ function parseVersionData(json: any, repo: string): AppVersionInfo | null {
 }
 
 /**
- * Provjerava postoji li novija Live Web verzija aplikacije (prvo putem Firestore baze, zatim GitHub CDN-a)
+ * Provjerava postoji li novija Live Web verzija aplikacije (provjerava backend poslužitelj, Firestore i GitHub)
  */
 export async function checkForAppUpdate(force: boolean = false): Promise<CheckUpdateResult> {
   const activeVersion = getCurrentAppVersion();
@@ -221,28 +233,14 @@ export async function checkForAppUpdate(force: boolean = false): Promise<CheckUp
   let successfulEndpoint: string | undefined;
   let lastErrorMsg: string = 'Nije pronađen dostupan poslužitelj za provjeru ažuriranja.';
 
-  // 1. Prvo provjeri Firestore (app_updates/latest) uz pričuvu otpornu na kvotu
-  try {
-    const docData = await getFirestoreDocQuotaSafe('app_updates', 'latest');
-    if (docData) {
-      const parsed = parseVersionData(docData, repo);
-      if (parsed && parsed.version) {
-        latestData = parsed;
-        successfulEndpoint = 'Firestore Cloud (app_updates/latest)';
-      }
-    }
-  } catch (err: any) {
-    lastErrorMsg = err?.message || 'Greška pri provjeri Firestore oblaka.';
-  }
-
-  // 2. Provjeri i HTTP/GitHub Raw endpointe (uzimamo najnoviju verziju između Firestorea i GitHuba)
+  // 1. Prvo provjeri izravne HTTP endpointe uključujući poslužitelj aplikacije (najbrži i neovisan o Firestore kvotama)
   const endpoints = getUpdateEndpoints();
   for (const url of endpoints) {
     try {
       const response = await fetch(url, {
         cache: 'no-store',
         headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(4500)
       });
 
       if (!response.ok) {
@@ -260,12 +258,28 @@ export async function checkForAppUpdate(force: boolean = false): Promise<CheckUp
       if (parsed && parsed.version) {
         if (!latestData || isNewerVersion(parsed.version, latestData.version)) {
           latestData = parsed;
-          successfulEndpoint = url;
+          successfulEndpoint = url.split('?')[0];
         }
         break;
       }
     } catch (err: any) {
       lastErrorMsg = err?.message || 'Greška u mrežnoj vezi.';
+    }
+  }
+
+  // 2. Ako HTTP nije dao verziju, provjeri Firestore (app_updates/latest)
+  if (!latestData) {
+    try {
+      const docData = await getFirestoreDocQuotaSafe('app_updates', 'latest');
+      if (docData) {
+        const parsed = parseVersionData(docData, repo);
+        if (parsed && parsed.version) {
+          latestData = parsed;
+          successfulEndpoint = 'Firestore Cloud (app_updates/latest)';
+        }
+      }
+    } catch (err: any) {
+      lastErrorMsg = err?.message || 'Greška pri provjeri Firestore oblaka.';
     }
   }
 
@@ -473,10 +487,57 @@ function saveOtaBundleToIndexedDB(bundle: { version: string; jsCode: string; css
 }
 
 /**
- * Preuzima stvarni kompilirani JS i CSS kod nove verzije iz Firestore (ota_bundle)
+ * Preuzima stvarni kompilirani JS i CSS kod nove verzije izravno s poslužitelja (i pričuvno iz Firestore ota_bundle)
  * kako bi se promjene u sučelju primijenile na mobitelu bez APK instalacije.
  */
 async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boolean; bundleVersion?: string }> {
+  const runningCodeVer = (typeof window !== 'undefined' && (window as any).__RUNNING_OTA_VERSION__) || BUNDLED_APP_VERSION;
+
+  // 1. Primarni i najbrži izvor: Izravni dohvat s poslužitelja aplikacije (100% neovisan o Firestore kvotama)
+  try {
+    const manifestUrl = getApiUrl(`/api/ota/manifest?t=${Date.now()}`);
+    const manifestRes = await fetch(manifestUrl, {
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(6000)
+    });
+
+    if (manifestRes.ok) {
+      const manifest = await manifestRes.json();
+      if (manifest && manifest.version) {
+        const remoteBundleVer = String(manifest.version).replace(/^[vV]/, '').trim();
+        if (isNewerVersion(remoteBundleVer, runningCodeVer)) {
+          console.log(`[OTA] Preuzimam novi kod v${remoteBundleVer} izravno s poslužitelja...`);
+          const bundleUrl = getApiUrl(`/api/ota/bundle?t=${Date.now()}`);
+          const bundleRes = await fetch(bundleUrl, {
+            cache: 'no-store',
+            signal: AbortSignal.timeout(15000)
+          });
+          if (bundleRes.ok) {
+            const fullJsCode = await bundleRes.text();
+            if (fullJsCode && fullJsCode.length > 1000) {
+              const saved = await saveOtaBundleToIndexedDB({
+                version: remoteBundleVer,
+                jsCode: fullJsCode,
+                cssCode: manifest.css || '',
+                updatedAt: Date.now()
+              });
+              if (saved) {
+                console.log(`[OTA] Uspješno spremljen novi kod v${remoteBundleVer} u IndexedDB s poslužitelja!`);
+                return { downloadedNewCode: true, bundleVersion: remoteBundleVer };
+              }
+            }
+          }
+        } else {
+          return { downloadedNewCode: false, bundleVersion: remoteBundleVer };
+        }
+      }
+    }
+  } catch (backendErr) {
+    console.warn('[OTA] Direktni dohvat s poslužitelja nije uspio, pokušavam preko Firestorea:', backendErr);
+  }
+
+  // 2. Pričuvni izvor: Firestore ota_bundle kolekcija
   try {
     const manifest = await getFirestoreDocQuotaSafe('ota_bundle', 'manifest');
     if (!manifest) {
@@ -493,13 +554,12 @@ async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boo
     }
 
     const remoteBundleVer = String(manifest.version).replace(/^[vV]/, '').trim();
-    const runningCodeVer = (typeof window !== 'undefined' && (window as any).__RUNNING_OTA_VERSION__) || BUNDLED_APP_VERSION;
 
     if (!isNewerVersion(remoteBundleVer, runningCodeVer)) {
       return { downloadedNewCode: false, bundleVersion: remoteBundleVer };
     }
 
-    console.log(`[OTA] Preuzimam novi kod v${remoteBundleVer} (${count} dijelova)...`);
+    console.log(`[OTA] Preuzimam novi kod v${remoteBundleVer} (${count} dijelova) iz Firestorea...`);
     const chunks: string[] = [];
     for (let i = 0; i < count; i++) {
       const chunkData = await getFirestoreDocQuotaSafe('ota_bundle', `chunk_${i}`);
