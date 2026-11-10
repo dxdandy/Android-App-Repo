@@ -24,6 +24,7 @@ import {
 import { 
   sendChatMessage, 
   editMyChatMessage,
+  deleteChatMessage,
   setChatModalFastSync,
   subscribeToChatMessages, 
   subscribeToTypingStatus, 
@@ -75,6 +76,8 @@ const EXTENDED_OTHER_EMOJIS = [
 interface SwipeableMessageRowProps {
   msg: ChatMessage;
   isMine: boolean;
+  isAdmin: boolean;
+  canDelete: boolean;
   isSenderOnline: boolean;
   myDeviceId: string;
   readCount: number;
@@ -88,12 +91,15 @@ interface SwipeableMessageRowProps {
   onShowInfo: (msg: ChatMessage) => void;
   onReply: (msg: ChatMessage) => void;
   onEditMessage: (msg: ChatMessage) => void;
+  onDeleteMessage: (msg: ChatMessage) => void;
   onPreviewImage: (imageUrl: string, caption?: string, sender?: string) => void;
 }
 
 const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   msg,
   isMine,
+  isAdmin,
+  canDelete,
   isSenderOnline,
   myDeviceId,
   readCount,
@@ -107,6 +113,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   onShowInfo,
   onReply,
   onEditMessage,
+  onDeleteMessage,
   onPreviewImage
 }) => {
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -303,9 +310,23 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
               <span>Ispravi</span>
             </button>
           )}
+          {canDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteMessage(msg);
+              }}
+              className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer opacity-70 group-hover/item:opacity-100 flex items-center gap-0.5 text-[10px]"
+              title={isAdmin && !isMine ? `Obriši poruku ribiča (${msg.userName}) kao administrator` : "Obriši svoju poruku (bez traga)"}
+            >
+              <Trash2 className="w-3 h-3 text-rose-400" />
+              <span className="hidden sm:inline text-[9px] text-rose-400/90 font-medium">Obriši</span>
+            </button>
+          )}
         </div>
 
-        {/* Skočni izbornik za lajkanje poruke (i uređivanje vlastite poruke) */}
+        {/* Skočni izbornik za lajkanje poruke (i uređivanje/brisanje poruke) */}
         {isReactionPickerOpen && (
           <div
             onClick={(e) => e.stopPropagation()}
@@ -355,19 +376,36 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
               </button>
             </div>
 
-            {isMine && (
-              <button
-                type="button"
-                onClick={() => {
-                  onCloseReactionPicker();
-                  onEditMessage(msg);
-                }}
-                className="mt-1 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-black flex items-center gap-1.5 shadow-lg cursor-pointer active:scale-95"
-              >
-                <Edit2 className="w-3.5 h-3.5 text-amber-300" />
-                <span>Ispravi / uredi ovu poruku</span>
-              </button>
-            )}
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              {isMine && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCloseReactionPicker();
+                    onEditMessage(msg);
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-black flex items-center gap-1.5 shadow-lg cursor-pointer active:scale-95"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Ispravi poruku</span>
+                </button>
+              )}
+
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCloseReactionPicker();
+                    onDeleteMessage(msg);
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/50 text-rose-200 text-xs font-black flex items-center gap-1.5 shadow-lg cursor-pointer active:scale-95"
+                  title="Trajno ukloni ovu poruku bez ikakvog traga"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-300" />
+                  <span>{isAdmin && !isMine ? 'Obriši poruku (Admin)' : 'Obriši poruku'}</span>
+                </button>
+              )}
+            </div>
 
             {showExtendedReactions && (
               <div className="mt-1.5 p-2.5 rounded-2xl bg-slate-900/98 border border-teal-500/50 shadow-2xl w-[280px] sm:w-[330px] max-h-60 overflow-y-auto space-y-2.5 backdrop-blur-md">
@@ -604,6 +642,10 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [replyingTo, setReplyingTo] = useState<ChatReplyTo | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
 
+  // Stanje za pojedinačno brisanje poruke (korisnik svoje ili admin bilo čije)
+  const [messageToDelete, setMessageToDelete] = useState<ChatMessage | null>(null);
+  const [isDeletingSingle, setIsDeletingSingle] = useState<boolean>(false);
+
   const handleSelectReply = (msg: ChatMessage) => {
     setEditingMessage(null);
     setReplyingTo({
@@ -623,6 +665,41 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     setTimeout(() => {
       inputRef.current?.focus();
     }, 50);
+  };
+
+  const handleDeleteMessage = (msg: ChatMessage) => {
+    setMessageToDelete(msg);
+  };
+
+  const handleConfirmDeleteSingleMessage = async () => {
+    if (!messageToDelete) return;
+    setIsDeletingSingle(true);
+    const targetId = messageToDelete.id;
+    try {
+      const res = await deleteChatMessage(targetId);
+      if (res.success) {
+        setMessages(prev => prev.filter(m => m.id !== targetId));
+        if (editingMessage && editingMessage.id === targetId) {
+          setEditingMessage(null);
+          setInputText('');
+        }
+        if (replyingTo && replyingTo.id === targetId) {
+          setReplyingTo(null);
+        }
+        if (selectedMessageForInfo && selectedMessageForInfo.id === targetId) {
+          setSelectedMessageForInfo(null);
+        }
+        setMessageToDelete(null);
+        setRenameSuccessToast('✓ Poruka je trajno obrisana.');
+        setTimeout(() => setRenameSuccessToast(null), 2500);
+      } else {
+        setErrorMessage(res.error || 'Brisanje poruke nije uspjelo.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Greška pri brisanju poruke.');
+    } finally {
+      setIsDeletingSingle(false);
+    }
   };
 
   const myDeviceId = getDeviceId();
@@ -1212,6 +1289,8 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                     <SwipeableMessageRow
                       msg={msg}
                       isMine={isMine}
+                      isAdmin={isAdmin}
+                      canDelete={isMine || isAdmin}
                       isSenderOnline={onlineDeviceIdsSet.has(msg.deviceId)}
                       myDeviceId={myDeviceId}
                       readCount={readCount}
@@ -1235,6 +1314,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                       onShowInfo={setSelectedMessageForInfo}
                       onReply={handleSelectReply}
                       onEditMessage={handleSelectEditMessage}
+                      onDeleteMessage={handleDeleteMessage}
                       onPreviewImage={(url, caption, sender) => setLightboxImage({ url, caption, sender })}
                     />
                   </React.Fragment>
@@ -1598,6 +1678,21 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 )}
               </div>
 
+              {(selectedMessageForInfo.deviceId === myDeviceId || isAdmin) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const toDel = selectedMessageForInfo;
+                    setSelectedMessageForInfo(null);
+                    handleDeleteMessage(toDel);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isAdmin && selectedMessageForInfo.deviceId !== myDeviceId ? 'Obriši ovu poruku kao Administrator' : 'Obriši ovu poruku (bez traga)'}</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setSelectedMessageForInfo(null)}
@@ -1786,6 +1881,65 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                     <Trash2 className="w-3.5 h-3.5" />
                   )}
                   <span>{isClearingChat ? 'Brisanje...' : 'Obriši sve'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal potvrde za pojedinačno brisanje poruke (bez traga) */}
+        {messageToDelete && (
+          <div 
+            onClick={() => !isDeletingSingle && setMessageToDelete(null)}
+            className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm p-4 flex flex-col justify-center items-center animate-fadeIn select-none"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-slate-900 border border-rose-500/50 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col space-y-4 text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center mx-auto shadow-md">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-base sm:text-lg font-black text-white">Obriši poruku?</h3>
+                <p className="text-xs text-rose-300 font-bold">
+                  {messageToDelete.deviceId === myDeviceId
+                    ? 'Poruka će biti trajno uklonjena bez ikakvog traga.'
+                    : `Kao administrator brišete poruku ribiča ${messageToDelete.userName} bez ikakvog traga.`}
+                </p>
+                {messageToDelete.text && (
+                  <p className="text-[11px] text-slate-300 bg-slate-950 p-2.5 rounded-xl border border-slate-800 line-clamp-3 italic">
+                    "{messageToDelete.text}"
+                  </p>
+                )}
+                {messageToDelete.imageUrl && (
+                  <p className="text-[10px] text-teal-300">
+                    📷 Fotografija ulova / stanja Dunava bit će trajno obrisana.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeletingSingle}
+                  onClick={() => setMessageToDelete(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+                >
+                  Odustani
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingSingle}
+                  onClick={handleConfirmDeleteSingleMessage}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 disabled:opacity-50 text-white font-black text-xs cursor-pointer shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  {isDeletingSingle ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isDeletingSingle ? 'Brisanje...' : 'Obriši poruku'}</span>
                 </button>
               </div>
             </div>

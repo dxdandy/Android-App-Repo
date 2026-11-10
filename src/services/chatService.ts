@@ -1056,28 +1056,77 @@ export async function sendChatMessage(
 }
 
 /**
+ * Brisanje poruke iz LiveChata:
+ * - Korisnik može obrisati svoju poruku
+ * - Administrator može obrisati bilo čiju poruku (i svoju i od bilo kojeg korisnika)
+ * - Poruka se uklanja trajno bez ikakvog traga
+ */
+export async function deleteChatMessage(
+  messageId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!messageId) {
+    return { success: false, error: 'Nedostaje ID poruke za brisanje.' };
+  }
+
+  const myDeviceId = getDeviceId();
+  let targetMsg = sharedMessageMap.get(messageId);
+  if (!targetMsg) {
+    const cached = getLocalChatCache();
+    targetMsg = cached.find(m => m.id === messageId);
+  }
+
+  const isAdmin = isAdminUnlocked() || myDeviceId === 'RP-ADMIN';
+
+  if (targetMsg && targetMsg.deviceId !== myDeviceId && !isAdmin) {
+    return { success: false, error: 'Možete obrisati samo vlastite poruke.' };
+  }
+
+  // Odmah ukloni poruku lokalno (0ms kašnjenja, bez ikakvog traga)
+  sharedMessageMap.delete(messageId);
+  const updatedCache = getLocalChatCache().filter(m => m.id !== messageId);
+  saveLocalChatCache(updatedCache);
+  emitToAllSubscribers();
+
+  // Sinkroniziraj uklanjanje kroz sve kanale (Firestore doc, REST patch i backend poslužitelj)
+  const restPatchPromise = syncRoomStateViaRestPatch(undefined, messageId).catch(() => false);
+  const firestoreDeletePromise = Promise.race([
+    deleteDoc(doc(db, 'chat_messages', messageId)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2500))
+  ]).catch(() => false);
+
+  safeFetchJson(
+    getApiUrl(`/api/chat/messages/${encodeURIComponent(messageId)}?deviceId=${encodeURIComponent(myDeviceId)}`),
+    {
+      method: 'DELETE',
+      headers: {
+        'x-device-id': myDeviceId,
+        'x-admin-pin': isAdmin ? '2026' : ''
+      }
+    }
+  ).catch(() => {});
+
+  await Promise.allSettled([restPatchPromise, firestoreDeletePromise]);
+
+  return { success: true };
+}
+
+/**
  * Admin brisanje poruke iz Firestorea i s poslužitelja
  */
 export async function deleteChatMessageAsAdmin(pin: string, messageId: string): Promise<boolean> {
-  try {
-    await deleteDoc(doc(db, 'chat_messages', messageId));
-  } catch {}
-
-  sharedMessageMap.delete(messageId);
-  syncRoomStateViaRestPatch(undefined, messageId).catch(() => {});
-  emitToAllSubscribers();
-
-  try {
-    await safeFetchJson(
-      getApiUrl(`/api/admin/chat/messages/${encodeURIComponent(messageId)}`),
-      {
-        method: 'DELETE',
-        headers: { 'x-admin-pin': pin.trim() }
-      }
-    );
-  } catch {}
-
-  return true;
+  const res = await deleteChatMessage(messageId);
+  if (pin) {
+    try {
+      await safeFetchJson(
+        getApiUrl(`/api/admin/chat/messages/${encodeURIComponent(messageId)}`),
+        {
+          method: 'DELETE',
+          headers: { 'x-admin-pin': pin.trim() }
+        }
+      );
+    } catch {}
+  }
+  return res.success;
 }
 
 /* =====================================================================

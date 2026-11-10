@@ -814,14 +814,14 @@ try {
 
     // 2. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.7.7',
+      version: '1.7.8',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-10',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.7.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.8.apk',
       changelog: [
-        'LiveChat: Mogućnost ispravka već poslane poruke (Uredi/Ispravi) i trenutačna isporuka poruka bez kašnjenja',
-        'Potpuno usklađena glasnoća obavijesti sa sistemskim postavkama glasnoće uređaja (uključujući tihi način rada)',
-        'Uređeno zaglavlje LiveChata i optimizirana čitljivost tablica u osnovnom modu'
+        'LiveChat: Mogućnost pojedinačnog brisanja poruka bez ikakvog traga (korisnici mogu brisati vlastite poruke, a administrator bilo čiju)',
+        'Dodatno poboljšana stabilnost slanja tekstualnih poruka i fotografija s Dunava',
+        'Optimizirano osvježavanje i rad s trajnom evidencijom ulova'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -841,20 +841,20 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.7.7',
+            version: '1.7.8',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.7.7',
+          version: '1.7.8',
           totalChunks,
           chunkCount: totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.7.7 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.7.8 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
@@ -1608,6 +1608,42 @@ app.post('/api/chat/edit', (req, res) => {
 });
 
 /**
+ * API: Brisanje pojedinačne poruke iz LiveChata
+ * - Korisnik može obrisati svoju poruku (provjera deviceId)
+ * - Administrator može obrisati bilo čiju poruku (ADMIN_MASTER_PIN ili RP-ADMIN)
+ * - Briše se bez ikakvog traga (trajno uklanjanje)
+ */
+app.delete('/api/chat/messages/:id', (req, res) => {
+  const id = req.params.id;
+  const pin = (req.headers['x-admin-pin'] as string) || '';
+  const deviceId = (req.headers['x-device-id'] as string) || (req.query.deviceId as string) || '';
+  const cleanDeviceId = deviceId ? String(deviceId).trim().toUpperCase() : '';
+
+  const isAdmin = pin === ADMIN_MASTER_PIN || cleanDeviceId === 'RP-ADMIN';
+
+  let chat = loadChat();
+  const targetMsg = chat.find(m => m.id === id);
+
+  if (!isAdmin) {
+    if (!cleanDeviceId) {
+      return res.status(403).json({ error: 'Niste autorizirani za brisanje ove poruke.' });
+    }
+    if (targetMsg && targetMsg.deviceId !== cleanDeviceId) {
+      return res.status(403).json({ error: 'Možete obrisati samo vlastite poruke.' });
+    }
+  }
+
+  chat = chat.filter(m => m.id !== id);
+  saveChat(chat);
+
+  if (serverDb) {
+    deleteDoc(doc(serverDb, 'chat_messages', id)).catch(() => {});
+  }
+
+  res.json({ success: true, deletedId: id });
+});
+
+/**
  * API (Admin): Brisanje poruke iz chata
  */
 app.delete('/api/admin/chat/messages/:id', (req, res) => {
@@ -1680,14 +1716,14 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.7.7',
+    version: '1.7.8',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-10',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.7.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.8.apk',
     changelog: [
-      'LiveChat: Mogućnost ispravka već poslane poruke (Uredi/Ispravi) i trenutačna isporuka poruka bez kašnjenja',
-      'Potpuno usklađena glasnoća obavijesti sa sistemskim postavkama glasnoće uređaja (uključujući tihi način rada)',
-      'Uređeno zaglavlje LiveChata i optimizirana čitljivost tablica u osnovnom modu'
+      'LiveChat: Mogućnost pojedinačnog brisanja poruka bez ikakvog traga (korisnici mogu brisati vlastite poruke, a administrator bilo čiju)',
+      'Dodatno poboljšana stabilnost slanja tekstualnih poruka i fotografija s Dunava',
+      'Optimizirano osvježavanje i rad s trajnom evidencijom ulova'
     ],
     isCritical: false,
     updateType: 'live_web'
