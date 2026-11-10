@@ -44,6 +44,7 @@ import {
   fetchChatMessages,
   fetchChatMessagesForAdmin,
   deleteChatMessageAsAdmin,
+  subscribeToChatMessages,
   ChatMessage
 } from '../services/chatService';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -159,10 +160,9 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
       return () => unsubLicenses();
     }
     if (activeTab === 'chat') {
-      loadChatData();
-      const unsubChat = onSnapshot(collection(db, 'chat_messages'), () => {
-        loadChatData();
-      }, err => console.warn('Chat onSnapshot warning:', err));
+      const unsubChat = subscribeToChatMessages(res => {
+        setChatMessages(res.messages || []);
+      });
       return () => unsubChat();
     }
   }, [isAuthenticated, activeTab]);
@@ -1064,7 +1064,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onTestUpdatePopup && onTestUpdatePopup({
-                        version: '1.7.2',
+                        version: '1.7.4',
                         name: 'RiboPrognoza',
                         releaseDate: new Date().toISOString().split('T')[0],
                         changelog: [

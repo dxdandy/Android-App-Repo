@@ -16,20 +16,21 @@ import java.util.concurrent.Executors;
  */
 public class ChatAlarmReceiver extends BroadcastReceiver {
     private static final String TAG = "ChatAlarmReceiver";
-    public static final int ALARM_INTERVAL_MS = 15 * 1000; // Provjera svakih 15 sekundi
+    // Pričuvni interval bez prisilnog buđenja procesora (sprječava Samsung/Android "Frequent wakeups" upozorenje)
+    public static final int ALARM_INTERVAL_MS = 3 * 60 * 1000;
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        // 1. Odmah zakaži idući alarm kako niz nikada ne bi bio prekinut
+        // 1. Zakaži idući pričuvni ciklus
         scheduleNextAlarm(context);
 
-        // 2. Pokušaj održati pozadinski servis aktivnim
+        // 2. Održavaj pozadinski servis aktivnim
         try {
             Intent serviceIntent = new Intent(context, ChatBackgroundService.class);
             context.startService(serviceIntent);
         } catch (Exception ignored) {}
 
-        // 3. Koristi goAsync() kako Android ne bi uspavao proces dok traje HTTPS upit prema Firestoreu
+        // 3. Koristi goAsync() kako Android ne bi prekinuo mrežni upit
         final PendingResult pendingResult = goAsync();
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
@@ -59,18 +60,9 @@ public class ChatAlarmReceiver extends BroadcastReceiver {
 
             long triggerAtMillis = SystemClock.elapsedRealtime() + ALARM_INTERVAL_MS;
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                try {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
-                } catch (SecurityException se) {
-                    // Fallback za uređaje s restrikcijom egzaktnih alarma (Android 12/13/14+)
-                    alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
-                }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
-            } else {
-                alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtMillis, pendingIntent);
-            }
+            // Koristimo ELAPSED_REALTIME (bez _WAKEUP zastavice i bez setExactAndAllowWhileIdle)
+            // kako sustav nikada ne bi prijavio "Frequent wakeups / Česta buđenja"!
+            alarmManager.set(AlarmManager.ELAPSED_REALTIME, triggerAtMillis, pendingIntent);
         } catch (Exception e) {
             Log.w(TAG, "Nemoguće zakazati alarm za chat: " + e.getMessage());
         }

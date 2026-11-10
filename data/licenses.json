@@ -18,7 +18,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": false,
     "createdAt": "2026-11-01T12:00:00.000Z",
-    "lastSeenAt": "2026-11-09T17:10:35.620Z",
+    "lastSeenAt": "2026-11-09T20:58:21.999Z",
     "notes": "Korisnik 1"
   },
   {
@@ -29,7 +29,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": false,
     "createdAt": "2026-11-01T14:00:00.000Z",
-    "lastSeenAt": "2026-11-09T14:04:46.929Z",
+    "lastSeenAt": "2026-11-10T08:41:10.708Z",
     "notes": "Korisnik 2"
   },
   {
@@ -40,7 +40,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": true,
     "createdAt": "2026-11-05T08:00:00.000Z",
-    "lastSeenAt": "2026-11-09T16:41:17.401Z",
+    "lastSeenAt": "2026-11-10T08:05:05.222Z",
     "notes": "Korisnik 3"
   },
   {
@@ -51,7 +51,7 @@
     "chatEnabled": true,
     "nameSetByAdmin": true,
     "createdAt": "2026-11-05T08:30:00.000Z",
-    "lastSeenAt": "2026-11-09T17:04:21.459Z",
+    "lastSeenAt": "2026-11-10T08:25:13.211Z",
     "notes": "Krasni"
   },
   {
@@ -77,7 +77,7 @@
   },
   {
     "deviceId": "RP-HGT8-UC5D",
-    "lastSeenAt": "2026-11-09T16:51:16.124Z",
+    "lastSeenAt": "2026-11-10T08:04:54.037Z",
     "nameSetByAdmin": true,
     "userName": "Domo"
   }

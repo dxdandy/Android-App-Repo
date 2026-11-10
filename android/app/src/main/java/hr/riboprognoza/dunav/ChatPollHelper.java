@@ -33,17 +33,8 @@ public class ChatPollHelper {
     private static final String QUERY_PAYLOAD = 
         "{\"structuredQuery\":{\"from\":[{\"collectionId\":\"chat_messages\"}],\"orderBy\":[{\"field\":{\"fieldPath\":\"createdAt\"},\"direction\":\"DESCENDING\"}],\"limit\":1}}";
 
-    public static void checkAndNotify(Context context) {
+    public static synchronized void checkAndNotify(Context context) {
         if (context == null) return;
-
-        PowerManager.WakeLock wakeLock = null;
-        try {
-            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-            if (pm != null) {
-                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RiboPrognoza:ChatPollWakeLock");
-                wakeLock.acquire(9000);
-            }
-        } catch (Exception ignored) {}
 
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -151,12 +142,6 @@ public class ChatPollHelper {
             conn.disconnect();
         } catch (Exception e) {
             Log.e(TAG, "Greška pri provjeri Firestore poruka: " + e.getMessage());
-        } finally {
-            if (wakeLock != null && wakeLock.isHeld()) {
-                try {
-                    wakeLock.release();
-                } catch (Exception ignored) {}
-            }
         }
     }
 }

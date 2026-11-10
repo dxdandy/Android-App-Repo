@@ -38,14 +38,23 @@ public class ChatBackgroundService extends Service {
         executor.execute(() -> {
             while (isRunning) {
                 try {
-                    ChatPollHelper.checkAndNotify(getApplicationContext());
-                    Thread.sleep(3500);
+                    Context appCtx = getApplicationContext();
+                    ChatPollHelper.checkAndNotify(appCtx);
+                    // Pametna prilagodba: 15s dok je zaslon uključen, 45s dok je zaslon ugašen (bez buđenja procesora)
+                    boolean screenOn = true;
+                    try {
+                        android.os.PowerManager pm = (android.os.PowerManager) appCtx.getSystemService(Context.POWER_SERVICE);
+                        if (pm != null) {
+                            screenOn = pm.isInteractive();
+                        }
+                    } catch (Exception ignored) {}
+                    Thread.sleep(screenOn ? 15000 : 45000);
                 } catch (InterruptedException e) {
                     break;
                 } catch (Exception e) {
                     Log.w(TAG, "Greška u pozadinskom osluškivanju: " + e.getMessage());
                     try {
-                        Thread.sleep(5000);
+                        Thread.sleep(15000);
                     } catch (InterruptedException ignored) {}
                 }
             }
@@ -58,7 +67,6 @@ public class ChatBackgroundService extends Service {
             isRunning = true;
             startPollingLoop();
         }
-        ChatAlarmReceiver.scheduleNextAlarm(getApplicationContext());
         return START_STICKY;
     }
 
@@ -73,7 +81,7 @@ public class ChatBackgroundService extends Service {
                 .apply();
         } catch (Exception ignored) {}
 
-        // Zakaži buđenje putem AlarmManagera kako bi obavijesti radile i dok je aplikacija ugašena
+        // Zakaži pričuvni alarm bez prisilnog buđenja
         ChatAlarmReceiver.scheduleNextAlarm(getApplicationContext());
 
         try {
@@ -89,8 +97,8 @@ public class ChatBackgroundService extends Service {
             AlarmManager alarmService = (AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
             if (alarmService != null) {
                 alarmService.set(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    SystemClock.elapsedRealtime() + 2500,
+                    AlarmManager.ELAPSED_REALTIME,
+                    SystemClock.elapsedRealtime() + 5000,
                     restartPendingIntent
                 );
             }

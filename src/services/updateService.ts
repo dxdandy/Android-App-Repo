@@ -13,9 +13,59 @@ import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 
-export const BUNDLED_APP_VERSION = '1.7.2';
+export const BUNDLED_APP_VERSION = '1.7.4';
 export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
 export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
+
+const FIRESTORE_REST_BASE =
+  'https://firestore.googleapis.com/v1/projects/titanium-domain-wv4kj/databases/ai-studio-hrvatskiradnipro-badf4099-cdd8-4a4a-b90c-6a3aea6c7b94/documents';
+
+function parseFirestoreRestFields(fieldsObj: any): Record<string, any> {
+  const result: Record<string, any> = {};
+  if (!fieldsObj || typeof fieldsObj !== 'object') return result;
+  for (const [k, val] of Object.entries(fieldsObj)) {
+    const v = val as any;
+    if (!v || typeof v !== 'object') continue;
+    if ('stringValue' in v) result[k] = v.stringValue;
+    else if ('integerValue' in v) result[k] = Number(v.integerValue);
+    else if ('doubleValue' in v) result[k] = Number(v.doubleValue);
+    else if ('booleanValue' in v) result[k] = Boolean(v.booleanValue);
+    else if ('arrayValue' in v) {
+      const vals = v.arrayValue?.values || [];
+      result[k] = vals.map((item: any) => item.stringValue ?? item.integerValue ?? item);
+    }
+  }
+  return result;
+}
+
+async function getFirestoreDocQuotaSafe(collectionName: string, docId: string): Promise<Record<string, any> | null> {
+  try {
+    const snap = await Promise.race([
+      getDoc(doc(db, collectionName, docId)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000))
+    ]);
+    if (snap && (snap as any).exists && (snap as any).exists()) {
+      return (snap as any).data();
+    }
+  } catch {}
+
+  try {
+    const url = `${FIRESTORE_REST_BASE}/${encodeURIComponent(collectionName)}/${encodeURIComponent(docId)}?updateMask.fieldPaths=_ping`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { _ping: { integerValue: '1' } } })
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.fields) {
+        return parseFirestoreRestFields(json.fields);
+      }
+    }
+  } catch {}
+
+  return null;
+}
 
 /**
  * Uspoređuje dvije semantičke verzije (npr. '1.6.3' > '1.6.2')
@@ -171,14 +221,11 @@ export async function checkForAppUpdate(force: boolean = false): Promise<CheckUp
   let successfulEndpoint: string | undefined;
   let lastErrorMsg: string = 'Nije pronađen dostupan poslužitelj za provjeru ažuriranja.';
 
-  // 1. Prvo provjeri Firestore (app_updates/latest) jer je najbrži i uvijek dostupan
+  // 1. Prvo provjeri Firestore (app_updates/latest) uz pričuvu otpornu na kvotu
   try {
-    const snap = await Promise.race([
-      getDoc(doc(db, 'app_updates', 'latest')),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000))
-    ]);
-    if (snap && (snap as any).exists && (snap as any).exists()) {
-      const parsed = parseVersionData((snap as any).data(), repo);
+    const docData = await getFirestoreDocQuotaSafe('app_updates', 'latest');
+    if (docData) {
+      const parsed = parseVersionData(docData, repo);
       if (parsed && parsed.version) {
         latestData = parsed;
         successfulEndpoint = 'Firestore Cloud (app_updates/latest)';
@@ -431,12 +478,11 @@ function saveOtaBundleToIndexedDB(bundle: { version: string; jsCode: string; css
  */
 async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boolean; bundleVersion?: string }> {
   try {
-    const manifestSnap = await getDoc(doc(db, 'ota_bundle', 'manifest'));
-    if (!manifestSnap.exists()) {
-      console.warn('[OTA] ota_bundle/manifest ne postoji u Firestoreu.');
+    const manifest = await getFirestoreDocQuotaSafe('ota_bundle', 'manifest');
+    if (!manifest) {
+      console.warn('[OTA] ota_bundle/manifest nije dostupan u Firestoreu.');
       return { downloadedNewCode: false };
     }
-    const manifest = manifestSnap.data();
     const count = typeof manifest?.totalChunks === 'number' 
       ? manifest.totalChunks 
       : (typeof manifest?.chunkCount === 'number' ? manifest.chunkCount : 0);
@@ -456,12 +502,11 @@ async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boo
     console.log(`[OTA] Preuzimam novi kod v${remoteBundleVer} (${count} dijelova)...`);
     const chunks: string[] = [];
     for (let i = 0; i < count; i++) {
-      const chunkSnap = await getDoc(doc(db, 'ota_bundle', `chunk_${i}`));
-      if (!chunkSnap.exists()) {
+      const chunkData = await getFirestoreDocQuotaSafe('ota_bundle', `chunk_${i}`);
+      if (!chunkData) {
         console.warn(`[OTA] Nedostaje ota_bundle/chunk_${i} u Firestoreu.`);
         return { downloadedNewCode: false };
       }
-      const chunkData = chunkSnap.data();
       chunks.push(chunkData?.data || '');
     }
 

@@ -138,13 +138,12 @@ export async function showIncomingMessageNotification(
     playNotificationSound();
   }
 
-  // 1. Android nativna obavijest s ikonom udice i zvukom (prioritet: nativni Java notifier)
+  // 1. Android nativna obavijest s ikonom udice i zvukom:
+  // Pozivamo checkNow() koji koristi zajednički RiboChatPrefs (KEY_LAST_NOTIFIED_ID)
+  // čime se 100% sprječava dvostruka obavijest između WebViewa i pozadinskog servisa!
   if (isNative) {
     try {
-      await ChatNativeNotifier.sendTestNotification({
-        title: senderName,
-        text: messageText
-      });
+      await ChatNativeNotifier.checkNow();
       return;
     } catch {
       // Nastavi na LocalNotifications fallback

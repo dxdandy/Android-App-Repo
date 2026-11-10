@@ -1,13 +1,12 @@
 {
-  "version": "1.7.2",
+  "version": "1.7.4",
   "name": "RiboPrognoza",
-  "releaseDate": "2026-11-09",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.2.apk",
+  "releaseDate": "2026-11-10",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.4.apk",
   "changelog": [
-    "LiveChat poruke: povećan font za 10% (16.5px/19px) i smanjen oblačić oko teksta za 70% za maksimalnu preglednost",
-    "LiveChat pozadina: dodane decentne, jedva vidljive skice riba u blagoj nijansi koje ne smetaju pri čitanju",
-    "Evidencija ulova: uredno podvučena i zatvorena tablica na dnu bez stršećih krakova kolona",
-    "Potpuno usklađen Live Web (OTA) sustav trenutnog ažuriranja na mobilnim uređajima"
+    "Optimizacija baterije (Battery Saver): uklonjeno učestalo buđenje procesora (Frequent wakeups) dok je zaslon mobitela ugašen",
+    "Pametni pozadinski rad: automatsko pauziranje nepotrebnih mrežnih provjera dok je mobitel zaključan uz zadržavanje obavijesti o porukama",
+    "LiveChat lajkanje poruka (6 osnovnih emojija + prošireni (+) izbornik) i dvostruka sinkronizacija poruka"
   ],
   "isCritical": false,
   "updateType": "live_web"

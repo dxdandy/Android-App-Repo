@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, query, orderBy, limitToLast } from 'firebase/firestore';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -625,6 +625,12 @@ export interface ChatMessageRecord {
     userName: string;
     text: string;
   };
+  reactions?: {
+    emoji: string;
+    deviceId: string;
+    userName: string;
+    createdAt?: number;
+  }[];
 }
 
 const DATA_DIR = path.resolve(__dirname, 'data');
@@ -801,35 +807,16 @@ try {
       console.warn('Upozorenje: dohvat licenci iz Firestorea na pokretanju:', err);
     });
 
-    // 2. Sinkroniziraj postojeće poruke iz chat.json u Firestore
-    const localChat = loadChat();
-    for (const msg of localChat) {
-      if (msg.id) {
-        const payload: Record<string, any> = {
-          id: msg.id,
-          deviceId: msg.deviceId,
-          userName: msg.userName,
-          text: msg.text,
-          timestamp: msg.timestamp,
-          createdAt: msg.createdAt,
-          readBy: msg.readBy || []
-        };
-        if (msg.replyTo) payload.replyTo = msg.replyTo;
-        setDoc(doc(serverDb, 'chat_messages', msg.id), payload, { merge: true }).catch(() => {});
-      }
-    }
-
-    // 3. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
+    // 2. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.7.2',
+      version: '1.7.4',
       name: 'RiboPrognoza',
-      releaseDate: '2026-11-09',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.2.apk',
+      releaseDate: '2026-11-10',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.4.apk',
       changelog: [
-        'LiveChat poruke: povećan font za 10% (16.5px/19px) i smanjen oblačić oko teksta za 70% za maksimalnu preglednost',
-        'LiveChat pozadina: dodane decentne, jedva vidljive skice riba u blagoj nijansi koje ne smetaju pri čitanju',
-        'Evidencija ulova: uredno podvučena i zatvorena tablica na dnu bez stršećih krakova kolona',
-        'Potpuno usklađen Live Web (OTA) sustav trenutnog ažuriranja na mobilnim uređajima'
+        'Optimizacija baterije (Battery Saver): uklonjeno učestalo buđenje procesora (Frequent wakeups) dok je zaslon mobitela ugašen',
+        'Pametni pozadinski rad: automatsko pauziranje nepotrebnih mrežnih provjera dok je mobitel zaključan uz zadržavanje obavijesti o porukama',
+        'LiveChat lajkanje poruka (6 osnovnih emojija + prošireni (+) izbornik) i dvostruka sinkronizacija poruka'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -849,34 +836,36 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.7.2',
+            version: '1.7.4',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.7.2',
+          version: '1.7.4',
           totalChunks,
           chunkCount: totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.7.2 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.7.4 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
     };
     publishOtaBundleToFirestore();
 
-    // 4. Sinkroniziraj sve poruke iz Firestore u lokalnu bazu poslužitelja u stvarnom vremenu
-    onSnapshot(collection(serverDb, 'chat_messages'), snapshot => {
+    // 4. Sinkroniziraj zadnjih 45 poruka iz Firestore u lokalnu bazu poslužitelja u stvarnom vremenu
+    const chatQuery = query(collection(serverDb, 'chat_messages'), orderBy('createdAt', 'asc'), limitToLast(45));
+    onSnapshot(chatQuery, snapshot => {
       let currentChat = loadChat();
       let hasChanges = false;
       snapshot.docChanges().forEach(change => {
         if (change.type === 'added' || change.type === 'modified') {
           const d = change.doc.data();
           const docId = change.doc.id;
+          if (docId === '_room_state_') return;
           const idx = currentChat.findIndex(m => m.id === docId);
           const newEntry: ChatMessageRecord = {
             id: docId,
@@ -885,7 +874,9 @@ try {
             text: d.text || '',
             timestamp: d.timestamp || '',
             createdAt: d.createdAt || Date.now(),
-            readBy: d.readBy || []
+            readBy: d.readBy || [],
+            replyTo: d.replyTo || undefined,
+            reactions: d.reactions || []
           };
           if (idx >= 0) {
             currentChat[idx] = newEntry;
@@ -1204,17 +1195,22 @@ app.get('/api/chat/messages', (req, res) => {
     }
   });
 
-  // Funkcija za obogaćivanje poruke trenutnim imenima iz baze i popisom tko ju je pročitao
+  // Funkcija za obogaćivanje poruke trenutnim imenima iz baze, popisom tko ju je pročitao i reakcijama
   const enrichMsg = (msg: ChatMessageRecord) => {
     const currentName = nameMap.get(msg.deviceId) || msg.userName;
     const enrichedReadBy = (msg.readBy || []).map(r => ({
       ...r,
       userName: nameMap.get(r.deviceId) || r.userName
     }));
+    const enrichedReactions = (msg.reactions || []).map(rx => ({
+      ...rx,
+      userName: nameMap.get(rx.deviceId) || rx.userName
+    }));
     return {
       ...msg,
       userName: currentName,
-      readBy: enrichedReadBy
+      readBy: enrichedReadBy,
+      reactions: enrichedReactions
     };
   };
 
@@ -1530,6 +1526,49 @@ app.post('/api/chat/messages', (req, res) => {
 });
 
 /**
+ * API: Lajkanje / dodavanje ili uklanjanje emoji reakcije na poruku u LiveChatu
+ */
+app.post('/api/chat/react', (req, res) => {
+  const { messageId, emoji, deviceId, userName, reactions } = req.body || {};
+  if (!messageId || !deviceId) {
+    return res.status(400).json({ error: 'Nedostaje messageId ili deviceId' });
+  }
+
+  const cleanDeviceId = String(deviceId).trim().toUpperCase();
+  const licenses = loadLicenses();
+  const userLicense = licenses.find(l => l.deviceId === cleanDeviceId);
+  const reactorName = (userLicense && userLicense.userName) || (userName && String(userName).trim()) || `Ribič (${cleanDeviceId.slice(-4)})`;
+
+  let chat = loadChat();
+  const idx = chat.findIndex(m => m.id === messageId);
+  if (idx >= 0) {
+    let updatedReactions = Array.isArray(reactions) ? reactions : (chat[idx].reactions || []);
+    if (!Array.isArray(reactions) && emoji) {
+      const existingList = Array.isArray(chat[idx].reactions) ? [...chat[idx].reactions!] : [];
+      const rIdx = existingList.findIndex(r => r.deviceId === cleanDeviceId);
+      if (rIdx >= 0 && existingList[rIdx].emoji === emoji) {
+        updatedReactions = existingList.filter((_, i) => i !== rIdx);
+      } else if (rIdx >= 0) {
+        existingList[rIdx] = { emoji, deviceId: cleanDeviceId, userName: reactorName, createdAt: Date.now() };
+        updatedReactions = existingList;
+      } else {
+        updatedReactions = [...existingList, { emoji, deviceId: cleanDeviceId, userName: reactorName, createdAt: Date.now() }];
+      }
+    }
+
+    chat[idx].reactions = updatedReactions;
+    saveChat(chat);
+
+    if (serverDb) {
+      setDoc(doc(serverDb, 'chat_messages', messageId), { reactions: updatedReactions }, { merge: true }).catch(() => {});
+    }
+    return res.json({ success: true, reactions: updatedReactions });
+  }
+
+  return res.json({ success: true });
+});
+
+/**
  * API (Admin): Brisanje poruke iz chata
  */
 app.delete('/api/admin/chat/messages/:id', (req, res) => {
@@ -1602,15 +1641,14 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.7.2',
+    version: '1.7.4',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-09',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.2.apk',
+    releaseDate: '2026-11-10',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.4.apk',
     changelog: [
-      'LiveChat poruke: povećan font za 10% (16.5px/19px) i smanjen oblačić oko teksta za 70% za maksimalnu preglednost',
-      'LiveChat pozadina: dodane decentne, jedva vidljive skice riba u blagoj nijansi koje ne smetaju pri čitanju',
-      'Evidencija ulova: uredno podvučena i zatvorena tablica na dnu bez stršećih krakova kolona',
-      'Potpuno usklađen Live Web (OTA) sustav trenutnog ažuriranja na mobilnim uređajima'
+      'Optimizacija baterije (Battery Saver): uklonjeno učestalo buđenje procesora (Frequent wakeups) dok je zaslon mobitela ugašen',
+      'Pametni pozadinski rad: automatsko pauziranje nepotrebnih mrežnih provjera dok je mobitel zaključan uz zadržavanje obavijesti o porukama',
+      'LiveChat lajkanje poruka (6 osnovnih emojija + prošireni (+) izbornik) i dvostruka sinkronizacija poruka'
     ],
     isCritical: false,
     updateType: 'live_web'

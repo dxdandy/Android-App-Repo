@@ -29,6 +29,8 @@ import {
   TypingUser, 
   ChatMessage, 
   ChatReplyTo,
+  ChatReaction,
+  toggleMessageReaction,
   markChatAsRead, 
   renameMyUserName, 
   renameUserAsAdmin, 
@@ -47,10 +49,35 @@ interface FishingChatModalProps {
 
 const QUICK_EMOJIS = ['🎣', '🐟', '🦈', '🌊', '☀️', '🌧️', '⛵', '⚓', '👍', '🔥', '🍻', '☕'];
 
+// 6 osnovnih emojija koji se prikažu kada se duže drži prst na poruci (uz gumb (+) za dodatne)
+const BASIC_REACTION_EMOJIS = ['👍', '❤️', '😂', '🎣', '🔥', '👏'];
+
+// Dodatni emojiji i znakovi s rukama koji se otvaraju klikom na (+)
+const EXTENDED_HAND_EMOJIS = [
+  '👍', '👎', '👌', '✌️', '🤞', '🤙', '🤝', '👏',
+  '🙌', '🙏', '💪', '✊', '👊', '🤛', '🤜', '✋',
+  '🖐️', '👋', '☝️', '👆', '👇', '👈', '👉', '🖕',
+  '🤏', '🤌', '🫡', '✍️'
+];
+
+const EXTENDED_OTHER_EMOJIS = [
+  '❤️', '🔥', '💯', '🏆', '🥇', '⚡', '💥', '🎯',
+  '🎣', '🐟', '🐠', '🦈', '⚓', '🚤', '🌊', '🍻',
+  '🍺', '☕', '😂', '🤣', '😎', '🤩', '🥳', '😊',
+  '🤔', '😮', '😢', '😡', '😴', '✅', '❌', '❓'
+];
+
 interface SwipeableMessageRowProps {
   msg: ChatMessage;
   isMine: boolean;
+  myDeviceId: string;
   readCount: number;
+  isReactionPickerOpen: boolean;
+  showExtendedReactions: boolean;
+  onOpenReactionPicker: (msgId: string) => void;
+  onCloseReactionPicker: () => void;
+  onToggleExtendedReactions: () => void;
+  onSelectReaction: (msgId: string, emoji: string) => void;
   onOpenRename: (deviceId: string, userName: string) => void;
   onShowInfo: (msg: ChatMessage) => void;
   onReply: (msg: ChatMessage) => void;
@@ -59,7 +86,14 @@ interface SwipeableMessageRowProps {
 const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   msg,
   isMine,
+  myDeviceId,
   readCount,
+  isReactionPickerOpen,
+  showExtendedReactions,
+  onOpenReactionPicker,
+  onCloseReactionPicker,
+  onToggleExtendedReactions,
+  onSelectReaction,
   onOpenRename,
   onShowInfo,
   onReply
@@ -70,12 +104,31 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   const touchStartYRef = useRef(0);
   const isHorizontalRef = useRef<boolean | null>(null);
   const hasTriggeredHapticRef = useRef(false);
+  const longPressTimerRef = useRef<any>(null);
+  const didLongPressRef = useRef(false);
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartXRef.current = e.touches[0].clientX;
     touchStartYRef.current = e.touches[0].clientY;
     isHorizontalRef.current = null;
     hasTriggeredHapticRef.current = false;
+    didLongPressRef.current = false;
+
+    clearLongPressTimer();
+    longPressTimerRef.current = setTimeout(() => {
+      didLongPressRef.current = true;
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(28); } catch {}
+      }
+      onOpenReactionPicker(msg.id);
+    }, 380);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -83,6 +136,10 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
     const currentY = e.touches[0].clientY;
     const diffX = currentX - touchStartXRef.current;
     const diffY = currentY - touchStartYRef.current;
+
+    if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
+      clearLongPressTimer();
+    }
 
     if (isHorizontalRef.current === null) {
       if (Math.abs(diffX) > 8 && Math.abs(diffX) > Math.abs(diffY)) {
@@ -108,6 +165,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   };
 
   const handleTouchEnd = () => {
+    clearLongPressTimer();
     if (Math.abs(swipeOffset) >= 40) {
       onReply(msg);
     }
@@ -117,6 +175,30 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   };
 
   const isTriggered = Math.abs(swipeOffset) >= 40;
+
+  // Grupiraj reakcije po emojiju za uredan prikaz ispod poruke
+  const reactionsList: ChatReaction[] = Array.isArray(msg.reactions) ? msg.reactions : [];
+  const groupedReactions = React.useMemo(() => {
+    const map = new Map<string, { emoji: string; users: string[]; hasMine: boolean }>();
+    reactionsList.forEach(r => {
+      if (!r || !r.emoji) return;
+      const existing = map.get(r.emoji);
+      const isMe = r.deviceId === myDeviceId;
+      if (existing) {
+        if (!existing.users.includes(r.userName)) existing.users.push(r.userName);
+        if (isMe) existing.hasMine = true;
+      } else {
+        map.set(r.emoji, {
+          emoji: r.emoji,
+          users: [r.userName || 'Ribič'],
+          hasMine: isMe
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [reactionsList, myDeviceId]);
+
+  const myCurrentEmoji = reactionsList.find(r => r.deviceId === myDeviceId)?.emoji || '';
 
   return (
     <div className="relative overflow-visible my-1 select-none w-full">
@@ -146,9 +228,10 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[90%] sm:max-w-[82%] ${isMine ? 'ml-auto' : 'mr-auto'} group/item`}
+        onTouchCancel={handleTouchEnd}
+        className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[90%] sm:max-w-[82%] ${isMine ? 'ml-auto' : 'mr-auto'} group/item relative`}
       >
-        {/* Ime pošiljatelja */}
+        {/* Ime pošiljatelja i brze akcije */}
         <div className="flex items-center gap-1.5 mb-1 px-1">
           <button
             type="button"
@@ -169,6 +252,22 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           >
             <Edit2 className="w-3 h-3" />
           </button>
+          {/* Brzi gumb za lajk / reakciju (osim dugog pritiska na poruku) */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isReactionPickerOpen) {
+                onCloseReactionPicker();
+              } else {
+                onOpenReactionPicker(msg.id);
+              }
+            }}
+            className="p-1 rounded text-slate-500 hover:text-amber-300 hover:bg-slate-800/80 transition-colors cursor-pointer opacity-75 group-hover/item:opacity-100 flex items-center gap-0.5 text-[11px]"
+            title="Lajkaj poruku (ili zadrži prst duže na poruci)"
+          >
+            <Smile className="w-3.5 h-3.5 text-amber-400" />
+          </button>
           {/* Brzi gumb za odgovor na poruku (jedan klik ili povlačenje) */}
           <button
             type="button"
@@ -181,15 +280,132 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           </button>
         </div>
 
+        {/* Skočni izbornik za lajkanje poruke (6 osnovnih emojija + gumb (+) za prošireni izbor) */}
+        {isReactionPickerOpen && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            className={`z-30 mb-1.5 flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-full animate-fadeIn`}
+          >
+            {/* Osnovna traka sa 6 emojija i gumbom (+) */}
+            <div className="flex items-center gap-1 px-2 py-1.5 rounded-2xl bg-slate-900/98 border border-teal-400/60 shadow-2xl shadow-black/80 backdrop-blur-md">
+              {BASIC_REACTION_EMOJIS.map(emoji => {
+                const isSelected = myCurrentEmoji === emoji;
+                return (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => onSelectReaction(msg.id, emoji)}
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-xl sm:text-2xl transition-all active:scale-125 hover:scale-110 cursor-pointer ${
+                      isSelected
+                        ? 'bg-teal-500/30 border border-teal-400 shadow-inner scale-110'
+                        : 'hover:bg-slate-800'
+                    }`}
+                    title={`Lajkaj sa ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                );
+              })}
+
+              {/* Gumb (+) za otvaranje puno dodatnih emojija i znakova s rukama */}
+              <button
+                type="button"
+                onClick={onToggleExtendedReactions}
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-sm sm:text-base transition-all active:scale-95 cursor-pointer border ${
+                  showExtendedReactions
+                    ? 'bg-teal-500 text-slate-950 border-teal-300 shadow-md'
+                    : 'bg-slate-800 hover:bg-slate-700 text-teal-300 border-teal-500/40'
+                }`}
+                title="Više emojija i znakova rukom (+)"
+              >
+                (+)
+              </button>
+
+              {/* Gumb za zatvaranje izbornika */}
+              <button
+                type="button"
+                onClick={onCloseReactionPicker}
+                className="w-7 h-7 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs ml-0.5 cursor-pointer"
+                title="Zatvori"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Prošireni panel s puno dodatnih emojija i znakova rukom kada se klikne (+) */}
+            {showExtendedReactions && (
+              <div className="mt-1.5 p-2.5 rounded-2xl bg-slate-900/98 border border-teal-500/50 shadow-2xl w-[280px] sm:w-[330px] max-h-60 overflow-y-auto space-y-2.5 backdrop-blur-md">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-teal-300 mb-1 px-1 flex items-center justify-between">
+                    <span>✋ Znakovi rukom i geste</span>
+                    <span className="text-slate-500 font-normal">Klikni za odabir</span>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {EXTENDED_HAND_EMOJIS.map(emoji => (
+                      <button
+                        key={`hand-${emoji}`}
+                        type="button"
+                        onClick={() => onSelectReaction(msg.id, emoji)}
+                        className={`h-8 rounded-lg flex items-center justify-center text-lg hover:bg-slate-800 active:scale-125 transition-transform cursor-pointer ${
+                          myCurrentEmoji === emoji ? 'bg-teal-500/30 border border-teal-400' : ''
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-800 pt-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 mb-1 px-1">
+                    🎣 Ribolov, reakcije i simboli
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {EXTENDED_OTHER_EMOJIS.map(emoji => (
+                      <button
+                        key={`other-${emoji}`}
+                        type="button"
+                        onClick={() => onSelectReaction(msg.id, emoji)}
+                        className={`h-8 rounded-lg flex items-center justify-center text-lg hover:bg-slate-800 active:scale-125 transition-transform cursor-pointer ${
+                          myCurrentEmoji === emoji ? 'bg-teal-500/30 border border-teal-400' : ''
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Oblačić poruke: smanjen oblak za 70% (px-2.5 py-1) s povećanim fontom za 10% (16.5px/19px) */}
         <div
-          onClick={() => onShowInfo(msg)}
-          className={`text-left px-2.5 py-1 sm:px-3 sm:py-1 rounded-xl break-words leading-tight sm:leading-snug shadow-sm cursor-pointer hover:brightness-105 active:scale-[0.99] transition-all group relative border ${
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            didLongPressRef.current = true;
+            onOpenReactionPicker(msg.id);
+          }}
+          onClick={() => {
+            if (didLongPressRef.current) {
+              didLongPressRef.current = false;
+              return;
+            }
+            if (isReactionPickerOpen) {
+              onCloseReactionPicker();
+              return;
+            }
+            onShowInfo(msg);
+          }}
+          className={`text-left px-2.5 py-1 sm:px-3 sm:py-1 rounded-xl break-words leading-tight sm:leading-snug shadow-sm cursor-pointer hover:brightness-105 active:scale-[0.99] transition-all group relative border select-none ${
             isMine 
               ? 'bg-gradient-to-br from-teal-600 via-teal-600 to-cyan-700 text-white rounded-tr-xs border-teal-400/40 shadow-teal-950/30' 
               : 'bg-slate-800/95 text-slate-50 rounded-tl-xs border-slate-700 hover:border-slate-600 shadow-slate-950/40'
           }`}
-          title="Klikni za prikaz tko je pročitao ovu poruku ili povuci za odgovor"
+          title="Drži prst duže za lajk (emoji) ili klikni za prikaz tko je pročitao poruku"
         >
           {/* Ako je poruka odgovor na raniju poruku (Replay pregled iznad teksta) */}
           {msg.replyTo && (
@@ -209,10 +425,40 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           )}
 
           {/* Glavni tekst poruke: povećan za 10% na 16.5px / 19px uz kompaktniji oblak */}
-          <span className="text-[16.5px] sm:text-[19px] leading-tight sm:leading-snug font-normal tracking-normal select-text inline-block">
+          <span className="text-[16.5px] sm:text-[19px] leading-tight sm:leading-snug font-normal tracking-normal select-none inline-block">
             {msg.text}
           </span>
         </div>
+
+        {/* Prikaz dodanih lajkova / emoji reakcija ispod oblačića poruke */}
+        {groupedReactions.length > 0 && (
+          <div className={`flex flex-wrap items-center gap-1 mt-1 px-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
+            {groupedReactions.map(group => (
+              <button
+                key={group.emoji}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectReaction(msg.id, group.emoji);
+                }}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold transition-all active:scale-95 cursor-pointer border shadow-sm ${
+                  group.hasMine
+                    ? 'bg-teal-900/90 border-teal-400/80 text-teal-100 shadow-teal-950/50'
+                    : 'bg-slate-900/90 border-slate-700 text-slate-200 hover:border-slate-500'
+                }`}
+                title={`Reagirali: ${group.users.join(', ')} (klikni za dodavanje/uklanjanje)`}
+              >
+                <span className="text-sm leading-none">{group.emoji}</span>
+                {group.users.length > 1 && (
+                  <span className="text-[11px] font-extrabold text-teal-300">{group.users.length}</span>
+                )}
+                <span className="text-[10px] font-semibold opacity-90 max-w-[110px] truncate">
+                  {group.users.join(', ')}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Vrijeme slanja, kvačice i status pregleda */}
         <button
@@ -259,6 +505,10 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
 
   // Stanje za pregled tko je pročitao poruku (dostupno svima klikom na poruku)
   const [selectedMessageForInfo, setSelectedMessageForInfo] = useState<ChatMessage | null>(null);
+
+  // Stanje za lajkanje poruke (dugi pritisak na poruku)
+  const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
+  const [showExtendedReactions, setShowExtendedReactions] = useState<boolean>(false);
 
   // Stanja za promjenu vlastitog imena u chatu
   const [myUserName, setMyUserName] = useState<string>(() => getUserName());
@@ -353,6 +603,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     setIsAdmin(isAdminUnlocked());
     setIsLoading(true);
     let initialLoaded = false;
+    let lastMsgCount = 0;
 
     // 1. Pretplata na poruke
     const unsubscribeChat = subscribeToChatMessages((res) => {
@@ -364,6 +615,9 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
       } else {
         setIsBlocked(false);
         setBlockedReason(null);
+        const shouldScroll = !initialLoaded || res.messages.length > lastMsgCount;
+        lastMsgCount = res.messages.length;
+
         setMessages(prev => {
           // Ako je stigla nova poruka od nekog drugog dok gledamo chat, oglasi se zvučni ton
           if (initialLoaded && prev.length > 0 && res.messages.length > prev.length) {
@@ -383,9 +637,12 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
 
         // Označi poruke pročitanima
         markChatAsRead(res.messages);
+
+        if (shouldScroll) {
+          setTimeout(scrollToBottom, 80);
+        }
       }
       initialLoaded = true;
-      setTimeout(scrollToBottom, 80);
     });
 
     // 2. Pretplata na aktivno tipkanje drugih korisnika
@@ -734,7 +991,15 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 bg-slate-950/40 relative">
+          <div
+            onClick={() => {
+              if (activeReactionMsgId) {
+                setActiveReactionMsgId(null);
+                setShowExtendedReactions(false);
+              }
+            }}
+            className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 bg-slate-950/40 relative"
+          >
             {/* Decentne skice riba u jedva vidljivoj, malo svjetlijoj nijansi od podloge koje ne ometaju čitanje */}
             <div className="absolute inset-0 pointer-events-none select-none overflow-hidden opacity-[0.06] flex flex-col justify-around items-center gap-12 py-6">
               {/* Skica ribe 1 (Smuđ/Bucov kontura) */}
@@ -805,7 +1070,24 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                     <SwipeableMessageRow
                       msg={msg}
                       isMine={isMine}
+                      myDeviceId={myDeviceId}
                       readCount={readCount}
+                      isReactionPickerOpen={activeReactionMsgId === msg.id}
+                      showExtendedReactions={activeReactionMsgId === msg.id && showExtendedReactions}
+                      onOpenReactionPicker={(mId) => {
+                        setActiveReactionMsgId(mId);
+                        setShowExtendedReactions(false);
+                      }}
+                      onCloseReactionPicker={() => {
+                        setActiveReactionMsgId(null);
+                        setShowExtendedReactions(false);
+                      }}
+                      onToggleExtendedReactions={() => setShowExtendedReactions(prev => !prev)}
+                      onSelectReaction={(mId, emoji) => {
+                        toggleMessageReaction(mId, emoji).catch(() => {});
+                        setActiveReactionMsgId(null);
+                        setShowExtendedReactions(false);
+                      }}
                       onOpenRename={handleOpenRenameUser}
                       onShowInfo={setSelectedMessageForInfo}
                       onReply={handleSelectReply}
@@ -949,7 +1231,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                     <Eye className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-black text-white">Tko je pročitao poruku</h3>
+                    <h3 className="text-sm font-black text-white">Detalji poruke i čitatelji</h3>
                     <p className="text-[10px] text-teal-300 font-semibold">
                       {selectedMessageForInfo.readBy && selectedMessageForInfo.readBy.length > 0
                         ? `${selectedMessageForInfo.readBy.length} ${selectedMessageForInfo.readBy.length === 1 ? 'osoba pročitala' : 'osoba pročitalo'}`
@@ -984,6 +1266,26 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                   <span>Promijeni ime korisnika ({selectedMessageForInfo.userName})</span>
                 </button>
               </div>
+
+              {/* Popis lajkova / reakcija ako ih poruka ima */}
+              {selectedMessageForInfo.reactions && selectedMessageForInfo.reactions.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider px-1">
+                    Reakcije na poruku ({selectedMessageForInfo.reactions.length}):
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedMessageForInfo.reactions.map((rx, idx) => (
+                      <div
+                        key={rx.deviceId + '-' + idx}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-950 border border-teal-500/35 text-xs"
+                      >
+                        <span className="text-base">{rx.emoji}</span>
+                        <span className="font-bold text-white">{rx.userName}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Popis korisnika koji su pročitali poruku */}
               <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">

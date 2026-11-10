@@ -243,6 +243,7 @@ export default function App() {
 
     // 2. Provjera i automatska instalacija Live Web ažuriranja pri samom pokretanju aplikacije
     const checkUpdates = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
         const res = await checkForAppUpdate(false);
         if (res.status === 'update_available' && res.updateInfo) {
@@ -254,7 +255,7 @@ export default function App() {
     };
 
     const timer = setTimeout(checkUpdates, 800);
-    // Periodička provjera svakih 15 minuta dok je aplikacija aktivna
+    // Periodička provjera svakih 15 minuta isključivo dok je zaslon aktivan
     const interval = setInterval(checkUpdates, 15 * 60 * 1000);
 
     // 3. Provjera kada se korisnik vrati u aplikaciju
@@ -274,11 +275,12 @@ export default function App() {
     };
   }, [handleRefreshAll]);
 
-  // Redovita provjera valjanosti i opoziva licence s centralnim poslužiteljem
+  // Redovita provjera valjanosti i opoziva licence s centralnim poslužiteljem (samo dok je aplikacija vidljiva na zaslonu)
   useEffect(() => {
     if (!isActivated) return;
 
     const checkStatus = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
         const result = await verifyLicenseWithServer();
         if (!result.valid && result.status === 'revoked') {
@@ -290,8 +292,8 @@ export default function App() {
     // Provjeri pri učitavanju
     checkStatus();
 
-    // I periodički svakih 35 sekundi ako je korisnik online
-    const interval = setInterval(checkStatus, 35000);
+    // Provjeri svakih 5 minuta samo dok je zaslon uključen (sprječava buđenje u pozadini i trošenje baterije)
+    const interval = setInterval(checkStatus, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [isActivated]);
 
@@ -376,15 +378,18 @@ export default function App() {
 
         if (newestMsg) {
           if (initialSyncDone && count > 0 && newestMsg.id !== lastNotifiedMsgIdRef.current) {
-            // Ako korisnik u ovom trenutku nije unutar otvorenog chata, pošalji zvuk i sistemsku obavijest
-            if (!showChatModalRef.current) {
-              showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
-            }
             lastNotifiedMsgIdRef.current = newestMsg.id;
-            syncLastSeenMessageToNative(newestMsg.id, newestMsg.createdAt).catch(() => {});
             try {
               localStorage.setItem('ribo_last_notified_msg_id', newestMsg.id);
             } catch {}
+
+            // Ako korisnik u ovom trenutku nije unutar otvorenog chata, pošalji zvuk i sistemsku obavijest
+            if (!showChatModalRef.current) {
+              showIncomingMessageNotification(newestMsg.userName, newestMsg.text, newestMsg.id);
+            } else {
+              // Korisnik već gleda chat, pa tiho zabilježi poruku kao viđenu u nativnom servisu
+              syncLastSeenMessageToNative(newestMsg.id, newestMsg.createdAt).catch(() => {});
+            }
 
             // Ako je korisnik u tom trenutku bio izvan aplikacije, zabilježi da se pri povratku otvori LiveChat
             if (typeof document !== 'undefined' && document.hidden) {
