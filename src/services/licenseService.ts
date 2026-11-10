@@ -140,7 +140,7 @@ export function isAppActivated(): boolean {
  * Pokušava aktivirati aplikaciju s unesenim ključem i registrira je na poslužitelju
  */
 // Cloud backend URL kada se aplikacija pokreće unutar Android Capacitor WebViewa
-export const CLOUD_BACKEND_URL = 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
+export const CLOUD_BACKEND_URL = 'https://ais-dev-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
 const LOCAL_LICENSES_CACHE_KEY = 'ribo_admin_licenses_cache';
 
 /**
@@ -376,12 +376,29 @@ export function checkAdminPin(pin: string): boolean {
 }
 
 /**
- * Provjerava je li trenutni korisnik otključan kao administrator (RP-ADMIN ili verifikacija PIN-om)
+ * Pomoćna funkcija za normalizaciju ID-a uređaja
+ */
+export function cleanDeviceId(devId?: string | null): string {
+  if (!devId) return '';
+  return String(devId).trim().toUpperCase();
+}
+
+/**
+ * Provjerava je li trenutni korisnik otključan kao administrator (RP-ADMIN, Daniel Čizmar ili verifikacija PIN-om 2026)
  */
 export function isAdminUnlocked(): boolean {
   if (typeof window === 'undefined') return false;
+  const devId = cleanDeviceId(getDeviceId());
+  const uName = (getUserName() || '').toLowerCase();
+  const isDaniel = uName.includes('daniel') || uName.includes('čizmar') || uName.includes('cizmar');
+
+  if (isDaniel && localStorage.getItem('ribo_admin_unlocked') !== 'true') {
+    localStorage.setItem('ribo_admin_unlocked', 'true');
+  }
+
   return (
-    getDeviceId() === 'RP-ADMIN' ||
+    devId === 'RP-ADMIN' ||
+    isDaniel ||
     localStorage.getItem('ribo_admin_unlocked') === 'true'
   );
 }

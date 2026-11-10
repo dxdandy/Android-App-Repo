@@ -1064,7 +1064,7 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onTestUpdatePopup && onTestUpdatePopup({
-                        version: '1.7.9',
+                        version: '1.8.0',
                         name: 'RiboPrognoza',
                         releaseDate: new Date().toISOString().split('T')[0],
                         changelog: [

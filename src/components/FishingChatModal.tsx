@@ -44,7 +44,7 @@ import {
   isAdminUnlocked, 
   setAdminUnlocked 
 } from '../services/chatService';
-import { getDeviceId, getUserName } from '../services/licenseService';
+import { getDeviceId, getUserName, cleanDeviceId } from '../services/licenseService';
 import { playNotificationSound } from '../services/notificationService';
 
 interface FishingChatModalProps {
@@ -92,6 +92,7 @@ interface SwipeableMessageRowProps {
   onReply: (msg: ChatMessage) => void;
   onEditMessage: (msg: ChatMessage) => void;
   onDeleteMessage: (msg: ChatMessage) => void;
+  onRequireAdminPin?: (msg: ChatMessage) => void;
   onPreviewImage: (imageUrl: string, caption?: string, sender?: string) => void;
 }
 
@@ -114,6 +115,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   onReply,
   onEditMessage,
   onDeleteMessage,
+  onRequireAdminPin,
   onPreviewImage
 }) => {
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -246,7 +248,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
         className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[90%] sm:max-w-[82%] ${isMine ? 'ml-auto' : 'mr-auto'} group/item relative`}
       >
         {/* Ime pošiljatelja, indikator je li online i brze akcije */}
-        <div className="flex items-center gap-1.5 mb-1 px-1">
+        <div className="flex flex-wrap items-center gap-1.5 mb-1 px-1">
           <button
             type="button"
             onClick={() => onOpenRename(msg.deviceId, msg.userName)}
@@ -310,18 +312,31 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
               <span>Ispravi</span>
             </button>
           )}
-          {canDelete && (
+          {canDelete ? (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onDeleteMessage(msg);
               }}
-              className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer opacity-70 group-hover/item:opacity-100 flex items-center gap-0.5 text-[10px]"
+              className="px-2 py-0.5 rounded-md bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold shadow-xs active:scale-95"
               title={isAdmin && !isMine ? `Obriši poruku ribiča (${msg.userName}) kao administrator` : "Obriši svoju poruku (bez traga)"}
             >
               <Trash2 className="w-3 h-3 text-rose-400" />
-              <span className="hidden sm:inline text-[9px] text-rose-400/90 font-medium">Obriši</span>
+              <span>{isAdmin && !isMine ? 'Obriši (Admin)' : 'Obriši'}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onRequireAdminPin) onRequireAdminPin(msg);
+              }}
+              className="px-1.5 py-0.5 rounded-md bg-slate-800/80 hover:bg-rose-950/40 border border-slate-700/80 hover:border-rose-500/40 text-slate-400 hover:text-rose-300 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-medium"
+              title="Obriši ovu poruku kao administrator (unos PIN-a 2026)"
+            >
+              <Trash2 className="w-2.5 h-2.5 text-slate-400" />
+              <span className="text-[9px]">Admin</span>
             </button>
           )}
         </div>
@@ -391,18 +406,31 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
                 </button>
               )}
 
-              {canDelete && (
+              {canDelete ? (
                 <button
                   type="button"
                   onClick={() => {
                     onCloseReactionPicker();
                     onDeleteMessage(msg);
                   }}
-                  className="px-2.5 py-1 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/50 text-rose-200 text-xs font-black flex items-center gap-1.5 shadow-lg cursor-pointer active:scale-95"
+                  className="px-3 py-1.5 rounded-xl bg-rose-500/25 hover:bg-rose-500/35 border border-rose-400/60 text-rose-200 text-xs font-black flex items-center gap-1.5 shadow-lg cursor-pointer active:scale-95"
                   title="Trajno ukloni ovu poruku bez ikakvog traga"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-rose-300" />
-                  <span>{isAdmin && !isMine ? 'Obriši poruku (Admin)' : 'Obriši poruku'}</span>
+                  <span>{isAdmin && !isMine ? '🗑️ Obriši poruku (Admin)' : '🗑️ Obriši poruku'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCloseReactionPicker();
+                    if (onRequireAdminPin) onRequireAdminPin(msg);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer active:scale-95"
+                  title="Administrator može obrisati ovu poruku unosom PIN-a (2026)"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>🗑️ Obriši kao Admin (PIN 2026)</span>
                 </button>
               )}
             </div>
@@ -621,7 +649,10 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [newMyNameInput, setNewMyNameInput] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
 
-  // Stanja za administratorsku promjenu imena korisnika
+  const myDeviceId = getDeviceId();
+  const cleanMyDeviceId = cleanDeviceId(myDeviceId);
+
+  // Stanja za administratorsku promjenu imena korisnika i ovlasti
   const [isAdmin, setIsAdmin] = useState<boolean>(() => isAdminUnlocked());
   const [renameTarget, setRenameTarget] = useState<{ deviceId: string; userName: string } | null>(null);
   const [renameNewName, setRenameNewName] = useState<string>('');
@@ -632,7 +663,26 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [adminPinInput, setAdminPinInput] = useState<string>('');
   const [adminPinError, setAdminPinError] = useState<boolean>(false);
   const [pendingRenameTarget, setPendingRenameTarget] = useState<{ deviceId: string; userName: string } | null>(null);
-  const [pendingAction, setPendingAction] = useState<'rename' | 'clear' | null>(null);
+  const [pendingDeleteTarget, setPendingDeleteTarget] = useState<ChatMessage | null>(null);
+  const [pendingAction, setPendingAction] = useState<'rename' | 'clear' | 'delete' | null>(null);
+
+  // Automatska prepoznatljivost Daniela / Administratora
+  const isUserAdmin = Boolean(
+    isAdmin ||
+    isAdminUnlocked() ||
+    cleanMyDeviceId === 'RP-ADMIN' ||
+    myUserName.toLowerCase().includes('daniel') ||
+    myUserName.toLowerCase().includes('čizmar') ||
+    myUserName.toLowerCase().includes('cizmar')
+  );
+
+  // Ako je Daniel prijavljen, automatski osiguraj admin stanje
+  useEffect(() => {
+    if (isUserAdmin && !isAdmin) {
+      setIsAdmin(true);
+      setAdminUnlocked(true);
+    }
+  }, [isUserAdmin, isAdmin]);
 
   // Stanja za administratorsko brisanje cijele povijesti chata
   const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
@@ -657,7 +707,8 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   };
 
   const handleSelectEditMessage = (msg: ChatMessage) => {
-    if (msg.deviceId !== myDeviceId && !isAdminUnlocked()) return;
+    const isMsgMine = cleanDeviceId(msg.deviceId) === cleanMyDeviceId || (myUserName.toLowerCase().includes('daniel') && msg.userName.toLowerCase().includes('daniel'));
+    if (!isMsgMine && !isUserAdmin) return;
     setReplyingTo(null);
     setSelectedImageDataUrl(null);
     setEditingMessage(msg);
@@ -669,6 +720,18 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
 
   const handleDeleteMessage = (msg: ChatMessage) => {
     setMessageToDelete(msg);
+  };
+
+  const handleRequireAdminPin = (msg: ChatMessage) => {
+    if (isUserAdmin) {
+      handleDeleteMessage(msg);
+    } else {
+      setPendingAction('delete');
+      setPendingDeleteTarget(msg);
+      setAdminPinInput('');
+      setAdminPinError(false);
+      setShowPinPrompt(true);
+    }
   };
 
   const handleConfirmDeleteSingleMessage = async () => {
@@ -690,7 +753,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           setSelectedMessageForInfo(null);
         }
         setMessageToDelete(null);
-        setRenameSuccessToast('✓ Poruka je trajno obrisana.');
+        setRenameSuccessToast('✓ Poruka je trajno obrisana bez traga.');
         setTimeout(() => setRenameSuccessToast(null), 2500);
       } else {
         setErrorMessage(res.error || 'Brisanje poruke nije uspjelo.');
@@ -702,7 +765,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     }
   };
 
-  const myDeviceId = getDeviceId();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -924,6 +986,10 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
         setRenameNewName(pendingRenameTarget.userName);
         setRenameError(null);
         setPendingRenameTarget(null);
+        setPendingAction(null);
+      } else if (pendingAction === 'delete' && pendingDeleteTarget) {
+        setMessageToDelete(pendingDeleteTarget);
+        setPendingDeleteTarget(null);
         setPendingAction(null);
       }
     } else {
@@ -1159,16 +1225,36 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {isAdmin && (
+            {isUserAdmin ? (
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40" title="Administrator aplikacije (ovlašten za uređivanje/brisanje svih poruka)">
+                  👑 Admin
+                </span>
+                <button
+                  type="button"
+                  onClick={handleOpenClearChat}
+                  className="px-2.5 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 hover:border-rose-400 text-rose-300 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-md active:scale-95"
+                  title="Obriši sve poruke u chatu za sve korisnike (Samo Administrator)"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span className="hidden sm:inline">Obriši povijest chata</span>
+                  <span className="sm:hidden">Obriši sve</span>
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={handleOpenClearChat}
-                className="px-2.5 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 hover:border-rose-400 text-rose-300 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-md active:scale-95"
-                title="Obriši sve poruke u chatu za sve korisnike (Samo Administrator)"
+                onClick={() => {
+                  setPendingAction(null);
+                  setAdminPinInput('');
+                  setAdminPinError(false);
+                  setShowPinPrompt(true);
+                }}
+                className="px-2 py-1 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-amber-300 border border-slate-700/80 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                title="Otključaj administratorske ovlasti (PIN 2026)"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                <span className="hidden sm:inline">Obriši povijest chata</span>
-                <span className="sm:hidden">Obriši</span>
+                <Lock className="w-3 h-3 text-amber-400" />
+                <span>Admin</span>
               </button>
             )}
 
@@ -1266,7 +1352,11 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
               </div>
             ) : (
               messages.map((msg, idx) => {
-                const isMine = msg.deviceId === myDeviceId;
+                const isMsgMine = Boolean(
+                  (msg.deviceId && myDeviceId && cleanDeviceId(msg.deviceId) === cleanMyDeviceId) ||
+                  (myUserName && msg.userName && myUserName.toLowerCase().includes('daniel') && msg.userName.toLowerCase().includes('daniel'))
+                );
+                const canDel = isMsgMine || isUserAdmin;
                 const readCount = msg.readBy?.length || 0;
                 const prevMsg = idx > 0 ? messages[idx - 1] : null;
                 const showDateDivider = !prevMsg || 
@@ -1288,9 +1378,9 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
 
                     <SwipeableMessageRow
                       msg={msg}
-                      isMine={isMine}
-                      isAdmin={isAdmin}
-                      canDelete={isMine || isAdmin}
+                      isMine={isMsgMine}
+                      isAdmin={isUserAdmin}
+                      canDelete={canDel}
                       isSenderOnline={onlineDeviceIdsSet.has(msg.deviceId)}
                       myDeviceId={myDeviceId}
                       readCount={readCount}
@@ -1315,6 +1405,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                       onReply={handleSelectReply}
                       onEditMessage={handleSelectEditMessage}
                       onDeleteMessage={handleDeleteMessage}
+                      onRequireAdminPin={handleRequireAdminPin}
                       onPreviewImage={(url, caption, sender) => setLightboxImage({ url, caption, sender })}
                     />
                   </React.Fragment>
@@ -1678,7 +1769,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 )}
               </div>
 
-              {(selectedMessageForInfo.deviceId === myDeviceId || isAdmin) && (
+              {((selectedMessageForInfo.deviceId && cleanDeviceId(selectedMessageForInfo.deviceId) === cleanMyDeviceId) || (myUserName.toLowerCase().includes('daniel') && selectedMessageForInfo.userName.toLowerCase().includes('daniel')) || isUserAdmin) ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -1686,10 +1777,23 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                     setSelectedMessageForInfo(null);
                     handleDeleteMessage(toDel);
                   }}
-                  className="w-full py-2 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  className="w-full py-2.5 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/50 text-rose-200 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-md active:scale-95"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>{isAdmin && selectedMessageForInfo.deviceId !== myDeviceId ? 'Obriši ovu poruku kao Administrator' : 'Obriši ovu poruku (bez traga)'}</span>
+                  <Trash2 className="w-4 h-4 text-rose-300" />
+                  <span>{isUserAdmin && cleanDeviceId(selectedMessageForInfo.deviceId) !== cleanMyDeviceId ? '🗑️ Obriši ovu poruku kao Administrator' : '🗑️ Obriši ovu poruku (bez traga)'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const toDel = selectedMessageForInfo;
+                    setSelectedMessageForInfo(null);
+                    handleRequireAdminPin(toDel);
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors active:scale-95"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-400" />
+                  <span>🗑️ Obriši kao Administrator (PIN 2026)</span>
                 </button>
               )}
 
@@ -1903,7 +2007,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
               <div className="space-y-1.5">
                 <h3 className="text-base sm:text-lg font-black text-white">Obriši poruku?</h3>
                 <p className="text-xs text-rose-300 font-bold">
-                  {messageToDelete.deviceId === myDeviceId
+                  {cleanDeviceId(messageToDelete.deviceId) === cleanMyDeviceId || (myUserName.toLowerCase().includes('daniel') && messageToDelete.userName.toLowerCase().includes('daniel'))
                     ? 'Poruka će biti trajno uklonjena bez ikakvog traga.'
                     : `Kao administrator brišete poruku ribiča ${messageToDelete.userName} bez ikakvog traga.`}
                 </p>

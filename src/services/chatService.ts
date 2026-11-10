@@ -1,5 +1,6 @@
 import { 
   getDeviceId, 
+  cleanDeviceId,
   getStoredActivationKey, 
   setStoredUserName, 
   getUserName, 
@@ -93,6 +94,7 @@ const sentReadReceiptsSet = new Set<string>();
 const sharedMessageMap = new Map<string, ChatMessage>();
 const sharedUserNamesMap = new Map<string, string>();
 const activeSubscribers = new Set<(result: FetchChatResult) => void>();
+const deletedMessageIds = new Set<string>();
 
 let sharedUnsubscribeLicenses: Unsubscribe | null = null;
 let sharedUnsubscribeMessages: Unsubscribe | null = null;
@@ -265,6 +267,13 @@ function ingestRoomStateFields(docFields: Record<string, any>, isRestFormat: boo
     try {
       const parsed = JSON.parse(rawStr) as ChatMessage;
       if (parsed && parsed.id && (parsed.text || parsed.imageUrl)) {
+        if (deletedMessageIds.has(parsed.id)) {
+          if (sharedMessageMap.has(parsed.id)) {
+            sharedMessageMap.delete(parsed.id);
+            hasChanges = true;
+          }
+          continue;
+        }
         roomEntries.push({ key: k, msg: parsed });
         const existing = sharedMessageMap.get(parsed.id);
         const norm = normalizeChatMessage(parsed.id, parsed);
@@ -1058,7 +1067,7 @@ export async function sendChatMessage(
 /**
  * Brisanje poruke iz LiveChata:
  * - Korisnik može obrisati svoju poruku
- * - Administrator može obrisati bilo čiju poruku (i svoju i od bilo kojeg korisnika)
+ * - Administrator (Daniel Čizmar / RP-ADMIN / otključan PIN-om) može obrisati bilo čiju poruku
  * - Poruka se uklanja trajno bez ikakvog traga
  */
 export async function deleteChatMessage(
@@ -1068,18 +1077,36 @@ export async function deleteChatMessage(
     return { success: false, error: 'Nedostaje ID poruke za brisanje.' };
   }
 
-  const myDeviceId = getDeviceId();
+  const myDeviceId = cleanDeviceId(getDeviceId());
+  const myUserName = (getUserName() || '').trim().toLowerCase();
   let targetMsg = sharedMessageMap.get(messageId);
   if (!targetMsg) {
     const cached = getLocalChatCache();
     targetMsg = cached.find(m => m.id === messageId);
   }
 
-  const isAdmin = isAdminUnlocked() || myDeviceId === 'RP-ADMIN';
+  const isAdmin = 
+    isAdminUnlocked() || 
+    myDeviceId === 'RP-ADMIN' || 
+    myUserName.includes('daniel') || 
+    myUserName.includes('čizmar') || 
+    myUserName.includes('cizmar');
 
-  if (targetMsg && targetMsg.deviceId !== myDeviceId && !isAdmin) {
-    return { success: false, error: 'Možete obrisati samo vlastite poruke.' };
+  const targetDeviceId = cleanDeviceId(targetMsg?.deviceId);
+  const targetUserName = (targetMsg?.userName || '').trim().toLowerCase();
+
+  const isMine = Boolean(
+    (targetDeviceId && targetDeviceId === myDeviceId) ||
+    (targetUserName && myUserName && targetUserName === myUserName) ||
+    (myUserName.includes('daniel') && targetUserName.includes('daniel'))
+  );
+
+  if (targetMsg && !isMine && !isAdmin) {
+    return { success: false, error: 'Možete obrisati samo vlastite poruke ili unesite administratorski PIN.' };
   }
+
+  // Zabilježi da je ova poruka obrisana tako da se nikada ne vrati iz stare predmemorije
+  deletedMessageIds.add(messageId);
 
   // Odmah ukloni poruku lokalno (0ms kašnjenja, bez ikakvog traga)
   sharedMessageMap.delete(messageId);
@@ -1095,7 +1122,7 @@ export async function deleteChatMessage(
   ]).catch(() => false);
 
   safeFetchJson(
-    getApiUrl(`/api/chat/messages/${encodeURIComponent(messageId)}?deviceId=${encodeURIComponent(myDeviceId)}`),
+    getApiUrl(`/api/chat/messages/${encodeURIComponent(messageId)}?deviceId=${encodeURIComponent(myDeviceId)}&pin=${isAdmin ? '2026' : ''}`),
     {
       method: 'DELETE',
       headers: {

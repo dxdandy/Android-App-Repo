@@ -814,14 +814,14 @@ try {
 
     // 2. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.7.9',
+      version: '1.8.0',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-10',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.9.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.0.apk',
       changelog: [
-        'Pouzdan i trenutačan prijenos Live Web OTA ažuriranja na mobilne uređaje izravno s poslužitelja',
-        'Uklonjena ovisnost o dnevnim Firestore kvotama pri preuzimanju i provjeri novih paketa',
-        'LiveChat: Mogućnost pojedinačnog brisanja bilo koje poruke bez ikakvog traga'
+        'LiveChat: Popravljeno brisanje poruka - korisnici mogu brisati vlastite poruke, a administrator sve poruke bez ikakvog traga',
+        'LiveChat: Dodana opcija unosa PIN-a (2026) za trenutačno brisanje i automatsko prepoznavanje administratora',
+        'Pouzdan i trenutačan prijenos Live Web OTA ažuriranja na mobilne uređaje preko poslužitelja i GitHub Raw CDN-a'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -841,20 +841,20 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.7.9',
+            version: '1.8.0',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.7.9',
+          version: '1.8.0',
           totalChunks,
           chunkCount: totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.7.9 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.8.0 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
@@ -1615,7 +1615,7 @@ app.post('/api/chat/edit', (req, res) => {
  */
 app.delete('/api/chat/messages/:id', (req, res) => {
   const id = req.params.id;
-  const pin = (req.headers['x-admin-pin'] as string) || '';
+  const pin = ((req.headers['x-admin-pin'] as string) || (req.query.pin as string) || '').trim();
   const deviceId = (req.headers['x-device-id'] as string) || (req.query.deviceId as string) || '';
   const cleanDeviceId = deviceId ? String(deviceId).trim().toUpperCase() : '';
 
@@ -1628,8 +1628,9 @@ app.delete('/api/chat/messages/:id', (req, res) => {
     if (!cleanDeviceId) {
       return res.status(403).json({ error: 'Niste autorizirani za brisanje ove poruke.' });
     }
-    if (targetMsg && targetMsg.deviceId !== cleanDeviceId) {
-      return res.status(403).json({ error: 'Možete obrisati samo vlastite poruke.' });
+    const targetDevId = targetMsg && targetMsg.deviceId ? String(targetMsg.deviceId).trim().toUpperCase() : '';
+    if (targetMsg && targetDevId && targetDevId !== cleanDeviceId) {
+      return res.status(403).json({ error: 'Možete obrisati samo vlastite poruke ili unesite administratorski PIN (2026).' });
     }
   }
 
@@ -1716,14 +1717,14 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.7.9',
+    version: '1.8.0',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-10',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.9.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.0.apk',
     changelog: [
-      'Pouzdan i trenutačan prijenos Live Web OTA ažuriranja na mobilne uređaje izravno s poslužitelja',
-      'Uklonjena ovisnost o dnevnim Firestore kvotama pri preuzimanju i provjeri novih paketa',
-      'LiveChat: Mogućnost pojedinačnog brisanja bilo koje poruke bez ikakvog traga'
+      'LiveChat: Popravljeno brisanje poruka - korisnici mogu brisati vlastite poruke, a administrator sve poruke bez ikakvog traga',
+      'LiveChat: Dodana opcija unosa PIN-a (2026) za trenutačno brisanje i automatsko prepoznavanje administratora',
+      'Pouzdan i trenutačan prijenos Live Web OTA ažuriranja na mobilne uređaje preko poslužitelja i GitHub Raw CDN-a'
     ],
     isCritical: false,
     updateType: 'live_web'
@@ -1746,7 +1747,7 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.7.9',
+    version: '1.8.0',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs

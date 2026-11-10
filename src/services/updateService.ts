@@ -14,7 +14,7 @@ import { db } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 import { getApiUrl } from './licenseService';
 
-export const BUNDLED_APP_VERSION = '1.7.9';
+export const BUNDLED_APP_VERSION = '1.8.0';
 export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
 export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
 
@@ -534,10 +534,54 @@ async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boo
       }
     }
   } catch (backendErr) {
-    console.warn('[OTA] Direktni dohvat s poslužitelja nije uspio, pokušavam preko Firestorea:', backendErr);
+    console.warn('[OTA] Direktni dohvat s poslužitelja nije uspio, pokušavam preko GitHub Raw CDN-a:', backendErr);
   }
 
-  // 2. Pričuvni izvor: Firestore ota_bundle kolekcija
+  // 2. Izravni dohvat s GitHub Raw CDN-a (dostupno na svim mrežama i mobilnim operaterima bez blokada i bez kvota)
+  const repo = getSavedGithubRepo();
+  if (repo && repo.includes('/')) {
+    try {
+      const ghManifestUrl = `https://raw.githubusercontent.com/${repo}/main/public/live-ota/manifest.json?t=${Date.now()}`;
+      const ghManifestRes = await fetch(ghManifestUrl, {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(6000)
+      });
+      if (ghManifestRes.ok) {
+        const ghManifest = await ghManifestRes.json();
+        if (ghManifest && ghManifest.version) {
+          const ghVer = String(ghManifest.version).replace(/^[vV]/, '').trim();
+          if (isNewerVersion(ghVer, runningCodeVer)) {
+            console.log(`[OTA] Preuzimam novi kod v${ghVer} s GitHub Raw CDN-a...`);
+            const ghBundleUrl = `https://raw.githubusercontent.com/${repo}/main/public/live-ota/app-bundle.js?t=${Date.now()}`;
+            const ghBundleRes = await fetch(ghBundleUrl, {
+              cache: 'no-store',
+              signal: AbortSignal.timeout(18000)
+            });
+            if (ghBundleRes.ok) {
+              const fullJsCode = await ghBundleRes.text();
+              if (fullJsCode && fullJsCode.length > 1000) {
+                const saved = await saveOtaBundleToIndexedDB({
+                  version: ghVer,
+                  jsCode: fullJsCode,
+                  cssCode: ghManifest.css || '',
+                  updatedAt: Date.now()
+                });
+                if (saved) {
+                  console.log(`[OTA] Uspješno spremljen novi kod v${ghVer} u IndexedDB s GitHub Raw CDN-a!`);
+                  return { downloadedNewCode: true, bundleVersion: ghVer };
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (ghErr) {
+      console.warn('[OTA] GitHub Raw dohvat bundlea nije uspio:', ghErr);
+    }
+  }
+
+  // 3. Pričuvni izvor: Firestore ota_bundle kolekcija
   try {
     const manifest = await getFirestoreDocQuotaSafe('ota_bundle', 'manifest');
     if (!manifest) {

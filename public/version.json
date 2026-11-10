@@ -1,12 +1,12 @@
 {
-  "version": "1.7.9",
+  "version": "1.8.0",
   "name": "RiboPrognoza",
   "releaseDate": "2026-11-10",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.9.apk",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.0.apk",
   "changelog": [
-    "Pouzdan i trenutačan prijenos Live Web OTA ažuriranja na mobilne uređaje izravno s poslužitelja",
-    "Uklonjena ovisnost o dnevnim Firestore kvotama pri preuzimanju i provjeri novih paketa",
-    "LiveChat: Mogućnost pojedinačnog brisanja bilo koje poruke bez ikakvog traga"
+    "LiveChat: Popravljeno brisanje poruka - korisnici mogu brisati vlastite poruke, a administrator sve poruke bez ikakvog traga",
+    "LiveChat: Dodana opcija unosa PIN-a (2026) za trenutačno brisanje i automatsko prepoznavanje administratora",
+    "Pouzdan i trenutačan prijenos Live Web OTA ažuriranja na mobilne uređaje preko poslužitelja i GitHub Raw CDN-a"
   ],
   "isCritical": false,
   "updateType": "live_web"

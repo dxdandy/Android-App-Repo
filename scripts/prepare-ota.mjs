@@ -110,6 +110,32 @@ try {
       console.log(`[prepare-ota] Uspješno ugrađen Live Web OTA loader u dist/index.html (v${bundledVersion})`);
     }
   }
+
+  // Kopiraj kompilirani paket u public/live-ota kako bi bio trenutačno dostupan preko GitHub Raw i poslužitelja
+  const publicOtaDir = path.join(rootDir, 'public', 'live-ota');
+  if (!fs.existsSync(publicOtaDir)) {
+    fs.mkdirSync(publicOtaDir, { recursive: true });
+  }
+
+  const jsBundle = path.join(rootDir, 'dist', 'assets', 'app-bundle.js');
+  const cssBundle = path.join(rootDir, 'dist', 'assets', 'app-bundle.css');
+
+  if (fs.existsSync(jsBundle)) {
+    fs.copyFileSync(jsBundle, path.join(publicOtaDir, 'app-bundle.js'));
+    const cssContent = fs.existsSync(cssBundle) ? fs.readFileSync(cssBundle, 'utf-8') : '';
+    if (fs.existsSync(cssBundle)) {
+      fs.copyFileSync(cssBundle, path.join(publicOtaDir, 'app-bundle.css'));
+    }
+    const jsStats = fs.statSync(jsBundle);
+    const manifest = {
+      version: bundledVersion,
+      jsSize: jsStats.size,
+      css: cssContent,
+      updatedAt: Date.now()
+    };
+    fs.writeFileSync(path.join(publicOtaDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+    console.log(`[prepare-ota] Uspješno sinkroniziran public/live-ota paket (v${bundledVersion}, ${jsStats.size} B)`);
+  }
 } catch (err) {
   console.warn('[prepare-ota] Upozorenje:', err);
 }
