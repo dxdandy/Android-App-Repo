@@ -330,15 +330,15 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
   };
 
   const cardSurfaceClass = highContrast
-    ? 'bg-black border-2 border-white/80 shadow-none'
+    ? 'bg-slate-800/95 border-2 border-white/80 shadow-[0_0_18px_rgba(255,255,255,0.14)]'
     : 'bg-slate-900/95 shadow-lg';
 
   const cellSurfaceClass = highContrast
-    ? 'bg-black border border-white/60 overflow-hidden'
+    ? 'bg-slate-900/95 border border-white/65 overflow-hidden'
     : 'bg-slate-950/85 border border-slate-800/90 overflow-hidden';
 
   const labelTextClass = highContrast
-    ? 'text-[9.5px] sm:text-[10.5px] text-white font-black uppercase leading-tight truncate'
+    ? 'text-[9.5px] sm:text-[10px] text-white font-bold uppercase leading-tight truncate'
     : 'text-[9.5px] sm:text-[10px] text-slate-300 font-bold uppercase leading-tight truncate';
 
   const formatTrendLabel = (trend: string) => (trend || '').replace(/_/g, ' ');

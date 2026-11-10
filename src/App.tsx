@@ -640,7 +640,7 @@ export default function App() {
       onTouchMove={handleTouchMovePull}
       onTouchEnd={handleTouchEndPull}
       onTouchCancel={handleTouchEndPull}
-      className={`min-h-screen ${highContrast ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'} flex flex-col font-sans pb-20 md:pb-10 selection:bg-cyan-500 selection:text-white w-full max-w-full overflow-x-hidden pt-[calc(4.25rem+env(safe-area-inset-top,0px))] sm:pt-[calc(4.5rem+env(safe-area-inset-top,0px))]`}
+      className={`min-h-screen ${highContrast ? 'bg-slate-900 text-white sunlight-active' : 'bg-slate-950 text-slate-100'} flex flex-col font-sans pb-20 md:pb-10 selection:bg-cyan-500 selection:text-white w-full max-w-full overflow-x-hidden pt-[calc(4.25rem+env(safe-area-inset-top,0px))] sm:pt-[calc(4.5rem+env(safe-area-inset-top,0px))]`}
     >
       
       {/* Detekcija gesti ruba ekrana i hardverskog gumba / strelice za povratak u Osnovni mod */}
@@ -697,7 +697,7 @@ export default function App() {
       )}
 
       {/* Hero Header sa sažetkom stanja na Dunavu */}
-      <div className={`${highContrast ? 'bg-black border-b border-white/50' : 'bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80'} px-3 sm:px-6 lg:px-8 py-2 sm:py-3.5 w-full max-w-full overflow-hidden`}>
+      <div className={`${highContrast ? 'bg-slate-800/90 border-b border-white/60 shadow-[0_2px_14px_rgba(255,255,255,0.1)]' : 'bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80'} px-3 sm:px-6 lg:px-8 py-2 sm:py-3.5 w-full max-w-full overflow-hidden`}>
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-2 sm:gap-3.5 w-full">
           
           <div className="min-w-0">

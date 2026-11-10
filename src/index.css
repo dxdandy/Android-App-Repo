@@ -44,3 +44,50 @@
 .pt-safe {
   padding-top: max(0.5rem, env(safe-area-inset-top));
 }
+
+/* Način za sunce (Sunce gumb): posvjetljuje prikaz i pojačava bjelinu te sjaj slova bez promjene veličine fonta */
+.sunlight-active {
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.55), 0 0 1.5px rgba(255, 255, 255, 0.9);
+}
+
+.sunlight-active .text-slate-100,
+.sunlight-active .text-slate-200,
+.sunlight-active .text-slate-300,
+.sunlight-active .text-slate-400,
+.sunlight-active .text-slate-500,
+.sunlight-active .text-gray-300,
+.sunlight-active .text-gray-400 {
+  color: #ffffff !important;
+  text-shadow: 0 0 7px rgba(255, 255, 255, 0.65), 0 0 2px rgba(255, 255, 255, 0.95);
+}
+
+.sunlight-active .text-white {
+  color: #ffffff !important;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.7), 0 0 2px rgba(255, 255, 255, 1);
+}
+
+.sunlight-active [class*="text-cyan-"],
+.sunlight-active [class*="text-teal-"],
+.sunlight-active [class*="text-indigo-"],
+.sunlight-active [class*="text-amber-"],
+.sunlight-active [class*="text-emerald-"],
+.sunlight-active [class*="text-purple-"],
+.sunlight-active [class*="text-rose-"],
+.sunlight-active [class*="text-orange-"] {
+  filter: brightness(1.32);
+  text-shadow: 0 0 7px rgba(255, 255, 255, 0.55), 0 0 1.5px rgba(255, 255, 255, 0.85);
+}
+
+.sunlight-active .bg-slate-950,
+.sunlight-active .bg-slate-950\/95,
+.sunlight-active .bg-slate-950\/90,
+.sunlight-active .bg-slate-950\/85 {
+  background-color: rgba(15, 23, 42, 0.94) !important;
+}
+
+.sunlight-active .bg-slate-900,
+.sunlight-active .bg-slate-900\/95,
+.sunlight-active .bg-slate-900\/90 {
+  background-color: rgba(30, 41, 59, 0.95) !important;
+}
+

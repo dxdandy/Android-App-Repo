@@ -40,7 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b shadow-lg pt-[env(safe-area-inset-top,0px)] w-full transition-colors ${
-      highContrast ? 'bg-black border-amber-400/50' : 'bg-slate-950/95 border-slate-800'
+      highContrast ? 'bg-slate-900/98 border-amber-300/80 shadow-[0_2px_18px_rgba(255,255,255,0.16)]' : 'bg-slate-950/95 border-slate-800'
     }`}>
       <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-1.5 sm:py-2.5 w-full">
         <div className="flex items-center justify-between gap-1.5 sm:gap-3 w-full">
@@ -64,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="font-black text-white text-[15px] sm:text-[19px] leading-none tracking-tight block">
                 Ribo
               </span>
-              <span className="font-black text-cyan-300 text-[15px] sm:text-[19px] leading-none tracking-tight block">
+              <span className="font-black text-white text-[15px] sm:text-[19px] leading-none tracking-tight block">
                 Prognoza
               </span>
             </div>
