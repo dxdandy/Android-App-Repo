@@ -1,32 +1,34 @@
 import React from 'react';
 import { 
-  Waves, 
-  Sparkles, 
-  Scale, 
   RefreshCw, 
-  CheckCircle2, 
-  Clock,
-  MessageSquare
+  MessageSquare,
+  Sun
 } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: 'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba';
   onSelectTab: (tab: 'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba') => void;
+  onResetToBasic?: () => void;
   onRefresh: () => void;
   isLoading: boolean;
   lastUpdated: Date | null;
   onOpenChat: () => void;
   unreadChatCount?: number;
+  highContrast?: boolean;
+  onToggleHighContrast?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onSelectTab,
+  onResetToBasic,
   onRefresh,
   isLoading,
   lastUpdated,
   onOpenChat,
-  unreadChatCount = 0
+  unreadChatCount = 0,
+  highContrast = false,
+  onToggleHighContrast
 }) => {
   const formatTime = (date: Date | null) => {
     if (!date) return '--:--';
@@ -37,15 +39,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-lg pt-[env(safe-area-inset-top,0px)] w-full">
+    <header className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b shadow-lg pt-[env(safe-area-inset-top,0px)] w-full transition-colors ${
+      highContrast ? 'bg-black border-amber-400/50' : 'bg-slate-950/95 border-slate-800'
+    }`}>
       <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-1.5 sm:py-2.5 w-full">
         <div className="flex items-center justify-between gap-1.5 sm:gap-3 w-full">
           
-          {/* Brand - kompaktan na mobitelima, nikada ne gura gumbe van ekrana */}
+          {/* Brand - klik vraća u Osnovni mod */}
           <div 
-            onClick={() => onSelectTab('sve')}
+            onClick={() => {
+              if (onResetToBasic) onResetToBasic();
+              else onSelectTab('sve');
+            }}
             className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 cursor-pointer shrink"
-            title="Povratak na početni pregled"
+            title="Povratak u Osnovni mod"
           >
             <img 
               src="/pwa-192x192.png" 
@@ -117,8 +124,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Desna strana: LiveChat i Ažuriraj gumbi - precizno dimenzionirani da stanu u svaki zaslon */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Desna strana: Mod za sunce (Visoki kontrast), LiveChat i Ažuriraj */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {onToggleHighContrast && (
+              <button
+                type="button"
+                onClick={onToggleHighContrast}
+                className={`h-8 sm:h-10 px-2 sm:px-2.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all cursor-pointer active:scale-95 shrink-0 ${
+                  highContrast
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-black'
+                    : 'bg-slate-900/90 hover:bg-slate-800 text-amber-300 border-slate-700/80'
+                }`}
+                title="Uključi/isključi visoki kontrast za bolju čitljivost na jakom suncu"
+              >
+                <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="hidden sm:inline text-[11px]">Sunce</span>
+              </button>
+            )}
+
             {/* Gumb za interni LiveChat */}
             <button
               type="button"
@@ -138,7 +161,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </button>
 
-            {/* Gumb za ažuriranje - NIKADA ne bježi s ekrana */}
+            {/* Gumb za ažuriranje */}
             <button
               type="button"
               onClick={onRefresh}

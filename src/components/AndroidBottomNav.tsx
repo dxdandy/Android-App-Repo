@@ -1,23 +1,30 @@
 import React from 'react';
 import { 
-  Waves, 
   Sparkles, 
   LayoutDashboard,
   MessageSquare,
-  Trophy
+  Trophy,
+  Compass,
+  Fish
 } from 'lucide-react';
 
 interface AndroidBottomNavProps {
+  viewMode: 'basic' | 'expert';
   activeTab: 'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba';
-  onSelectTab: (tab: 'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba') => void;
+  onSelectBasicMode: () => void;
+  onSelectExpertTab: (tab: 'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba') => void;
+  onOpenLovostaj: () => void;
   onOpenChat: () => void;
   onOpenCatchLog?: () => void;
   unreadChatCount?: number;
 }
 
 export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
+  viewMode,
   activeTab,
-  onSelectTab,
+  onSelectBasicMode,
+  onSelectExpertTab,
+  onOpenLovostaj,
   onOpenChat,
   onOpenCatchLog,
   unreadChatCount = 0
@@ -25,65 +32,67 @@ export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
   return (
     <nav 
       aria-label="Mobilna navigacija"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 text-white shadow-xl px-1 py-1 pb-safe w-full max-w-full overflow-hidden"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/98 backdrop-blur-md border-t border-slate-800 text-white shadow-2xl px-1 py-1 pb-safe w-full max-w-full overflow-hidden"
     >
       <div className="grid grid-cols-6 items-center text-center w-full">
         
-        {/* Pregled svega */}
+        {/* 1. Osnovni mod */}
         <button
-          onClick={() => onSelectTab('sve')}
+          onClick={onSelectBasicMode}
           className={`flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
-            activeTab === 'sve' ? 'text-cyan-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            viewMode === 'basic' ? 'text-teal-300 font-black scale-105' : 'text-slate-400 hover:text-slate-200'
           }`}
+          title="Osnovni mod (Glavni pregled)"
         >
           <LayoutDashboard className="w-4.5 h-4.5 mb-0.5" />
-          <span className="text-[9px] leading-tight font-medium">Sve</span>
+          <span className="text-[9.5px] leading-tight font-bold">Osnovni</span>
         </button>
 
-        {/* Aljmaš */}
+        {/* 2. Pro mod */}
         <button
-          onClick={() => onSelectTab('aljmas')}
+          onClick={() => onSelectExpertTab('sve')}
           className={`flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
-            activeTab === 'aljmas' ? 'text-teal-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            viewMode === 'expert' && activeTab === 'sve' ? 'text-cyan-300 font-black scale-105' : 'text-slate-400 hover:text-slate-200'
           }`}
+          title="Pro ribolovni mod (Detaljna analitika)"
         >
-          <Waves className="w-4.5 h-4.5 mb-0.5" />
-          <span className="text-[9px] leading-tight font-medium">Aljmaš</span>
+          <Compass className="w-4.5 h-4.5 mb-0.5" />
+          <span className="text-[9.5px] leading-tight font-bold">Pro mod</span>
         </button>
 
-        {/* Bogojevo */}
+        {/* 3. Solunar */}
         <button
-          onClick={() => onSelectTab('bogojevo')}
+          onClick={() => onSelectExpertTab('solunar')}
           className={`flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
-            activeTab === 'bogojevo' ? 'text-cyan-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            viewMode === 'expert' && activeTab === 'solunar' ? 'text-indigo-300 font-black scale-105' : 'text-slate-400 hover:text-slate-200'
           }`}
-        >
-          <Waves className="w-4.5 h-4.5 mb-0.5 text-cyan-300" />
-          <span className="text-[9px] leading-tight font-medium">Bogojevo</span>
-        </button>
-
-        {/* Solunar */}
-        <button
-          onClick={() => onSelectTab('solunar')}
-          className={`flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
-            activeTab === 'solunar' ? 'text-indigo-400 font-bold' : 'text-slate-400 hover:text-slate-200'
-          }`}
+          title="Dnevni Solunar"
         >
           <Sparkles className="w-4.5 h-4.5 mb-0.5" />
-          <span className="text-[9px] leading-tight font-medium">Solunar</span>
+          <span className="text-[9.5px] leading-tight font-bold">Solunar</span>
         </button>
 
-        {/* Evidencija ulova */}
+        {/* 4. Lovostaj */}
+        <button
+          onClick={onOpenLovostaj}
+          className="flex flex-col items-center justify-center py-1 transition-all cursor-pointer text-emerald-400 hover:text-emerald-300 font-bold"
+          title="Lovostaj i minimalne mjere"
+        >
+          <Fish className="w-4.5 h-4.5 mb-0.5 text-emerald-400" />
+          <span className="text-[9.5px] leading-tight text-emerald-200">Lovostaj</span>
+        </button>
+
+        {/* 5. Evidencija ulova */}
         <button
           onClick={onOpenCatchLog}
           className="flex flex-col items-center justify-center py-1 transition-all cursor-pointer text-amber-400 hover:text-amber-300 font-bold"
           title="Otvori Evidenciju ulova po vrstama ribe"
         >
           <Trophy className="w-4.5 h-4.5 mb-0.5 text-amber-400" />
-          <span className="text-[9px] leading-tight text-amber-200">Ulovi</span>
+          <span className="text-[9.5px] leading-tight text-amber-200">Ulovi</span>
         </button>
 
-        {/* LiveChat - jasno istaknut s obavijestima za sve mobilne korisnike */}
+        {/* 6. LiveChat */}
         <button
           onClick={onOpenChat}
           className="relative flex flex-col items-center justify-center py-1 transition-all cursor-pointer text-teal-400 hover:text-teal-300 font-bold"
@@ -95,7 +104,7 @@ export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
             </span>
           )}
           <MessageSquare className="w-4.5 h-4.5 mb-0.5 text-teal-300" />
-          <span className="text-[9px] leading-tight text-teal-200">Chat</span>
+          <span className="text-[9.5px] leading-tight text-teal-200">Chat</span>
         </button>
 
       </div>

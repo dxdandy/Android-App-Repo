@@ -617,6 +617,7 @@ export interface ChatMessageRecord {
   deviceId: string;
   userName: string;
   text: string;
+  imageUrl?: string;
   timestamp: string;
   createdAt: number;
   readBy?: ChatReadReceipt[];
@@ -809,14 +810,15 @@ try {
 
     // 2. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.7.4',
+      version: '1.7.5',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-10',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.4.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.5.apk',
       changelog: [
-        'Optimizacija baterije (Battery Saver): uklonjeno učestalo buđenje procesora (Frequent wakeups) dok je zaslon mobitela ugašen',
-        'Pametni pozadinski rad: automatsko pauziranje nepotrebnih mrežnih provjera dok je mobitel zaključan uz zadržavanje obavijesti o porukama',
-        'LiveChat lajkanje poruka (6 osnovnih emojija + prošireni (+) izbornik) i dvostruka sinkronizacija poruka'
+        'Slanje fotografija u LiveChat (ulovi i stanje vode na Dunavu) + prikaz tko je trenutno Online na vodi',
+        'Taktički kalkulator protoka, bistrine i Jig gramaže, Osobni alarm za vodostaj/temp. vode i 3-dnevna prognoza',
+        'Evidencija ulova: Osobni rekordi sezone (PB u kg/cm) i automatska analiza uvjeta kada riba najbolje radi',
+        'Usklađena mobilna navigacija, Povuci za osvježavanje (Pull-to-Refresh) i Sunčani mod visokog kontrasta'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -836,20 +838,20 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.7.4',
+            version: '1.7.5',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.7.4',
+          version: '1.7.5',
           totalChunks,
           chunkCount: totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.7.4 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.7.5 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
@@ -1428,9 +1430,9 @@ app.post('/api/chat/rename', (req, res) => {
  * API: Slanje poruke u interni chat (dozvoljeno isključivo aktivnim korisnicima s odobrenim chatom)
  */
 app.post('/api/chat/messages', (req, res) => {
-  const { deviceId, text, activationKey, userName: proposedName, replyTo } = req.body || {};
-  if (!deviceId || !text || !String(text).trim()) {
-    return res.status(400).json({ error: 'Tekst poruke je obavezan' });
+  const { deviceId, text, imageUrl, activationKey, userName: proposedName, replyTo } = req.body || {};
+  if (!deviceId || ((!text || !String(text).trim()) && !imageUrl)) {
+    return res.status(400).json({ error: 'Tekst poruke ili fotografija su obavezni' });
   }
 
   const cleanDeviceId = String(deviceId).trim().toUpperCase();
@@ -1468,7 +1470,7 @@ app.post('/api/chat/messages', (req, res) => {
   userLicense.lastSeenAt = new Date().toISOString();
   saveLicenses(licenses);
 
-  const cleanText = String(text).trim().slice(0, 350); // limit 350 znakova
+  const cleanText = text && String(text).trim() ? String(text).trim().slice(0, 350) : (imageUrl ? '📷 Fotografija s Dunava' : '');
 
   let chat = loadChat();
   const msgId = (req.body.id && String(req.body.id).trim()) || `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -1476,8 +1478,9 @@ app.post('/api/chat/messages', (req, res) => {
   const newMsg: ChatMessageRecord = {
     id: msgId,
     deviceId: cleanDeviceId,
-    userName: userLicense.userName, // Koristi službeno ime iz kontrolnog panela
+    userName: userLicense.userName,
     text: cleanText,
+    imageUrl: imageUrl ? String(imageUrl) : undefined,
     timestamp: new Date().toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' }),
     createdAt: msgCreatedAt,
     readBy: [{ deviceId: cleanDeviceId, userName: userLicense.userName, readAt: Date.now() }]
@@ -1503,7 +1506,6 @@ app.post('/api/chat/messages', (req, res) => {
   }
   saveChat(chat);
 
-  // Sinkroniziraj i u Firestore oblak tako da svi mobilni i web klijenti prime poruku u istoj sekundi
   if (serverDb) {
     const firestorePayload: Record<string, any> = {
       id: newMsg.id,
@@ -1514,6 +1516,9 @@ app.post('/api/chat/messages', (req, res) => {
       createdAt: newMsg.createdAt,
       readBy: newMsg.readBy
     };
+    if (newMsg.imageUrl) {
+      firestorePayload.imageUrl = newMsg.imageUrl;
+    }
     if (newMsg.replyTo) {
       firestorePayload.replyTo = newMsg.replyTo;
     }
@@ -1641,14 +1646,15 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.7.4',
+    version: '1.7.5',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-10',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.4.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.5.apk',
     changelog: [
-      'Optimizacija baterije (Battery Saver): uklonjeno učestalo buđenje procesora (Frequent wakeups) dok je zaslon mobitela ugašen',
-      'Pametni pozadinski rad: automatsko pauziranje nepotrebnih mrežnih provjera dok je mobitel zaključan uz zadržavanje obavijesti o porukama',
-      'LiveChat lajkanje poruka (6 osnovnih emojija + prošireni (+) izbornik) i dvostruka sinkronizacija poruka'
+      'Slanje fotografija u LiveChat (ulovi i stanje vode na Dunavu) + prikaz tko je trenutno Online na vodi',
+      'Taktički kalkulator protoka, bistrine i Jig gramaže, Osobni alarm za vodostaj/temp. vode i 3-dnevna prognoza',
+      'Evidencija ulova: Osobni rekordi sezone (PB u kg/cm) i automatska analiza uvjeta kada riba najbolje radi',
+      'Usklađena mobilna navigacija, Povuci za osvježavanje (Pull-to-Refresh) i Sunčani mod visokog kontrasta'
     ],
     isCritical: false,
     updateType: 'live_web'

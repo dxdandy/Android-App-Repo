@@ -16,17 +16,20 @@ import {
   Lock,
   Calendar,
   Trash2,
-  AlertTriangle,
   CornerUpLeft,
-  ChevronLeft
+  ChevronLeft,
+  Camera,
+  Maximize2
 } from 'lucide-react';
 import { 
-  fetchChatMessages, 
   sendChatMessage, 
   subscribeToChatMessages, 
   subscribeToTypingStatus, 
   setMyTypingStatus, 
+  pingMyOnlinePresence,
+  compressImageForChat,
   TypingUser, 
+  OnlineUser,
   ChatMessage, 
   ChatReplyTo,
   ChatReaction,
@@ -70,6 +73,7 @@ const EXTENDED_OTHER_EMOJIS = [
 interface SwipeableMessageRowProps {
   msg: ChatMessage;
   isMine: boolean;
+  isSenderOnline: boolean;
   myDeviceId: string;
   readCount: number;
   isReactionPickerOpen: boolean;
@@ -81,11 +85,13 @@ interface SwipeableMessageRowProps {
   onOpenRename: (deviceId: string, userName: string) => void;
   onShowInfo: (msg: ChatMessage) => void;
   onReply: (msg: ChatMessage) => void;
+  onPreviewImage: (imageUrl: string, caption?: string, sender?: string) => void;
 }
 
 const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   msg,
   isMine,
+  isSenderOnline,
   myDeviceId,
   readCount,
   isReactionPickerOpen,
@@ -96,7 +102,8 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   onSelectReaction,
   onOpenRename,
   onShowInfo,
-  onReply
+  onReply,
+  onPreviewImage
 }) => {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
@@ -151,7 +158,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
     }
 
     if (isHorizontalRef.current === true) {
-      // Clamped horizontal offset (podržava povlačenje i ulijevo i udesno!)
       const offset = diffX > 0 ? Math.min(diffX * 0.7, 85) : Math.max(diffX * 0.7, -85);
       setSwipeOffset(offset);
 
@@ -176,7 +182,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
 
   const isTriggered = Math.abs(swipeOffset) >= 40;
 
-  // Grupiraj reakcije po emojiju za uredan prikaz ispod poruke
   const reactionsList: ChatReaction[] = Array.isArray(msg.reactions) ? msg.reactions : [];
   const groupedReactions = React.useMemo(() => {
     const map = new Map<string, { emoji: string; users: string[]; hasMine: boolean }>();
@@ -202,7 +207,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
 
   return (
     <div className="relative overflow-visible my-1 select-none w-full">
-      {/* Indikator ikone za replay/odgovor koji se pojavljuje kada se poruka povuče ulijevo ili udesno */}
       {swipeOffset !== 0 && (
         <div 
           className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center transition-all pointer-events-none z-10 ${
@@ -219,7 +223,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
         </div>
       )}
 
-      {/* Tijelo poruke koje se glatko pomiče pri povlačenju lijevo/desno */}
       <div
         style={{
           transform: `translateX(${swipeOffset}px)`,
@@ -231,16 +234,22 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
         onTouchCancel={handleTouchEnd}
         className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[90%] sm:max-w-[82%] ${isMine ? 'ml-auto' : 'mr-auto'} group/item relative`}
       >
-        {/* Ime pošiljatelja i brze akcije */}
+        {/* Ime pošiljatelja, indikator je li online i brze akcije */}
         <div className="flex items-center gap-1.5 mb-1 px-1">
           <button
             type="button"
             onClick={() => onOpenRename(msg.deviceId, msg.userName)}
-            className={`text-xs sm:text-sm font-bold cursor-pointer hover:underline flex items-center gap-1 transition-colors ${
+            className={`text-xs sm:text-sm font-bold cursor-pointer hover:underline flex items-center gap-1.5 transition-colors ${
               isMine ? 'text-teal-300 hover:text-teal-200' : 'text-cyan-300 hover:text-cyan-200'
             }`}
             title="Klikni za izravnu promjenu imena ovog ribiča u LiveChatu"
           >
+            {isSenderOnline && (
+              <span
+                className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-xs shadow-emerald-400"
+                title="Trenutno aktivan u aplikaciji"
+              />
+            )}
             <span>{msg.userName}</span>
             {isMine && <span className="text-[11px] opacity-75 font-normal">(Vi)</span>}
           </button>
@@ -252,7 +261,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           >
             <Edit2 className="w-3 h-3" />
           </button>
-          {/* Brzi gumb za lajk / reakciju (osim dugog pritiska na poruku) */}
           <button
             type="button"
             onClick={(e) => {
@@ -268,7 +276,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           >
             <Smile className="w-3.5 h-3.5 text-amber-400" />
           </button>
-          {/* Brzi gumb za odgovor na poruku (jedan klik ili povlačenje) */}
           <button
             type="button"
             onClick={() => onReply(msg)}
@@ -280,14 +287,13 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           </button>
         </div>
 
-        {/* Skočni izbornik za lajkanje poruke (6 osnovnih emojija + gumb (+) za prošireni izbor) */}
+        {/* Skočni izbornik za lajkanje poruke */}
         {isReactionPickerOpen && (
           <div
             onClick={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
             className={`z-30 mb-1.5 flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-full animate-fadeIn`}
           >
-            {/* Osnovna traka sa 6 emojija i gumbom (+) */}
             <div className="flex items-center gap-1 px-2 py-1.5 rounded-2xl bg-slate-900/98 border border-teal-400/60 shadow-2xl shadow-black/80 backdrop-blur-md">
               {BASIC_REACTION_EMOJIS.map(emoji => {
                 const isSelected = myCurrentEmoji === emoji;
@@ -308,7 +314,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
                 );
               })}
 
-              {/* Gumb (+) za otvaranje puno dodatnih emojija i znakova s rukama */}
               <button
                 type="button"
                 onClick={onToggleExtendedReactions}
@@ -322,7 +327,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
                 (+)
               </button>
 
-              {/* Gumb za zatvaranje izbornika */}
               <button
                 type="button"
                 onClick={onCloseReactionPicker}
@@ -333,7 +337,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
               </button>
             </div>
 
-            {/* Prošireni panel s puno dodatnih emojija i znakova rukom kada se klikne (+) */}
             {showExtendedReactions && (
               <div className="mt-1.5 p-2.5 rounded-2xl bg-slate-900/98 border border-teal-500/50 shadow-2xl w-[280px] sm:w-[330px] max-h-60 overflow-y-auto space-y-2.5 backdrop-blur-md">
                 <div>
@@ -381,7 +384,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           </div>
         )}
 
-        {/* Oblačić poruke: smanjen oblak za 70% (px-2.5 py-1) s povećanim fontom za 10% (16.5px/19px) */}
+        {/* Oblačić poruke */}
         <div
           onContextMenu={(e) => {
             e.preventDefault();
@@ -407,7 +410,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           }`}
           title="Drži prst duže za lajk (emoji) ili klikni za prikaz tko je pročitao poruku"
         >
-          {/* Ako je poruka odgovor na raniju poruku (Replay pregled iznad teksta) */}
+          {/* Citirana poruka na koju se odgovara */}
           {msg.replyTo && (
             <div className={`mb-1 p-1.5 rounded-lg text-left border-l-3 ${
               isMine 
@@ -424,10 +427,33 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
             </div>
           )}
 
-          {/* Glavni tekst poruke: povećan za 10% na 16.5px / 19px uz kompaktniji oblak */}
-          <span className="text-[16.5px] sm:text-[19px] leading-tight sm:leading-snug font-normal tracking-normal select-none inline-block">
-            {msg.text}
-          </span>
+          {/* Ako poruka sadrži fotografiju ulova ili stanja Dunava */}
+          {msg.imageUrl && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                onPreviewImage(msg.imageUrl!, msg.text, msg.userName);
+              }}
+              className="my-1 relative rounded-lg overflow-hidden border border-white/15 bg-slate-950 max-w-[240px] sm:max-w-[280px] group/img"
+            >
+              <img
+                src={msg.imageUrl}
+                alt="Fotografija s Dunava"
+                className="w-full max-h-56 object-cover block"
+              />
+              <div className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md bg-slate-950/80 text-white text-[10px] font-bold flex items-center gap-1 border border-white/15">
+                <Maximize2 className="w-3 h-3 text-teal-300" />
+                <span>Povećaj</span>
+              </div>
+            </div>
+          )}
+
+          {/* Glavni tekst poruke */}
+          {msg.text && (
+            <span className="text-[16.5px] sm:text-[19px] leading-tight sm:leading-snug font-normal tracking-normal select-none inline-block">
+              {msg.text}
+            </span>
+          )}
         </div>
 
         {/* Prikaz dodanih lajkova / emoji reakcija ispod oblačića poruke */}
@@ -492,21 +518,25 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
 export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onClose, onNameChanged }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
+  const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
+  const [isCompressingImage, setIsCompressingImage] = useState<boolean>(false);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; caption?: string; sender?: string } | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
-  // Stanje tko trenutno tipka u chatu
+  // Stanje tko trenutno tipka i tko je online u chatu
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [dotCount, setDotCount] = useState<number>(1);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Stanje za pregled tko je pročitao poruku (dostupno svima klikom na poruku)
+  // Stanje za pregled tko je pročitao poruku
   const [selectedMessageForInfo, setSelectedMessageForInfo] = useState<ChatMessage | null>(null);
 
-  // Stanje za lajkanje poruke (dugi pritisak na poruku)
+  // Stanje za lajkanje poruke
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
   const [showExtendedReactions, setShowExtendedReactions] = useState<boolean>(false);
 
@@ -516,7 +546,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [newMyNameInput, setNewMyNameInput] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
 
-  // Stanja za administratorsku promjenu imena korisnika izravno u porukama
+  // Stanja za administratorsku promjenu imena korisnika
   const [isAdmin, setIsAdmin] = useState<boolean>(() => isAdminUnlocked());
   const [renameTarget, setRenameTarget] = useState<{ deviceId: string; userName: string } | null>(null);
   const [renameNewName, setRenameNewName] = useState<string>('');
@@ -529,18 +559,18 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [pendingRenameTarget, setPendingRenameTarget] = useState<{ deviceId: string; userName: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<'rename' | 'clear' | null>(null);
 
-  // Stanja za administratorsko brisanje cijele povijesti chata (Clear History)
+  // Stanja za administratorsko brisanje cijele povijesti chata
   const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
   const [isClearingChat, setIsClearingChat] = useState<boolean>(false);
 
-  // Stanje za odgovor na poruku (Reply / Replay s citatom iznad)
+  // Stanje za odgovor na poruku (Reply)
   const [replyingTo, setReplyingTo] = useState<ChatReplyTo | null>(null);
 
   const handleSelectReply = (msg: ChatMessage) => {
     setReplyingTo({
       id: msg.id,
       userName: msg.userName,
-      text: msg.text
+      text: msg.text || '📷 Fotografija'
     });
     inputRef.current?.focus();
   };
@@ -548,8 +578,8 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const myDeviceId = getDeviceId();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Funkcija za lijep prikaz zaglavlja datuma između poruka
   const formatDateDivider = (timestamp?: number): string => {
     if (!timestamp) return 'Danas';
     const msgDate = new Date(Number(timestamp));
@@ -584,7 +614,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Ciklus animacije 3 točkice za status tipkanja: 1 točka -> 2 točke -> 3 točke -> ugašeno sve 3 -> ispočetka
   useEffect(() => {
     if (typingUsers.length === 0) return;
     const dotInterval = setInterval(() => {
@@ -593,7 +622,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     return () => clearInterval(dotInterval);
   }, [typingUsers.length]);
 
-  // Pretplata na poruke i status tipkanja u stvarnom vremenu preko Firestorea
   useEffect(() => {
     if (!isOpen) {
       setMyTypingStatus(false).catch(() => {});
@@ -605,7 +633,9 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     let initialLoaded = false;
     let lastMsgCount = 0;
 
-    // 1. Pretplata na poruke
+    // Odmah zabilježi da smo prisutni (Online) u chatu
+    pingMyOnlinePresence().catch(() => {});
+
     const unsubscribeChat = subscribeToChatMessages((res) => {
       setIsLoading(false);
       if (res.chatBlocked) {
@@ -619,7 +649,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
         lastMsgCount = res.messages.length;
 
         setMessages(prev => {
-          // Ako je stigla nova poruka od nekog drugog dok gledamo chat, oglasi se zvučni ton
           if (initialLoaded && prev.length > 0 && res.messages.length > prev.length) {
             const newest = res.messages[res.messages.length - 1];
             if (newest && newest.deviceId !== myDeviceId) {
@@ -629,13 +658,11 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           return res.messages;
         });
 
-        // Ažuriraj modal tko je pročitao poruku ako je otvoren
         setSelectedMessageForInfo(prevSelected => {
           if (!prevSelected) return null;
           return res.messages.find(m => m.id === prevSelected.id) || prevSelected;
         });
 
-        // Označi poruke pročitanima
         markChatAsRead(res.messages);
 
         if (shouldScroll) {
@@ -645,9 +672,11 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
       initialLoaded = true;
     });
 
-    // 2. Pretplata na aktivno tipkanje drugih korisnika
-    const unsubscribeTyping = subscribeToTypingStatus((activeTypers) => {
+    const unsubscribeTyping = subscribeToTypingStatus((activeTypers, activeOnline) => {
       setTypingUsers(activeTypers);
+      if (activeOnline) {
+        setOnlineUsers(activeOnline);
+      }
     });
 
     return () => {
@@ -656,14 +685,51 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       setMyTypingStatus(false).catch(() => {});
     };
-  }, [isOpen]);
+  }, [isOpen, myDeviceId]);
 
-  // Pomak na dno kada se promijeni broj poruka ili netko počne tipkati
   useEffect(() => {
     if (isOpen) {
       scrollToBottom();
     }
   }, [messages.length, typingUsers.length, isOpen]);
+
+  // Izračun skupa online korisnika (iz chat_typing prisutnosti + onih koji su pisali u zadnjih 10 min)
+  const onlineDeviceIdsSet = React.useMemo(() => {
+    const set = new Set<string>([myDeviceId]);
+    onlineUsers.forEach(u => set.add(u.deviceId));
+    const now = Date.now();
+    messages.forEach(m => {
+      if (now - (m.createdAt || 0) < 10 * 60 * 1000) {
+        set.add(m.deviceId);
+      }
+    });
+    return set;
+  }, [onlineUsers, messages, myDeviceId]);
+
+  const onlineNamesList = React.useMemo(() => {
+    const names = new Set<string>([myUserName]);
+    onlineUsers.forEach(u => {
+      if (u.userName) names.add(u.userName);
+    });
+    return Array.from(names);
+  }, [onlineUsers, myUserName]);
+
+  const handlePhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setIsCompressingImage(true);
+    setErrorMessage(null);
+    try {
+      const compressedDataUrl = await compressImageForChat(file);
+      setSelectedImageDataUrl(compressedDataUrl);
+      inputRef.current?.focus();
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Greška pri pripremi slike.');
+    } finally {
+      setIsCompressingImage(false);
+    }
+  };
 
   const handleSaveMyName = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -745,10 +811,10 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
         setRenameSuccessToast('✓ Cjelokupna povijest LiveChata je obrisana za sve korisnike.');
         setTimeout(() => setRenameSuccessToast(null), 4000);
       } else {
-        alert(res.error || 'Greška pri brisanju chata.');
+        setErrorMessage(res.error || 'Greška pri brisanju chata.');
       }
     } catch (err: any) {
-      alert(err?.message || 'Greška pri brisanju povijesti chata.');
+      setErrorMessage(err?.message || 'Greška pri brisanju povijesti chata.');
     } finally {
       setIsClearingChat(false);
     }
@@ -771,7 +837,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           if (onNameChanged) onNameChanged(res.newName);
         }
 
-        // Ažuriraj modal tko je pročitao ako je otvoren
         setSelectedMessageForInfo(prev => prev && prev.deviceId === renameTarget.deviceId ? { ...prev, userName: res.newName } : prev);
         setRenameTarget(null);
       } else {
@@ -804,7 +869,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || isSending) return;
+    if ((!inputText.trim() && !selectedImageDataUrl) || isSending) return;
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     setMyTypingStatus(false).catch(() => {});
@@ -812,7 +877,11 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     setIsSending(true);
     setErrorMessage(null);
 
-    const res = await sendChatMessage(inputText.trim(), replyingTo || undefined);
+    const res = await sendChatMessage(
+      inputText.trim(),
+      replyingTo || undefined,
+      selectedImageDataUrl || undefined
+    );
     setIsSending(false);
 
     if (res.success && res.message) {
@@ -822,6 +891,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
         return [...prev, sentMsg];
       });
       setInputText('');
+      setSelectedImageDataUrl(null);
       setReplyingTo(null);
       setTimeout(scrollToBottom, 50);
       inputRef.current?.focus();
@@ -847,20 +917,18 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   return (
     <div 
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md select-none animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md select-none animate-fadeIn"
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="bg-slate-900 border border-teal-500/40 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col h-[85vh] max-h-[640px] text-white relative overflow-hidden"
+        className="bg-slate-900 border border-teal-500/40 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col h-[88vh] max-h-[680px] text-white relative overflow-hidden"
       >
         
-        {/* Pozadinski svjetlosni ukras */}
         <div className="absolute -right-20 -top-20 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Zaglavlje Chata */}
         <div className="p-3 sm:p-4 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2.5 shrink-0">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            {/* Gumb za povratak unatrag na Osnovni mod */}
             <button
               type="button"
               onClick={onClose}
@@ -874,14 +942,17 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
               <MessageSquare className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
                   Ribički LiveChat
                 </h2>
                 {!isBlocked && (
-                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Online
+                  <span
+                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                    title={`Trenutno online: ${onlineNamesList.join(', ')}`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>Online ({onlineNamesList.length})</span>
                   </span>
                 )}
               </div>
@@ -917,6 +988,11 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 <div className="flex items-center gap-1.5">
                   <p className="text-[11px] text-slate-400 truncate">
                     Prijavljeni: <span className="font-bold text-teal-300">{myUserName}</span>
+                    {onlineNamesList.length > 1 && (
+                      <span className="text-emerald-400/90 ml-1">
+                        · Na vodi: {onlineNamesList.slice(0, 4).join(', ')}
+                      </span>
+                    )}
                   </p>
                   <button
                     type="button"
@@ -958,7 +1034,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </div>
         </div>
 
-        {/* Obavijest o uspješnoj promjeni imena */}
         {renameSuccessToast && (
           <div className="px-3.5 py-2 bg-emerald-950/90 border-b border-emerald-800/80 text-emerald-300 text-xs flex items-center justify-between gap-2 shrink-0 animate-fadeIn z-20">
             <span className="flex items-center gap-1.5 font-bold truncate">
@@ -974,7 +1049,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </div>
         )}
 
-        {/* Prozor s porukama ili prikaz blokiranog statusa */}
+        {/* Prozor s porukama */}
         {isBlocked ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-slate-950/70">
             <div className="w-16 h-16 rounded-3xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shadow-lg">
@@ -1000,9 +1075,8 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
             }}
             className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 bg-slate-950/40 relative"
           >
-            {/* Decentne skice riba u jedva vidljivoj, malo svjetlijoj nijansi od podloge koje ne ometaju čitanje */}
+            {/* Decentne skice riba u podlozi */}
             <div className="absolute inset-0 pointer-events-none select-none overflow-hidden opacity-[0.06] flex flex-col justify-around items-center gap-12 py-6">
-              {/* Skica ribe 1 (Smuđ/Bucov kontura) */}
               <svg className="w-56 h-28 stroke-slate-200 fill-none" viewBox="0 0 200 80" strokeWidth="1.2">
                 <path d="M 10 40 C 35 15, 95 10, 150 35 C 165 25, 185 15, 195 20 C 185 35, 185 45, 195 60 C 185 65, 165 55, 150 45 C 95 70, 35 65, 10 40 Z" />
                 <path d="M 40 40 Q 55 35 70 40" />
@@ -1012,7 +1086,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 <path d="M 125 35 Q 140 40 135 48" />
               </svg>
 
-              {/* Skica ribe 2 (Som/Štuka kontura) */}
               <svg className="w-64 h-28 stroke-slate-200 fill-none -rotate-6" viewBox="0 0 220 80" strokeWidth="1.2">
                 <path d="M 15 38 C 45 20, 110 15, 170 34 C 185 24, 205 18, 215 22 C 205 38, 205 44, 215 58 C 205 62, 185 56, 170 46 C 110 65, 45 60, 15 38 Z" />
                 <circle cx="38" cy="34" r="2.5" />
@@ -1022,7 +1095,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 <path d="M 130 36 C 145 32, 155 42, 145 46" />
               </svg>
 
-              {/* Skica ribe 3 (Mrena/Bucov kontura) */}
               <svg className="w-52 h-26 stroke-slate-200 fill-none rotate-3" viewBox="0 0 200 80" strokeWidth="1.2">
                 <path d="M 10 40 C 35 15, 95 10, 150 35 C 165 25, 185 15, 195 20 C 185 35, 185 45, 195 60 C 185 65, 165 55, 150 45 C 95 70, 35 65, 10 40 Z" />
                 <circle cx="32" cy="36" r="2.5" />
@@ -1041,7 +1113,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 <div className="text-3xl mb-2">🎣</div>
                 <p className="text-xs font-semibold text-slate-300">Još nema poruka u LiveChatu</p>
                 <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
-                  Budite prvi koji će javiti kakvo je stanje vodostaja ili griz na Dunavu!
+                  Budite prvi koji će javiti kakvo je stanje vodostaja ili pošaljite fotografiju s Dunava!
                 </p>
               </div>
             ) : (
@@ -1055,7 +1127,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
 
                 return (
                   <React.Fragment key={msg.id}>
-                    {/* Dekorativni razdjelnik datuma s dvije linije i datumom u sredini */}
                     {showDateDivider && (
                       <div className="flex items-center justify-center my-3 sm:my-4 gap-2 select-none w-full animate-fadeIn">
                         <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-slate-700 to-teal-500/40" />
@@ -1070,6 +1141,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                     <SwipeableMessageRow
                       msg={msg}
                       isMine={isMine}
+                      isSenderOnline={onlineDeviceIdsSet.has(msg.deviceId)}
                       myDeviceId={myDeviceId}
                       readCount={readCount}
                       isReactionPickerOpen={activeReactionMsgId === msg.id}
@@ -1091,13 +1163,13 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                       onOpenRename={handleOpenRenameUser}
                       onShowInfo={setSelectedMessageForInfo}
                       onReply={handleSelectReply}
+                      onPreviewImage={(url, caption, sender) => setLightboxImage({ url, caption, sender })}
                     />
                   </React.Fragment>
                 );
               })
             )}
             
-            {/* Indikator kada drugi korisnik tipka: [Ime] nešto piše ... (tri točkice koje se pale redom 1, 2, 3 pa ugase sve tri i ispočetka) */}
             {typingUsers.length > 0 && (
               <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-800/95 border border-teal-500/40 text-xs text-teal-300 w-fit max-w-[90%] shadow-lg animate-fadeIn select-none">
                 <div className="w-5 h-5 rounded-lg bg-teal-500/20 text-teal-300 flex items-center justify-center shrink-0">
@@ -1121,7 +1193,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </div>
         )}
 
-        {/* Greška kod slanja */}
         {errorMessage && (
           <div className="px-3 py-1.5 bg-rose-950/80 border-t border-rose-800/60 text-rose-300 text-[11px] flex items-center justify-between gap-2 shrink-0">
             <span className="flex items-center gap-1.5 truncate">
@@ -1157,7 +1228,32 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </div>
         )}
 
-        {/* Prikaz poruke na koju se odgovara (Replay traka iznad unosa) */}
+        {/* Pretpregled odabrane fotografije prije slanja */}
+        {!isBlocked && selectedImageDataUrl && (
+          <div className="mx-3 my-1.5 p-2 rounded-2xl bg-slate-900 border border-teal-500/40 flex items-center justify-between gap-3 shrink-0 shadow-lg">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src={selectedImageDataUrl}
+                alt="Odabrana fotografija"
+                className="w-12 h-12 rounded-xl object-cover border border-teal-500/40 shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-teal-300">Fotografija spremna za slanje</p>
+                <p className="text-[11px] text-slate-400 truncate">Dodaj opis ispod ili odmah klikni Pošalji</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedImageDataUrl(null)}
+              className="w-7 h-7 rounded-xl bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300 flex items-center justify-center cursor-pointer shrink-0"
+              title="Ukloni sliku"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Prikaz poruke na koju se odgovara */}
         {!isBlocked && replyingTo && (
           <div className="mx-3 my-1.5 p-2.5 rounded-2xl bg-slate-900/95 border-l-4 border-teal-400 border border-teal-500/35 flex items-center justify-between shadow-xl animate-fadeIn shrink-0">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -1185,23 +1281,54 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </div>
         )}
 
-        {/* Unos teksta i gumb za slanje */}
+        {/* Unos teksta, gumb za fotografiju i gumb za slanje */}
         {!isBlocked && (
-          <form onSubmit={handleSendMessage} className="p-3 bg-slate-950 border-t border-slate-800/80 flex items-center gap-2 shrink-0">
+          <form onSubmit={handleSendMessage} className="p-2.5 sm:p-3 bg-slate-950 border-t border-slate-800/80 flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoFileChange}
+              className="hidden"
+            />
+            <button
+              type="button"
+              disabled={isCompressingImage || isSending}
+              onClick={() => fileInputRef.current?.click()}
+              className={`h-10 w-10 rounded-xl border flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95 ${
+                selectedImageDataUrl
+                  ? 'bg-teal-500/25 border-teal-400 text-teal-300'
+                  : 'bg-slate-900 hover:bg-slate-800 border-slate-700/80 text-cyan-300'
+              }`}
+              title="Pošalji sliku ulova ili stanja Dunava"
+            >
+              {isCompressingImage ? (
+                <RefreshCw className="w-4 h-4 animate-spin text-teal-300" />
+              ) : (
+                <Camera className="w-4.5 h-4.5" />
+              )}
+            </button>
+
             <input
               ref={inputRef}
               type="text"
               value={inputText}
               onChange={handleInputChange}
-              placeholder={replyingTo ? `Odgovor ribiču (${replyingTo.userName})...` : 'Napiši poruku s Dunava...'}
+              placeholder={
+                selectedImageDataUrl
+                  ? 'Dodaj opis uz sliku (ili pošalji odmah)...'
+                  : replyingTo
+                  ? `Odgovor ribiču (${replyingTo.userName})...`
+                  : 'Napiši poruku ili pošalji sliku s vode...'
+              }
               maxLength={350}
-              className="flex-1 bg-slate-900 border border-slate-700/80 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-xl px-3.5 py-2.5 text-sm sm:text-base text-white placeholder-slate-500 outline-none transition-all"
+              className="flex-1 min-w-0 bg-slate-900 border border-slate-700/80 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-xl px-3 py-2.5 text-sm sm:text-base text-white placeholder-slate-500 outline-none transition-all"
             />
 
             <button
               type="submit"
-              disabled={!inputText.trim() || isSending}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
+              disabled={(!inputText.trim() && !selectedImageDataUrl) || isSending}
+              className="px-3.5 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
               title="Pošalji poruku"
             >
               {isSending ? (
@@ -1215,7 +1342,44 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
             </button>
           </form>
         )}
-        {/* Modal s detaljima: Tko je sve pročitao poruku (dostupno svima klikom na bilo koju poruku) */}
+
+        {/* Fullscreen Lightbox za pregled fotografije iz chata */}
+        {lightboxImage && (
+          <div
+            onClick={() => setLightboxImage(null)}
+            className="absolute inset-0 z-50 bg-black/95 backdrop-blur-md p-3 flex flex-col items-center justify-center animate-fadeIn"
+          >
+            <div className="w-full flex items-center justify-between pb-2 px-1">
+              <div className="min-w-0">
+                {lightboxImage.sender && (
+                  <span className="text-xs font-black text-teal-300 block truncate">
+                    📷 Poslao: {lightboxImage.sender}
+                  </span>
+                )}
+                {lightboxImage.caption && (
+                  <span className="text-xs text-slate-300 block truncate">
+                    {lightboxImage.caption}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <img
+              src={lightboxImage.url}
+              alt="Fotografija u punoj veličini"
+              className="max-w-full max-h-[75vh] object-contain rounded-2xl border border-slate-800 shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+        )}
+
+        {/* Modal s detaljima: Tko je sve pročitao poruku */}
         {selectedMessageForInfo && (
           <div 
             onClick={() => setSelectedMessageForInfo(null)}
@@ -1248,7 +1412,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 </button>
               </div>
 
-              {/* Sažetak pregledavane poruke */}
               <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-1">
                 <p className="text-slate-200 break-words leading-relaxed">
                   "{selectedMessageForInfo.text}"
@@ -1267,7 +1430,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 </button>
               </div>
 
-              {/* Popis lajkova / reakcija ako ih poruka ima */}
               {selectedMessageForInfo.reactions && selectedMessageForInfo.reactions.length > 0 && (
                 <div className="space-y-1.5">
                   <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider px-1">
@@ -1287,7 +1449,6 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                 </div>
               )}
 
-              {/* Popis korisnika koji su pročitali poruku */}
               <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                 <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
                   Popis čitatelja:
@@ -1329,7 +1490,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </div>
         )}
 
-        {/* Modal za administratorsku promjenu imena ribiča u LiveChatu */}
+        {/* Modal za administratorsku promjenu imena ribiča */}
         {renameTarget && (
           <div 
             onClick={() => setRenameTarget(null)}
@@ -1412,7 +1573,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </div>
         )}
 
-        {/* Modal za brzi unos administratorskog PIN-a ako korisnik još nije verificiran */}
+        {/* Modal za brzi unos administratorskog PIN-a */}
         {showPinPrompt && (
           <div 
             onClick={() => setShowPinPrompt(false)}

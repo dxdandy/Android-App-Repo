@@ -53,6 +53,7 @@ export interface ChatMessage {
   deviceId: string;
   userName: string;
   text: string;
+  imageUrl?: string;
   timestamp: string;
   createdAt: number;
   readBy?: ChatReadReceipt[];
@@ -69,6 +70,12 @@ export interface FetchChatResult {
 export interface TypingUser {
   deviceId: string;
   userName: string;
+}
+
+export interface OnlineUser {
+  deviceId: string;
+  userName: string;
+  lastActiveAt: number;
 }
 
 const LOCAL_CHAT_CACHE_KEY = 'ribo_chat_messages_cache';
@@ -110,8 +117,63 @@ export function getLocalChatCache(): ChatMessage[] {
 export function saveLocalChatCache(msgs: ChatMessage[]): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(LOCAL_CHAT_CACHE_KEY, JSON.stringify(msgs.slice(-80)));
+    localStorage.setItem(LOCAL_CHAT_CACHE_KEY, JSON.stringify(msgs.slice(-60)));
   } catch {}
+}
+
+/**
+ * Komprimira odabranu fotografiju (ulov ili stanje vode na Dunavu) na klijentu
+ * u lagani JPEG Data URL (max 720px, ~35-65 KB) za trenutno slanje u LiveChat
+ */
+export function compressImageForChat(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith('image/')) {
+      reject(new Error('Odaberite valjanu sliku (JPG, PNG, WEBP).'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Greška pri čitanju slike.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Neuspješno učitavanje slike.'));
+      img.onload = () => {
+        try {
+          const maxDim = 680;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height && width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else if (height >= width && height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Greška pri obradi slike.'));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          let dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+          // Ako je slika i dalje veća od 110 KB, dodatno smanji kvalitetu radi brzine
+          if (dataUrl.length > 110000) {
+            dataUrl = canvas.toDataURL('image/jpeg', 0.56);
+          }
+          resolve(dataUrl);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 /**
@@ -142,7 +204,8 @@ function normalizeChatMessage(id: string, data: any): ChatMessage {
     id: id || data.id || '',
     deviceId: senderDeviceId,
     userName: officialSenderName,
-    text: data.text || '',
+    text: data.text || (data.imageUrl ? '📷 Fotografija s Dunava' : ''),
+    imageUrl: data.imageUrl || undefined,
     timestamp: data.timestamp || '',
     createdAt: Number(data.createdAt) || 0,
     readBy: enrichedReadBy,
@@ -168,7 +231,7 @@ function emitToAllSubscribers(): void {
   }
 
   const sorted = Array.from(sharedMessageMap.values())
-    .filter(m => m && m.id && m.id !== '_room_state_' && m.text)
+    .filter(m => m && m.id && m.id !== '_room_state_' && (m.text || m.imageUrl))
     .map(msg => normalizeChatMessage(msg.id, msg))
     .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
@@ -204,7 +267,6 @@ async function syncRoomStateViaRestPatch(changedMsg?: ChatMessage, deletedMsgId?
     if (deletedMsgId) {
       const delKey = sanitizeFieldKey(deletedMsgId);
       queryParams.push(`updateMask.fieldPaths=${encodeURIComponent(delKey)}`);
-      // Izostavljanjem polja iz fieldsPayload uz prisutnost u updateMask briše se polje
     }
 
     const url = `${FIRESTORE_REST_BASE}/app_updates/chat_room_state?${queryParams.join('&')}`;
@@ -227,13 +289,14 @@ async function syncRoomStateViaRestPatch(changedMsg?: ChatMessage, deletedMsgId?
       if (!rawStr) continue;
       try {
         const parsed = JSON.parse(rawStr) as ChatMessage;
-        if (parsed && parsed.id && parsed.text) {
+        if (parsed && parsed.id && (parsed.text || parsed.imageUrl)) {
           roomEntries.push({ key: k, msg: parsed });
           const existing = sharedMessageMap.get(parsed.id);
           const norm = normalizeChatMessage(parsed.id, parsed);
           if (
             !existing ||
             existing.text !== norm.text ||
+            existing.imageUrl !== norm.imageUrl ||
             (existing.readBy?.length || 0) !== (norm.readBy?.length || 0) ||
             JSON.stringify(existing.reactions || []) !== JSON.stringify(norm.reactions || [])
           ) {
@@ -244,11 +307,10 @@ async function syncRoomStateViaRestPatch(changedMsg?: ChatMessage, deletedMsgId?
       } catch {}
     }
 
-    // Ako je chat_room_state prazan, a mi imamo lokalne poruke, inicijalno napuni zadnjih 30 poruka
     if (roomEntries.length === 0 && sharedMessageMap.size > 0 && !changedMsg && !deletedMsgId) {
       const recent = Array.from(sharedMessageMap.values())
         .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
-        .slice(-30);
+        .slice(-25);
       if (recent.length > 0) {
         const seedMasks = recent.map(m => `updateMask.fieldPaths=${encodeURIComponent(sanitizeFieldKey(m.id))}`);
         const seedFields: Record<string, any> = {};
@@ -263,10 +325,10 @@ async function syncRoomStateViaRestPatch(changedMsg?: ChatMessage, deletedMsgId?
       }
     }
 
-    // Ako se u chat_room_state nakupilo više od 50 poruka, očisti najstarije
-    if (roomEntries.length > 50 && changedMsg) {
+    // Održavaj chat_room_state kompaktnim (zadnjih 35 poruka)
+    if (roomEntries.length > 40 && changedMsg) {
       roomEntries.sort((a, b) => (a.msg.createdAt || 0) - (b.msg.createdAt || 0));
-      const toPrune = roomEntries.slice(0, roomEntries.length - 45);
+      const toPrune = roomEntries.slice(0, roomEntries.length - 35);
       if (toPrune.length > 0) {
         const pruneMasks = toPrune.map(e => `updateMask.fieldPaths=${encodeURIComponent(e.key)}`);
         fetch(`${FIRESTORE_REST_BASE}/app_updates/chat_room_state?${pruneMasks.join('&')}`, {
@@ -303,7 +365,7 @@ export function getUnreadChatCount(messages: ChatMessage[], currentDeviceId: str
 }
 
 /**
- * Označava sve trenutne poruke pročitanima, šalje potvrdu čitanja samo za stvarno nepročitane poruke (BEZ dodatnih getDoc čitanja!)
+ * Označava sve trenutne poruke pročitanima, šalje potvrdu čitanja samo za stvarno nepročitane poruke
  */
 export function markChatAsRead(messages?: ChatMessage[]): void {
   if (typeof window === 'undefined') return;
@@ -315,7 +377,6 @@ export function markChatAsRead(messages?: ChatMessage[]): void {
       const maxMsgTime = Math.max(...messages.map(m => m.createdAt || 0));
       if (maxMsgTime > 0) latestTime = Math.max(latestTime, maxMsgTime);
 
-      // Pronađi isključivo poruke drugih korisnika u kojima ovaj uređaj JOŠ NIJE upisan u readBy
       const unreadFromOthers = messages.filter(m => {
         if (!m || !m.id || m.deviceId === myId) return false;
         if (sentReadReceiptsSet.has(m.id)) return false;
@@ -346,7 +407,6 @@ export async function sendReadReceipts(messageIds?: string[]): Promise<void> {
   const userName = getUserName() || `Ribič (${deviceId.slice(-4)})`;
   if (!messageIds || messageIds.length === 0) return;
 
-  // Ažuriraj samo zadnje 3 nepročitane poruke koristeći već postojeće stanje u memoriji (0 getDoc čitanja!)
   const recentIds = messageIds.slice(-3);
   try {
     for (const msgId of recentIds) {
@@ -364,7 +424,6 @@ export async function sendReadReceipts(messageIds?: string[]): Promise<void> {
     }
   } catch {}
 
-  // Pošalji i poslužitelju
   try {
     await safeFetchJson(
       getApiUrl('/api/chat/read'),
@@ -389,7 +448,6 @@ export async function toggleMessageReaction(
   const deviceId = getDeviceId();
   const userName = sharedUserNamesMap.get(deviceId) || getUserName() || `Ribič (${deviceId.slice(-4)})`;
 
-  // Pronađi poruku u memoriji ili lokalnom cacheu
   let targetMsg = sharedMessageMap.get(messageId);
   if (!targetMsg) {
     const cached = getLocalChatCache();
@@ -402,10 +460,8 @@ export async function toggleMessageReaction(
 
   let updatedReactions: ChatReaction[];
   if (existingIdx >= 0 && currentReactions[existingIdx].emoji === emoji) {
-    // Ako je korisnik kliknuo isti emoji koji je već postavio -> ukloni lajk
     updatedReactions = currentReactions.filter((_, idx) => idx !== existingIdx);
   } else if (existingIdx >= 0) {
-    // Ako je korisnik odabrao drugi emoji -> zamijeni njegovu reakciju novim emojijem
     updatedReactions = [...currentReactions];
     updatedReactions[existingIdx] = {
       emoji,
@@ -414,7 +470,6 @@ export async function toggleMessageReaction(
       createdAt: Date.now()
     };
   } else {
-    // Dodaj novu reakciju
     updatedReactions = [
       ...currentReactions,
       {
@@ -431,17 +486,12 @@ export async function toggleMessageReaction(
     reactions: updatedReactions
   };
 
-  // 1. Odmah ažuriraj lokalno stanje i prikaži svim komponentama bez čekanja (0ms odziv)
   sharedMessageMap.set(messageId, updatedMsg);
   emitToAllSubscribers();
 
-  // 2. Spremi u Firestore kolekciju chat_messages
   setDoc(doc(db, 'chat_messages', messageId), { reactions: updatedReactions }, { merge: true }).catch(() => {});
-
-  // 3. Sinkroniziraj u chat_room_state putem REST PATCH metode
   syncRoomStateViaRestPatch(updatedMsg).catch(() => {});
 
-  // 4. Sinkroniziraj s poslužiteljem
   safeFetchJson(
     getApiUrl('/api/chat/react'),
     {
@@ -494,12 +544,10 @@ export async function renameMyUserName(newName: string): Promise<{ success: bool
  * Pokreće dijeljenu (singleton) pretplatu na Firestore i pričuvne sinkronizacijske kanale
  */
 function ensureSharedSubscriptionStarted(deviceId: string): void {
-  // Inicijalno napuni mapu imena iz lokalne baze licenci
   getLocalLicenses().forEach(l => {
     if (l.deviceId && l.userName) sharedUserNamesMap.set(l.deviceId, l.userName);
   });
 
-  // Učitaj lokalni cache ako je mapa prazna
   if (sharedMessageMap.size === 0) {
     const cached = getLocalChatCache();
     cached.forEach(m => {
@@ -561,7 +609,6 @@ function ensureSharedSubscriptionStarted(deviceId: string): void {
     });
   }
 
-  // Pokreni pričuvnu REST PATCH sinkronizaciju s chat_room_state isključivo dok je zaslon aktivan (sprječava buđenje procesora u pozadini i trošenje baterije!)
   if (!sharedRoomPatchTimer) {
     if (typeof document === 'undefined' || !document.hidden) {
       syncRoomStateViaRestPatch().catch(() => {});
@@ -581,7 +628,6 @@ function ensureSharedSubscriptionStarted(deviceId: string): void {
     }
   }
 
-  // Na webu dodatno sinkroniziraj s lokalnim poslužiteljem (/api/chat/messages) samo dok je prozor vidljiv
   const isCapacitorNative = typeof window !== 'undefined' && (
     window.location.protocol === 'capacitor:' ||
     Boolean((window as any).Capacitor?.isNativePlatform?.())
@@ -613,7 +659,7 @@ function ensureSharedSubscriptionStarted(deviceId: string): void {
               const existingReactStr = JSON.stringify((existing?.reactions || []).map(r => `${r.deviceId}:${r.emoji}`));
               const newReactStr = JSON.stringify((m.reactions || []).map(r => `${r.deviceId}:${r.emoji}`));
 
-              if (!existing || existing.text !== m.text || newReadLen > existingReadLen || existingReactStr !== newReactStr) {
+              if (!existing || existing.text !== m.text || existing.imageUrl !== m.imageUrl || newReadLen > existingReadLen || existingReactStr !== newReactStr) {
                 sharedMessageMap.set(m.id, normalizeChatMessage(m.id, m));
                 hasNew = true;
               }
@@ -631,7 +677,6 @@ function ensureSharedSubscriptionStarted(deviceId: string): void {
 
 /**
  * Pretplata na poruke u stvarnom vremenu preko dijeljenog Singleton upravitelja.
- * Sve poruke i reakcije poslane od bilo kojeg korisnika odmah se sinkroniziraju na sve uređaje.
  */
 export function subscribeToChatMessages(
   callback: (result: FetchChatResult) => void,
@@ -642,9 +687,7 @@ export function subscribeToChatMessages(
   activeSubscribers.add(callback);
   ensureSharedSubscriptionStarted(deviceId);
 
-  // Odmah pošalji trenutno stanje novom pretplatniku
   emitToAllSubscribers();
-  // I odmah povuci najnovije stanje iz chat_room_state
   syncRoomStateViaRestPatch().catch(() => {});
 
   return () => {
@@ -750,20 +793,20 @@ export async function fetchChatMessagesForAdmin(_pin: string): Promise<ChatMessa
 }
 
 /**
- * Šalje poruku u chat izravno u Firestore bazu, chat_room_state i poslužitelju
+ * Šalje poruku (i/ili fotografiju s vode) u chat izravno u Firestore bazu, chat_room_state i poslužitelju
  */
 export async function sendChatMessage(
   text: string, 
-  replyTo?: ChatReplyTo
+  replyTo?: ChatReplyTo,
+  imageUrl?: string
 ): Promise<{ success: boolean; message?: ChatMessage; error?: string }> {
   const deviceId = getDeviceId();
   let userName = sharedUserNamesMap.get(deviceId) || getUserName() || `Ribič (${deviceId.slice(-4)})`;
 
-  if (!text || !text.trim()) {
-    return { success: false, error: 'Poruka ne može biti prazna.' };
+  if ((!text || !text.trim()) && !imageUrl) {
+    return { success: false, error: 'Poruka ili fotografija ne mogu biti prazni.' };
   }
 
-  // Provjeri iz lokalne memorije licenci ako je dostupno (bez nepotrebnog čitanja ako već znamo ime)
   const localLic = getLocalLicenses().find(l => l.deviceId === deviceId);
   if (localLic) {
     if (localLic.status === 'revoked') {
@@ -778,12 +821,13 @@ export async function sendChatMessage(
     }
   }
 
-  const cleanText = text.trim().slice(0, 350);
+  const cleanText = text && text.trim() ? text.trim().slice(0, 350) : (imageUrl ? '📷 Fotografija s Dunava' : '');
   const newMsg: ChatMessage = {
     id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     deviceId,
     userName,
     text: cleanText,
+    imageUrl: imageUrl || undefined,
     timestamp: new Date().toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' }),
     createdAt: Date.now(),
     readBy: [{ deviceId, userName, readAt: Date.now() }],
@@ -798,10 +842,8 @@ export async function sendChatMessage(
     };
   }
 
-  // 1. Ugasi status tipkanja u pozadini jer je poruka poslana
   setMyTypingStatus(false).catch(() => {});
 
-  // 2. Spremi u Firestore bazu (i u chat_messages i u chat_room_state za 100% otpornost na kvote)
   const firestoreData: Record<string, any> = {
     id: newMsg.id,
     deviceId: newMsg.deviceId,
@@ -812,6 +854,9 @@ export async function sendChatMessage(
     readBy: newMsg.readBy,
     reactions: []
   };
+  if (newMsg.imageUrl) {
+    firestoreData.imageUrl = newMsg.imageUrl;
+  }
   if (newMsg.replyTo) {
     firestoreData.replyTo = newMsg.replyTo;
   }
@@ -827,7 +872,6 @@ export async function sendChatMessage(
     console.warn('Upozorenje pri setDoc u chat_messages, koristim REST PATCH pričuvu:', err);
   }
 
-  // Uvijek sinkroniziraj i u chat_room_state preko REST PATCH
   const patchOk = await syncRoomStateViaRestPatch(newMsg);
   if (!savedToCloud && !patchOk) {
     return {
@@ -836,11 +880,9 @@ export async function sendChatMessage(
     };
   }
 
-  // 3. Dodaj u dijeljenu mapu i lokalnu trajnu memoriju te emitiraj svim pretplatnicima
   sharedMessageMap.set(newMsg.id, newMsg);
   emitToAllSubscribers();
 
-  // 4. Asinkrono pošalji i poslužitelju za sinkronizaciju
   safeFetchJson(
     getApiUrl('/api/chat/messages'),
     {
@@ -853,13 +895,13 @@ export async function sendChatMessage(
         activationKey: getStoredActivationKey(),
         userName,
         text: cleanText,
+        imageUrl: newMsg.imageUrl,
         replyTo: newMsg.replyTo,
         reactions: []
       })
     }
   ).catch(() => {});
 
-  // Sinkroniziraj s nativnim servisom kako ne bi slao obavijest za vlastitu poruku
   syncLastSeenMessageToNative(newMsg.id, newMsg.createdAt).catch(() => {});
 
   return { 
@@ -894,7 +936,7 @@ export async function deleteChatMessageAsAdmin(pin: string, messageId: string): 
 }
 
 /* =====================================================================
- * STATUS TIPKANJA ("KORISNIK NEŠTO PIŠE...") U STVARNOM VREMENU
+ * STATUS TIPKANJA ("KORISNIK NEŠTO PIŠE...") I PRISUTNOSTI ("TKO JE ONLINE")
  * ===================================================================== */
 
 export async function setMyTypingStatus(isTyping: boolean): Promise<void> {
@@ -906,34 +948,65 @@ export async function setMyTypingStatus(isTyping: boolean): Promise<void> {
       deviceId,
       userName,
       isTyping,
+      lastActiveAt: Date.now(),
+      updatedAt: Date.now()
+    }, { merge: true });
+  } catch {}
+}
+
+/**
+ * Označava da je korisnik trenutno aktivan u LiveChatu ("Na vodi / Online")
+ */
+export async function pingMyOnlinePresence(): Promise<void> {
+  const deviceId = getDeviceId();
+  const userName = sharedUserNamesMap.get(deviceId) || getUserName();
+  try {
+    const typingRef = doc(db, 'chat_typing', deviceId);
+    await setDoc(typingRef, {
+      deviceId,
+      userName,
+      lastActiveAt: Date.now(),
       updatedAt: Date.now()
     }, { merge: true });
   } catch {}
 }
 
 export function subscribeToTypingStatus(
-  callback: (typingUsers: TypingUser[]) => void
+  callback: (typingUsers: TypingUser[], onlineUsers?: OnlineUser[]) => void
 ): Unsubscribe {
   const myDeviceId = getDeviceId();
 
   const unsubscribe = onSnapshot(collection(db, 'chat_typing'), snapshot => {
     const now = Date.now();
-    const active: TypingUser[] = [];
+    const activeTypers: TypingUser[] = [];
+    const activeOnline: OnlineUser[] = [];
 
     snapshot.forEach(docSnap => {
-      if (docSnap.id === myDeviceId) return;
       const data = docSnap.data();
-      if (data.isTyping === true && (now - (data.updatedAt || 0) < 5000)) {
-        active.push({
+      const resolvedName = sharedUserNamesMap.get(docSnap.id) || data.userName || 'Ribič';
+      const lastTime = Number(data.lastActiveAt || data.updatedAt || 0);
+
+      // Korisnici aktivni u zadnjih 5 minuta smatraju se "Online / Na vodi"
+      if (now - lastTime < 5 * 60 * 1000) {
+        activeOnline.push({
           deviceId: docSnap.id,
-          userName: sharedUserNamesMap.get(docSnap.id) || data.userName || 'Ribič'
+          userName: resolvedName,
+          lastActiveAt: lastTime
+        });
+      }
+
+      if (docSnap.id === myDeviceId) return;
+      if (data.isTyping === true && (now - (data.updatedAt || 0) < 5000)) {
+        activeTypers.push({
+          deviceId: docSnap.id,
+          userName: resolvedName
         });
       }
     });
 
-    callback(active);
+    callback(activeTypers, activeOnline);
   }, () => {
-    callback([]);
+    callback([], []);
   });
 
   return unsubscribe;
@@ -952,7 +1025,6 @@ export async function clearAllChatHistoryAsAdmin(pin?: string): Promise<{ succes
       console.warn('Upozorenje pri direktnom Firestore brisanju:', err);
     }
 
-    // Očisti i chat_room_state dokument
     try {
       await setDoc(doc(db, 'app_updates', 'chat_room_state'), { _ping: Date.now() });
     } catch {}

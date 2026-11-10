@@ -83,7 +83,16 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba'>('sve');
   // Aplikacija se pri svakom ponovnom pokretanju uvijek otvara u Osnovnom modu
   const [viewMode, setViewMode] = useState<'basic' | 'expert'>('basic');
+  const [highContrast, setHighContrast] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('ribo_high_contrast_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [pullDistance, setPullDistance] = useState<number>(0);
+  const pullStartYRef = useRef<number | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_LAST_UPDATE);
@@ -91,6 +100,16 @@ export default function App() {
     } catch {}
     return new Date();
   });
+
+  const handleToggleHighContrast = () => {
+    setHighContrast(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('ribo_high_contrast_mode', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Početno stanje za Aljmaš (mvodostaji.voda.hr) - učitava iz predmemorije za trenutnu usklađenost
   const [aljmasData, setAljmasData] = useState<StationWaterData>(() => {
@@ -583,29 +602,91 @@ export default function App() {
     );
   }
 
+  const handleTouchStartPull = (e: React.TouchEvent) => {
+    if (isAnyModalOpen || isLoading) return;
+    if (window.scrollY <= 5) {
+      pullStartYRef.current = e.touches[0].clientY;
+    } else {
+      pullStartYRef.current = null;
+    }
+  };
+
+  const handleTouchMovePull = (e: React.TouchEvent) => {
+    if (pullStartYRef.current === null || isAnyModalOpen || isLoading) return;
+    if (window.scrollY > 5) {
+      pullStartYRef.current = null;
+      setPullDistance(0);
+      return;
+    }
+    const diffY = e.touches[0].clientY - pullStartYRef.current;
+    if (diffY > 12) {
+      setPullDistance(Math.min(diffY * 0.45, 72));
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const handleTouchEndPull = () => {
+    if (pullDistance >= 52 && !isLoading) {
+      handleRefreshAll();
+    }
+    pullStartYRef.current = null;
+    setPullDistance(0);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-20 md:pb-10 selection:bg-cyan-500 selection:text-white w-full max-w-full overflow-x-hidden pt-[calc(4.25rem+env(safe-area-inset-top,0px))] sm:pt-[calc(4.5rem+env(safe-area-inset-top,0px))]">
+    <div
+      onTouchStart={handleTouchStartPull}
+      onTouchMove={handleTouchMovePull}
+      onTouchEnd={handleTouchEndPull}
+      onTouchCancel={handleTouchEndPull}
+      className={`min-h-screen ${highContrast ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'} flex flex-col font-sans pb-20 md:pb-10 selection:bg-cyan-500 selection:text-white w-full max-w-full overflow-x-hidden pt-[calc(4.25rem+env(safe-area-inset-top,0px))] sm:pt-[calc(4.5rem+env(safe-area-inset-top,0px))]`}
+    >
       
       {/* Detekcija gesti ruba ekrana i hardverskog gumba / strelice za povratak u Osnovni mod */}
       <EdgeSwipeBackGesture
         isActive={isAnySubSectionActive}
         onBack={handleGlobalBack}
-        targetLabel={viewMode === 'expert' && !isAnyModalOpen ? 'Osnovni mod' : 'Osnovni mod'}
+        targetLabel="Osnovni mod"
       />
 
       {/* Offline Status Badge */}
       <OfflineIndicator />
 
-      {/* Navbar with single refresh button at the very top */}
+      {/* Navbar */}
       <Navbar
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={(tab) => {
+          setActiveTab(tab);
+          setViewMode('expert');
+          localStorage.setItem('ribo_app_view_mode', 'expert');
+        }}
+        onResetToBasic={() => {
+          setViewMode('basic');
+          localStorage.setItem('ribo_app_view_mode', 'basic');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
         onRefresh={handleRefreshAll}
         isLoading={isLoading}
         lastUpdated={lastUpdated}
         onOpenChat={handleOpenChat}
         unreadChatCount={unreadChatCount}
+        highContrast={highContrast}
+        onToggleHighContrast={handleToggleHighContrast}
       />
+
+      {/* Pull-to-Refresh indikator na vrhu ekrana */}
+      {pullDistance > 10 && (
+        <div
+          style={{ height: `${Math.round(pullDistance)}px` }}
+          className="w-full flex items-center justify-center bg-slate-900/90 border-b border-cyan-500/30 text-xs font-bold text-cyan-300 overflow-hidden transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <RefreshCw className={`w-4 h-4 ${pullDistance >= 52 ? 'animate-spin text-teal-300' : 'text-cyan-400'}`} />
+            <span>{pullDistance >= 52 ? 'Pusti za osvježavanje podataka s Dunava...' : 'Povuci prema dolje za osvježavanje...'}</span>
+          </div>
+        </div>
+      )}
 
       {/* Obavijest o automatskom Live Web ažuriranju */}
       {liveUpdateBanner && (
@@ -616,30 +697,30 @@ export default function App() {
       )}
 
       {/* Hero Header sa sažetkom stanja na Dunavu */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 w-full max-w-full overflow-hidden">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3.5 w-full">
+      <div className={`${highContrast ? 'bg-black border-b border-white/50' : 'bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80'} px-3 sm:px-6 lg:px-8 py-2 sm:py-3.5 w-full max-w-full overflow-hidden`}>
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-2 sm:gap-3.5 w-full">
           
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap text-xs text-cyan-400 font-bold mb-1">
+            <div className="flex items-center gap-2 flex-wrap text-xs text-cyan-400 font-bold mb-0.5">
               <span className="flex items-center gap-1.5 font-mono text-slate-300">
                 <Calendar className="w-3.5 h-3.5 text-cyan-400" /> {solunarData.formattedDate}
               </span>
             </div>
 
-            <h1 className="text-xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight break-words">
+            <h1 className="text-lg sm:text-3xl lg:text-4xl font-black text-white tracking-tight break-words">
               Hidrometeo & Solunarni Centar Dunava
             </h1>
 
-            {/* Odabir načina prikaza: Osnovni mod, Pro mod, Lovostaj i Evidencija ulova - SVE U JEDNOM REDU BEZ KLIZANJA */}
-            <div className="mt-2 sm:mt-2.5 flex items-center gap-1 sm:gap-2 flex-nowrap w-full max-w-full overflow-hidden py-0.5">
-              <div className="inline-flex p-0.5 sm:p-1 bg-slate-950/90 rounded-xl sm:rounded-2xl border border-slate-800 shadow-inner shrink-0">
+            {/* Odabir načina prikaza: Na većim ekranima uvijek vidljiv, na mobitelu služi donja traka kako ne bi bilo duplih gumba */}
+            <div className="hidden md:flex mt-2.5 items-center gap-2 flex-nowrap w-full max-w-full overflow-hidden py-0.5">
+              <div className="inline-flex p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     setViewMode('basic');
                     localStorage.setItem('ribo_app_view_mode', 'basic');
                   }}
-                  className={`px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                     viewMode === 'basic'
                       ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 shadow-md font-black'
                       : 'text-slate-400 hover:text-white'
@@ -653,7 +734,7 @@ export default function App() {
                     setViewMode('expert');
                     localStorage.setItem('ribo_app_view_mode', 'expert');
                   }}
-                  className={`px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                     viewMode === 'expert'
                       ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md font-black'
                       : 'text-slate-400 hover:text-white'
@@ -663,21 +744,19 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Gumb: Lovostaj */}
               <button
                 type="button"
                 onClick={() => setShowLovostajModal(true)}
-                className="px-1.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 text-emerald-200 border border-emerald-500/40 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 text-emerald-200 border border-emerald-500/40 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
                 title="Prikaz pravilnika: Lovostaj i najmanja lovna mjera"
               >
                 <span>🐟 Lovostaj</span>
               </button>
 
-              {/* Gumb: Evidencija ulova */}
               <button
                 type="button"
                 onClick={() => setShowCatchLogModal(true)}
-                className="px-1.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 bg-gradient-to-r from-amber-950/90 to-yellow-950/90 hover:from-amber-900 hover:to-yellow-900 text-amber-200 border border-amber-500/40 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 bg-gradient-to-r from-amber-950/90 to-yellow-950/90 hover:from-amber-900 hover:to-yellow-900 text-amber-200 border border-amber-500/40 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
                 title="Zajednička evidencija ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa)"
               >
                 <span>🏆 Evidencija ulova</span>
@@ -689,10 +768,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* Brzi sažetak kote u headeru - interaktivni gumbovi za skok na poglavlja (u Ekspertnom modu) */}
+          {/* Brzi sažetak kote u headeru (u Ekspertnom modu) */}
           {viewMode === 'expert' && (
             <div className="grid grid-cols-3 gap-2 w-full lg:w-auto shrink-0 animate-fadeIn">
-              {/* ALJMAŠ GUMB */}
               <button
                 type="button"
                 onClick={() => handleScrollToChapter('sekcija-aljmas')}
@@ -712,7 +790,6 @@ export default function App() {
                 </div>
               </button>
 
-              {/* BOGOJEVO GUMB */}
               <button
                 type="button"
                 onClick={() => handleScrollToChapter('sekcija-bogojevo')}
@@ -732,7 +809,6 @@ export default function App() {
                 </div>
               </button>
 
-              {/* SOLUNAR GUMB */}
               <button
                 type="button"
                 onClick={() => handleScrollToChapter('sekcija-solunar')}
@@ -761,20 +837,18 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3.5 flex-1 w-full max-w-full overflow-hidden">
         
         {viewMode === 'basic' ? (
-          /* POJEDNOSTAVLJENI OSNOVNI PRIKAZ NA POKRETANJU */
           <BasicOverviewView 
             aljmas={aljmasData} 
             bogojevo={bogojevoData} 
             solunar={solunarData} 
             isLoading={isLoading} 
+            highContrast={highContrast}
             onOpenExpertSection={handleOpenExpertSection}
             onOpenLovostaj={() => setShowLovostajModal(true)}
             onOpenCatchLog={() => setShowCatchLogModal(true)}
           />
         ) : (
-          /* DUBINSKI EKSPERTNI RIBOLOVNI MOD */
           <div className="space-y-6 sm:space-y-8 animate-fadeIn">
-            {/* Odabir prikaza lokacija (tabovi) na vrhu sadržaja */}
             <div className="border-b border-slate-800 pb-3 w-full">
               <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-1 max-w-full">
                 <button
@@ -830,7 +904,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* 1. Solunarni rezultati za taj dan */}
             {(activeTab === 'sve' || activeTab === 'solunar') && (
               <div id="sekcija-solunar" className="scroll-mt-20">
                 <SolunarDailyDashboard 
@@ -840,7 +913,6 @@ export default function App() {
               </div>
             )}
 
-            {/* 2. Dunav - Aljmaš */}
             {(activeTab === 'sve' || activeTab === 'aljmas') && (
               <div id="sekcija-aljmas" className="scroll-mt-20">
                 <StationCardAljmas 
@@ -850,7 +922,6 @@ export default function App() {
               </div>
             )}
 
-            {/* 3. Dunav - Bogojevo */}
             {(activeTab === 'sve' || activeTab === 'bogojevo') && (
               <div id="sekcija-bogojevo" className="scroll-mt-20">
                 <StationCardBogojevo 
@@ -860,7 +931,6 @@ export default function App() {
               </div>
             )}
 
-            {/* 4. Usporedba Aljmaš vs Bogojevo */}
             {(activeTab === 'sve' || activeTab === 'usporedba') && (
               <div id="sekcija-usporedba" className="scroll-mt-20">
                 <StationsComparisonCard 
@@ -870,7 +940,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Podnožje ekspertnog moda: Gumb za brzi povratak na osnovni mod */}
             <div className="pt-4 pb-2 text-center">
               <button
                 type="button"
@@ -889,24 +958,30 @@ export default function App() {
 
       </main>
 
-      {/* Android Native Bottom Navigation Bar for Mobile */}
+      {/* Ujednačena donja mobilna navigacija bez dupliranja */}
       <AndroidBottomNav
+        viewMode={viewMode}
         activeTab={activeTab}
-        onSelectTab={(tab) => {
-          setActiveTab(tab);
-          if (viewMode === 'basic') {
-            setViewMode('expert');
-            localStorage.setItem('ribo_app_view_mode', 'expert');
-          }
+        onSelectBasicMode={() => {
+          setViewMode('basic');
+          localStorage.setItem('ribo_app_view_mode', 'basic');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
+        onSelectExpertTab={(tab) => {
+          setActiveTab(tab);
+          setViewMode('expert');
+          localStorage.setItem('ribo_app_view_mode', 'expert');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenLovostaj={() => setShowLovostajModal(true)}
         onOpenChat={handleOpenChat}
         onOpenCatchLog={() => setShowCatchLogModal(true)}
         unreadChatCount={unreadChatCount}
       />
 
-      {/* Podnožje: Donacije i podrška radu autora (premješteno s vrha u podnožje) */}
+      {/* Podnožje: Donacije i podrška radu autora (bez napadnog bljeskanja) */}
       <div className="max-w-7xl mx-auto px-4 w-full mt-4 mb-2 text-center">
-        <div className="inline-flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-3.5 sm:px-5 rounded-2xl bg-slate-900/90 border border-amber-500/30 text-[11px] sm:text-xs text-slate-300 animate-pulse shadow-lg flex-wrap">
+        <div className="inline-flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-3.5 sm:px-5 rounded-2xl bg-slate-900/90 border border-amber-500/30 text-[11px] sm:text-xs text-slate-300 shadow-lg flex-wrap">
           <span>Aplikacija je potpuno besplatna. Rad autora možete podržati neobaveznim donacijama za čevape i Colu </span>
           <button
             type="button"

@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, onSnapshot, Unsubscribe, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, Unsubscribe, collection, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
 import { 
   getDeviceId, 
@@ -9,6 +9,7 @@ import {
   safeFetchJson,
   isAdminUnlocked
 } from './licenseService';
+import { getStoredAljmasData, getStoredBogojevoData } from './weatherService';
 
 export type AnglerId = 'sikac' | 'krasni' | 'domo' | 'malisa';
 
@@ -48,6 +49,30 @@ export type AnglerCatchCounts = Record<FishSpeciesId, number>;
 export type AllCatchCounts = Record<AnglerId, AnglerCatchCounts>;
 export type AnglerDeviceMap = Partial<Record<AnglerId, string>>;
 
+/**
+ * Automatski zabilježeni hidrometeo uvjeti na Dunavu u trenutku upisa ulova
+ */
+export interface CatchConditionsSnapshot {
+  aljmasLevelCm?: number;
+  aljmasTrend?: string;
+  bogojevoLevelCm?: number;
+  waterTempC?: number;
+  airPressureHpa?: number;
+  windSpeedMs?: number;
+}
+
+/**
+ * Osobni rekord (PB - Personal Best) za pojedinu vrstu ribe
+ */
+export interface PersonalBestEntry {
+  cm?: number;
+  kg?: number;
+  updatedAt?: string;
+}
+
+export type AnglerPersonalBests = Partial<Record<FishSpeciesId, PersonalBestEntry>>;
+export type AllPersonalBests = Record<AnglerId, AnglerPersonalBests>;
+
 export interface CatchHistoryEntry {
   id: string;
   anglerId: AnglerId;
@@ -59,10 +84,12 @@ export interface CatchHistoryEntry {
   timestamp: string;
   createdAt: number;
   deviceId: string;
+  conditions?: CatchConditionsSnapshot;
 }
 
 export interface CatchStatsData {
   counts: AllCatchCounts;
+  personalBests?: AllPersonalBests;
   anglerDevices: AnglerDeviceMap;
   history: CatchHistoryEntry[];
   updatedAt: number;
@@ -89,6 +116,42 @@ export function createEmptyCounts(): AllCatchCounts {
   };
 }
 
+export function createEmptyPersonalBests(): AllPersonalBests {
+  return {
+    sikac: {},
+    krasni: {},
+    domo: {},
+    malisa: {}
+  };
+}
+
+/**
+ * Dohvaća trenutni snapshot uvjeta na Dunavu (Aljmaš i Bogojevo) za automatsko spremanje uz ulov
+ */
+export function getCurrentRiverConditionsSnapshot(): CatchConditionsSnapshot {
+  try {
+    const alj = getStoredAljmasData();
+    const bog = getStoredBogojevoData();
+    return {
+      aljmasLevelCm: alj?.waterLevelCm ?? -70,
+      aljmasTrend: alj?.waterLevelTrend ?? 'stagnira',
+      bogojevoLevelCm: bog?.waterLevelCm ?? -77,
+      waterTempC: alj?.waterTempC ?? bog?.waterTempC ?? 9.8,
+      airPressureHpa: alj?.airPressureHpa ?? bog?.airPressureHpa ?? 1021,
+      windSpeedMs: alj?.windSpeedMs ?? (alj?.windSpeedKmh ? Number((alj.windSpeedKmh / 3.6).toFixed(1)) : 2.5)
+    };
+  } catch {
+    return {
+      aljmasLevelCm: -70,
+      aljmasTrend: 'stagnira',
+      bogojevoLevelCm: -77,
+      waterTempC: 9.8,
+      airPressureHpa: 1021,
+      windSpeedMs: 2.5
+    };
+  }
+}
+
 export function normalizeCatchData(raw?: Partial<CatchStatsData> | null): CatchStatsData {
   const empty = createEmptyCounts();
   const counts: AllCatchCounts = {
@@ -106,10 +169,19 @@ export function normalizeCatchData(raw?: Partial<CatchStatsData> | null): CatchS
     }
   }
 
+  const emptyPB = createEmptyPersonalBests();
+  const personalBests: AllPersonalBests = {
+    sikac: { ...emptyPB.sikac, ...(raw?.personalBests?.sikac || {}) },
+    krasni: { ...emptyPB.krasni, ...(raw?.personalBests?.krasni || {}) },
+    domo: { ...emptyPB.domo, ...(raw?.personalBests?.domo || {}) },
+    malisa: { ...emptyPB.malisa, ...(raw?.personalBests?.malisa || {}) }
+  };
+
   return {
     counts,
+    personalBests,
     anglerDevices: { ...(raw?.anglerDevices || {}) },
-    history: Array.isArray(raw?.history) ? raw!.history.slice(0, 40) : [],
+    history: Array.isArray(raw?.history) ? raw!.history.slice(0, 50) : [],
     updatedAt: typeof raw?.updatedAt === 'number' ? raw.updatedAt : Date.now()
   };
 }
@@ -163,14 +235,12 @@ export function resolveCurrentUserAnglerId(
   deviceId: string = getDeviceId(),
   userName: string = getUserName()
 ): AnglerId | null {
-  // 1. Provjeri je li ovaj deviceId već izravno povezan s nekim od 4 ribolovca
   for (const angler of ANGLERS) {
     if (data.anglerDevices?.[angler.id] === deviceId) {
       return angler.id;
     }
   }
 
-  // 2. Provjeri poklapa li se postavljeno ime ovog uređaja s nekim od 4 ribolovca
   const matchedFromName = matchNameToAnglerId(userName);
   if (matchedFromName) {
     const existingBoundDevice = data.anglerDevices?.[matchedFromName];
@@ -179,7 +249,6 @@ export function resolveCurrentUserAnglerId(
     }
   }
 
-  // 3. Provjeri lokalnu predmemoriju licenci za ovaj deviceId
   const licenses = getLocalLicenses();
   const myLic = licenses.find(l => l.deviceId === deviceId);
   if (myLic?.userName) {
@@ -215,7 +284,6 @@ export async function claimAnglerProfile(anglerId: AnglerId): Promise<{ success:
   const deviceId = getDeviceId();
   const current = getLocalCatchStats();
 
-  // Provjeri je li taj ribolovac već zauzet drugim uređajem
   const boundDevice = current.anglerDevices?.[anglerId];
   if (boundDevice && boundDevice !== deviceId && !isAdminUnlocked()) {
     return {
@@ -225,7 +293,6 @@ export async function claimAnglerProfile(anglerId: AnglerId): Promise<{ success:
     };
   }
 
-  // Ukloni eventualnu staru vezu ovog uređaja s drugim profilom (osim ako je admin)
   const updatedDevices: AnglerDeviceMap = { ...current.anglerDevices };
   for (const a of ANGLERS) {
     if (updatedDevices[a.id] === deviceId) {
@@ -281,7 +348,60 @@ export async function adminSetAnglerDevice(
 }
 
 /**
- * Dodaje ulov za pojedinu vrstu ribe i ribolovca te automatski zbraja u ukupnu statistiku
+ * Sprema osobni rekord (PB - Personal Best u cm i/ili kg) za odabranog ribolovca i vrstu ribe
+ */
+export async function updatePersonalBestForAngler(
+  anglerId: AnglerId,
+  speciesId: FishSpeciesId,
+  cmValue?: number | null,
+  kgValue?: number | null,
+  isAdminOverride: boolean = false
+): Promise<{ success: boolean; data: CatchStatsData; error?: string }> {
+  const current = getLocalCatchStats();
+  if (!canUserEditAngler(anglerId, current, isAdminOverride)) {
+    return {
+      success: false,
+      data: current,
+      error: 'Možete uređivati osobne rekorde samo u svom profilu.'
+    };
+  }
+
+  const currentPBs = current.personalBests || createEmptyPersonalBests();
+  const anglerPBs: AnglerPersonalBests = { ...(currentPBs[anglerId] || {}) };
+
+  const cleanCm = cmValue && Number.isFinite(Number(cmValue)) && Number(cmValue) > 0
+    ? Math.round(Number(cmValue))
+    : undefined;
+  const cleanKg = kgValue && Number.isFinite(Number(kgValue)) && Number(kgValue) > 0
+    ? Number(Number(kgValue).toFixed(2))
+    : undefined;
+
+  if (!cleanCm && !cleanKg) {
+    delete anglerPBs[speciesId];
+  } else {
+    anglerPBs[speciesId] = {
+      cm: cleanCm,
+      kg: cleanKg,
+      updatedAt: new Date().toLocaleDateString('hr-HR', { day: '2-digit', month: '2-digit' })
+    };
+  }
+
+  const nextData: CatchStatsData = {
+    ...current,
+    personalBests: {
+      ...currentPBs,
+      [anglerId]: anglerPBs
+    },
+    updatedAt: Date.now()
+  };
+
+  saveLocalCatchStats(nextData);
+  await syncCatchStatsToCloudAndServer(nextData);
+  return { success: true, data: nextData };
+}
+
+/**
+ * Dodaje ulov za pojedinu vrstu ribe i ribolovca te automatski bilježi trenutne uvjete na Dunavu
  */
 export async function addCatchForAngler(
   anglerId: AnglerId,
@@ -321,7 +441,6 @@ export async function addCatchForAngler(
     }
   };
 
-  // Osiguraj da je uređaj zabilježen uz profil ako ga uređuje sam vlasnik
   const updatedDevices: AnglerDeviceMap = { ...current.anglerDevices };
   if (!isAdminOverride && !updatedDevices[anglerId]) {
     updatedDevices[anglerId] = deviceId;
@@ -331,6 +450,7 @@ export async function addCatchForAngler(
   const speciesName = FISH_SPECIES.find(f => f.id === speciesId)?.name || speciesId;
   const now = new Date();
   const formattedTime = `${now.toLocaleDateString('hr-HR', { day: '2-digit', month: '2-digit' })} ${now.toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })}`;
+  const conditions = getCurrentRiverConditionsSnapshot();
 
   const historyEntry: CatchHistoryEntry = {
     id: `ulov_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -342,13 +462,15 @@ export async function addCatchForAngler(
     newTotal,
     timestamp: formattedTime,
     createdAt: Date.now(),
-    deviceId
+    deviceId,
+    conditions
   };
 
   const nextData: CatchStatsData = {
+    ...current,
     counts: updatedCounts,
     anglerDevices: updatedDevices,
-    history: [historyEntry, ...(current.history || [])].slice(0, 40),
+    history: [historyEntry, ...(current.history || [])].slice(0, 50),
     updatedAt: Date.now()
   };
 
@@ -359,7 +481,7 @@ export async function addCatchForAngler(
 }
 
 /**
- * Dodaje ulove za više vrsta riba odjednom (npr. nakon povratka iz ribolova) i zbraja ih u postojeće stanje
+ * Dodaje ulove za više vrsta riba odjednom (npr. nakon povratka iz ribolova) i bilježi uvjete na vodi
  */
 export async function addBatchCatchesForAngler(
   anglerId: AnglerId,
@@ -383,6 +505,7 @@ export async function addBatchCatchesForAngler(
   const anglerName = ANGLERS.find(a => a.id === anglerId)?.name || anglerId;
   const now = new Date();
   const formattedTime = `${now.toLocaleDateString('hr-HR', { day: '2-digit', month: '2-digit' })} ${now.toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })}`;
+  const conditions = getCurrentRiverConditionsSnapshot();
 
   let addedTotal = 0;
 
@@ -406,7 +529,8 @@ export async function addBatchCatchesForAngler(
           newTotal: nextVal,
           timestamp: formattedTime,
           createdAt: Date.now(),
-          deviceId
+          deviceId,
+          conditions
         });
       }
     }
@@ -427,12 +551,13 @@ export async function addBatchCatchesForAngler(
   }
 
   const nextData: CatchStatsData = {
+    ...current,
     counts: {
       ...current.counts,
       [anglerId]: updatedAnglerCounts
     },
     anglerDevices: updatedDevices,
-    history: [...newHistoryEntries, ...(current.history || [])].slice(0, 40),
+    history: [...newHistoryEntries, ...(current.history || [])].slice(0, 50),
     updatedAt: Date.now()
   };
 
@@ -446,10 +571,10 @@ export async function addBatchCatchesForAngler(
  * Sinkronizira podatke s Firestore oblakom i Express poslužiteljem
  */
 async function syncCatchStatsToCloudAndServer(data: CatchStatsData): Promise<void> {
-  // 1. Firestore
   try {
     await setDoc(doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID), {
       counts: data.counts,
+      personalBests: data.personalBests || createEmptyPersonalBests(),
       anglerDevices: data.anglerDevices,
       history: data.history,
       updatedAt: data.updatedAt
@@ -458,7 +583,6 @@ async function syncCatchStatsToCloudAndServer(data: CatchStatsData): Promise<voi
     console.warn('Upozorenje pri spremanju ulova u Firestore:', err);
   }
 
-  // 2. Poslužitelj
   try {
     await safeFetchJson(getApiUrl('/api/catches/update'), {
       method: 'POST',
@@ -476,11 +600,9 @@ export function subscribeToCatchStats(
 ): Unsubscribe {
   let active = true;
 
-  // 1. Odmah prikaži iz lokalne predmemorije
   const initialLocal = getLocalCatchStats();
   callback(initialLocal);
 
-  // 2. Pokušaj automatski povezati poznate licence po imenu (Sikac, Krasni, Domo, Mališa)
   getDocs(collection(db, 'licenses'))
     .then(snap => {
       if (!active || snap.empty) return;
@@ -514,7 +636,6 @@ export function subscribeToCatchStats(
     })
     .catch(() => {});
 
-  // 3. Dohvati s Express poslužitelja kao dodatni izvor
   safeFetchJson<CatchStatsData>(getApiUrl('/api/catches'))
     .then(res => {
       if (!active || !res.ok || !res.data) return;
@@ -527,7 +648,6 @@ export function subscribeToCatchStats(
     })
     .catch(() => {});
 
-  // 4. Slušaj promjene u stvarnom vremenu iz Firestore baze
   const unsubFirestore = onSnapshot(
     doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID),
     snapshot => {
@@ -537,7 +657,6 @@ export function subscribeToCatchStats(
         saveLocalCatchStats(cloudData);
         callback(cloudData);
       } else {
-        // Ako dokument još ne postoji u Firestoreu, inicijaliziraj ga
         const current = getLocalCatchStats();
         setDoc(doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID), current, { merge: true }).catch(() => {});
       }
