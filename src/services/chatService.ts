@@ -56,6 +56,7 @@ export interface ChatMessage {
   imageUrl?: string;
   timestamp: string;
   createdAt: number;
+  editedAt?: number;
   readBy?: ChatReadReceipt[];
   replyTo?: ChatReplyTo;
   reactions?: ChatReaction[];
@@ -95,10 +96,13 @@ const activeSubscribers = new Set<(result: FetchChatResult) => void>();
 
 let sharedUnsubscribeLicenses: Unsubscribe | null = null;
 let sharedUnsubscribeMessages: Unsubscribe | null = null;
+let sharedUnsubscribeRoomDoc: Unsubscribe | null = null;
 let sharedPollTimer: any = null;
 let sharedRoomPatchTimer: any = null;
 let sharedIsChatBlocked = false;
 let sharedBlockedReason = '';
+let isChatModalFastMode = false;
+let isPatchInFlight = false;
 
 function sanitizeFieldKey(msgId: string): string {
   return 'm_' + msgId.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -123,7 +127,7 @@ export function saveLocalChatCache(msgs: ChatMessage[]): void {
 
 /**
  * Komprimira odabranu fotografiju (ulov ili stanje vode na Dunavu) na klijentu
- * u lagani JPEG Data URL (max 720px, ~35-65 KB) za trenutno slanje u LiveChat
+ * u lagani JPEG Data URL (max 680px, ~35-65 KB) za trenutno slanje u LiveChat
  */
 export function compressImageForChat(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -161,7 +165,6 @@ export function compressImageForChat(file: File): Promise<string> {
           }
           ctx.drawImage(img, 0, 0, width, height);
           let dataUrl = canvas.toDataURL('image/jpeg', 0.72);
-          // Ako je slika i dalje veća od 110 KB, dodatno smanji kvalitetu radi brzine
           if (dataUrl.length > 110000) {
             dataUrl = canvas.toDataURL('image/jpeg', 0.56);
           }
@@ -208,6 +211,7 @@ function normalizeChatMessage(id: string, data: any): ChatMessage {
     imageUrl: data.imageUrl || undefined,
     timestamp: data.timestamp || '',
     createdAt: Number(data.createdAt) || 0,
+    editedAt: data.editedAt ? Number(data.editedAt) : undefined,
     readBy: enrichedReadBy,
     replyTo: data.replyTo || undefined,
     reactions: enrichedReactions
@@ -248,10 +252,52 @@ function emitToAllSubscribers(): void {
 }
 
 /**
+ * Obrađuje polja iz chat_room_state dokumenta (iz onSnapshot ili REST PATCH odgovora)
+ */
+function ingestRoomStateFields(docFields: Record<string, any>, isRestFormat: boolean): boolean {
+  let hasChanges = false;
+  const roomEntries: { key: string; msg: ChatMessage }[] = [];
+
+  for (const [k, valObj] of Object.entries(docFields || {})) {
+    if (!k.startsWith('m_')) continue;
+    const rawStr = isRestFormat ? (valObj as any)?.stringValue : (typeof valObj === 'string' ? valObj : null);
+    if (!rawStr) continue;
+    try {
+      const parsed = JSON.parse(rawStr) as ChatMessage;
+      if (parsed && parsed.id && (parsed.text || parsed.imageUrl)) {
+        roomEntries.push({ key: k, msg: parsed });
+        const existing = sharedMessageMap.get(parsed.id);
+        const norm = normalizeChatMessage(parsed.id, parsed);
+        if (
+          !existing ||
+          existing.text !== norm.text ||
+          existing.editedAt !== norm.editedAt ||
+          existing.imageUrl !== norm.imageUrl ||
+          (existing.readBy?.length || 0) !== (norm.readBy?.length || 0) ||
+          JSON.stringify(existing.reactions || []) !== JSON.stringify(norm.reactions || [])
+        ) {
+          sharedMessageMap.set(norm.id, norm);
+          hasChanges = true;
+        }
+      }
+    } catch {}
+  }
+
+  return hasChanges;
+}
+
+/**
  * Sinkronizira poruku ili stanje chata preko jedinstvenog dokumenta app_updates/chat_room_state
- * koristeći Firestore REST PATCH (radi 100% čak i ako je dnevna kvota čitanja iscrpljena!)
+ * koristeći Firestore REST PATCH (radi 100% trenutno čak i ako je dnevna kvota čitanja iscrpljena!)
  */
 async function syncRoomStateViaRestPatch(changedMsg?: ChatMessage, deletedMsgId?: string): Promise<boolean> {
+  if (!changedMsg && !deletedMsgId && isPatchInFlight) {
+    return true;
+  }
+  if (!changedMsg && !deletedMsgId) {
+    isPatchInFlight = true;
+  }
+
   try {
     const queryParams: string[] = ['updateMask.fieldPaths=_ping'];
     const fieldsPayload: Record<string, any> = {
@@ -280,34 +326,11 @@ async function syncRoomStateViaRestPatch(changedMsg?: ChatMessage, deletedMsgId?
     const docData = await res.json();
     const docFields = docData?.fields || {};
 
-    let hasChanges = false;
-    const roomEntries: { key: string; msg: ChatMessage }[] = [];
+    const hasChanges = ingestRoomStateFields(docFields, true);
 
-    for (const [k, valObj] of Object.entries(docFields)) {
-      if (!k.startsWith('m_')) continue;
-      const rawStr = (valObj as any)?.stringValue;
-      if (!rawStr) continue;
-      try {
-        const parsed = JSON.parse(rawStr) as ChatMessage;
-        if (parsed && parsed.id && (parsed.text || parsed.imageUrl)) {
-          roomEntries.push({ key: k, msg: parsed });
-          const existing = sharedMessageMap.get(parsed.id);
-          const norm = normalizeChatMessage(parsed.id, parsed);
-          if (
-            !existing ||
-            existing.text !== norm.text ||
-            existing.imageUrl !== norm.imageUrl ||
-            (existing.readBy?.length || 0) !== (norm.readBy?.length || 0) ||
-            JSON.stringify(existing.reactions || []) !== JSON.stringify(norm.reactions || [])
-          ) {
-            sharedMessageMap.set(norm.id, norm);
-            hasChanges = true;
-          }
-        }
-      } catch {}
-    }
-
-    if (roomEntries.length === 0 && sharedMessageMap.size > 0 && !changedMsg && !deletedMsgId) {
+    // Provjeri broj zapisa za održavanje kompaktnosti
+    const mKeys = Object.keys(docFields).filter(k => k.startsWith('m_'));
+    if (mKeys.length === 0 && sharedMessageMap.size > 0 && !changedMsg && !deletedMsgId) {
       const recent = Array.from(sharedMessageMap.values())
         .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
         .slice(-25);
@@ -325,9 +348,15 @@ async function syncRoomStateViaRestPatch(changedMsg?: ChatMessage, deletedMsgId?
       }
     }
 
-    // Održavaj chat_room_state kompaktnim (zadnjih 35 poruka)
-    if (roomEntries.length > 40 && changedMsg) {
-      roomEntries.sort((a, b) => (a.msg.createdAt || 0) - (b.msg.createdAt || 0));
+    if (mKeys.length > 40 && changedMsg) {
+      const roomEntries: { key: string; createdAt: number }[] = [];
+      for (const k of mKeys) {
+        try {
+          const parsed = JSON.parse(docFields[k]?.stringValue || '{}');
+          roomEntries.push({ key: k, createdAt: Number(parsed?.createdAt) || 0 });
+        } catch {}
+      }
+      roomEntries.sort((a, b) => a.createdAt - b.createdAt);
       const toPrune = roomEntries.slice(0, roomEntries.length - 35);
       if (toPrune.length > 0) {
         const pruneMasks = toPrune.map(e => `updateMask.fieldPaths=${encodeURIComponent(e.key)}`);
@@ -345,7 +374,40 @@ async function syncRoomStateViaRestPatch(changedMsg?: ChatMessage, deletedMsgId?
     return true;
   } catch {
     return false;
+  } finally {
+    if (!changedMsg && !deletedMsgId) {
+      isPatchInFlight = false;
+    }
   }
+}
+
+/**
+ * Uključuje brzu sinkronizaciju (svake 2.5 sekunde) dok je korisnik u otvorenom LiveChatu,
+ * a izvan chata 5 sekundi isključivo dok je zaslon upaljen (0 buđenja u pozadini / deep sleepu!).
+ */
+export function setChatModalFastSync(isOpen: boolean): void {
+  isChatModalFastMode = isOpen;
+  restartRoomPatchTimer();
+  if (isOpen && (typeof document === 'undefined' || !document.hidden)) {
+    syncRoomStateViaRestPatch().catch(() => {});
+  }
+}
+
+function restartRoomPatchTimer(): void {
+  if (sharedRoomPatchTimer) {
+    clearInterval(sharedRoomPatchTimer);
+    sharedRoomPatchTimer = null;
+  }
+  if (activeSubscribers.size === 0) return;
+
+  const intervalMs = isChatModalFastMode ? 2500 : 5000;
+  sharedRoomPatchTimer = setInterval(() => {
+    // Izvršava se ISKLJUČIVO dok je ekran upaljen i aplikacija vidljiva (!document.hidden)
+    // Time se uopće ne budi procesor u stanju mirovanja i ne uzrokuje "Frequent wakeups"
+    if (activeSubscribers.size > 0 && (typeof document === 'undefined' || !document.hidden)) {
+      syncRoomStateViaRestPatch().catch(() => {});
+    }
+  }, intervalMs);
 }
 
 /**
@@ -419,7 +481,7 @@ export async function sendReadReceipts(messageIds?: string[]): Promise<void> {
           sharedMessageMap.set(msgId, updatedMsg);
           syncRoomStateViaRestPatch(updatedMsg).catch(() => {});
         }
-        await setDoc(doc(db, 'chat_messages', msgId), { readBy: updatedReceipts }, { merge: true }).catch(() => {});
+        setDoc(doc(db, 'chat_messages', msgId), { readBy: updatedReceipts }, { merge: true }).catch(() => {});
       }
     }
   } catch {}
@@ -508,6 +570,72 @@ export async function toggleMessageReaction(
   ).catch(() => {});
 
   return { success: true, reactions: updatedReactions };
+}
+
+/**
+ * Uređuje (ispravlja) već poslanu vlastitu poruku u LiveChatu i odmah sinkronizira sa svima
+ */
+export async function editMyChatMessage(
+  messageId: string,
+  newText: string
+): Promise<{ success: boolean; message?: ChatMessage; error?: string }> {
+  const cleanText = (newText || '').trim().slice(0, 350);
+  if (!messageId || !cleanText) {
+    return { success: false, error: 'Tekst poruke ne može biti prazan.' };
+  }
+
+  const myDeviceId = getDeviceId();
+  let targetMsg = sharedMessageMap.get(messageId);
+  if (!targetMsg) {
+    const cached = getLocalChatCache();
+    targetMsg = cached.find(m => m.id === messageId);
+  }
+  if (!targetMsg) {
+    return { success: false, error: 'Poruka nije pronađena.' };
+  }
+
+  if (targetMsg.deviceId !== myDeviceId && !isAdminUnlocked()) {
+    return { success: false, error: 'Možete uređivati samo vlastite poruke.' };
+  }
+
+  const editedAt = Date.now();
+  const updatedMsg: ChatMessage = {
+    ...targetMsg,
+    text: cleanText,
+    editedAt
+  };
+
+  // Odmah prikaži ispravljenu poruku lokalno
+  sharedMessageMap.set(messageId, updatedMsg);
+  emitToAllSubscribers();
+
+  // Paralelno sinkroniziraj preko svih kanala za trenutačnu isporuku
+  const patchPromise = syncRoomStateViaRestPatch(updatedMsg);
+  const firestorePromise = Promise.race([
+    setDoc(doc(db, 'chat_messages', messageId), { text: cleanText, editedAt }, { merge: true }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2500))
+  ]).catch(() => false);
+
+  safeFetchJson(
+    getApiUrl('/api/chat/edit'),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messageId,
+        deviceId: myDeviceId,
+        newText: cleanText,
+        editedAt
+      })
+    }
+  ).catch(() => {});
+
+  await Promise.allSettled([patchPromise, firestorePromise]);
+
+  return {
+    success: true,
+    message: updatedMsg
+  };
 }
 
 /**
@@ -609,15 +737,23 @@ function ensureSharedSubscriptionStarted(deviceId: string): void {
     });
   }
 
+  // Izravna real-time pretplata na jedan dokument chat_room_state za trenutačni primitak (<200ms)
+  if (!sharedUnsubscribeRoomDoc) {
+    sharedUnsubscribeRoomDoc = onSnapshot(doc(db, 'app_updates', 'chat_room_state'), docSnap => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() || {};
+        if (ingestRoomStateFields(data, false)) {
+          emitToAllSubscribers();
+        }
+      }
+    }, () => {});
+  }
+
   if (!sharedRoomPatchTimer) {
     if (typeof document === 'undefined' || !document.hidden) {
       syncRoomStateViaRestPatch().catch(() => {});
     }
-    sharedRoomPatchTimer = setInterval(() => {
-      if (activeSubscribers.size > 0 && (typeof document === 'undefined' || !document.hidden)) {
-        syncRoomStateViaRestPatch().catch(() => {});
-      }
-    }, 20000);
+    restartRoomPatchTimer();
 
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
@@ -659,7 +795,14 @@ function ensureSharedSubscriptionStarted(deviceId: string): void {
               const existingReactStr = JSON.stringify((existing?.reactions || []).map(r => `${r.deviceId}:${r.emoji}`));
               const newReactStr = JSON.stringify((m.reactions || []).map(r => `${r.deviceId}:${r.emoji}`));
 
-              if (!existing || existing.text !== m.text || existing.imageUrl !== m.imageUrl || newReadLen > existingReadLen || existingReactStr !== newReactStr) {
+              if (
+                !existing ||
+                existing.text !== m.text ||
+                existing.editedAt !== m.editedAt ||
+                existing.imageUrl !== m.imageUrl ||
+                newReadLen > existingReadLen ||
+                existingReactStr !== newReactStr
+              ) {
                 sharedMessageMap.set(m.id, normalizeChatMessage(m.id, m));
                 hasNew = true;
               }
@@ -671,7 +814,7 @@ function ensureSharedSubscriptionStarted(deviceId: string): void {
     };
 
     pollServer();
-    sharedPollTimer = setInterval(pollServer, 10000);
+    sharedPollTimer = setInterval(pollServer, 4000);
   }
 }
 
@@ -708,6 +851,10 @@ export function subscribeToChatMessages(
       if (sharedUnsubscribeMessages) {
         sharedUnsubscribeMessages();
         sharedUnsubscribeMessages = null;
+      }
+      if (sharedUnsubscribeRoomDoc) {
+        sharedUnsubscribeRoomDoc();
+        sharedUnsubscribeRoomDoc = null;
       }
     }
   };
@@ -793,7 +940,7 @@ export async function fetchChatMessagesForAdmin(_pin: string): Promise<ChatMessa
 }
 
 /**
- * Šalje poruku (i/ili fotografiju s vode) u chat izravno u Firestore bazu, chat_room_state i poslužitelju
+ * Šalje poruku (i/ili fotografiju s vode) u chat s trenutačnom paralelnom sinkronizacijom bez kašnjenja
  */
 export async function sendChatMessage(
   text: string, 
@@ -844,6 +991,10 @@ export async function sendChatMessage(
 
   setMyTypingStatus(false).catch(() => {});
 
+  // Odmah prikaži poruku pošiljatelju (0ms odgode)
+  sharedMessageMap.set(newMsg.id, newMsg);
+  emitToAllSubscribers();
+
   const firestoreData: Record<string, any> = {
     id: newMsg.id,
     deviceId: newMsg.deviceId,
@@ -861,27 +1012,13 @@ export async function sendChatMessage(
     firestoreData.replyTo = newMsg.replyTo;
   }
 
-  let savedToCloud = false;
-  try {
-    await Promise.race([
-      setDoc(doc(db, 'chat_messages', newMsg.id), firestoreData),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 6000))
-    ]);
-    savedToCloud = true;
-  } catch (err) {
-    console.warn('Upozorenje pri setDoc u chat_messages, koristim REST PATCH pričuvu:', err);
-  }
-
-  const patchOk = await syncRoomStateViaRestPatch(newMsg);
-  if (!savedToCloud && !patchOk) {
-    return {
-      success: false,
-      error: 'Greška pri slanju poruke. Provjerite internetsku vezu i pokušajte ponovno.'
-    };
-  }
-
-  sharedMessageMap.set(newMsg.id, newMsg);
-  emitToAllSubscribers();
+  // PARALELNO pošalji u chat_room_state (REST PATCH ~150ms) i u chat_messages (Firestore SDK)
+  // tako da više nikada ne čeka 6 sekundi na setDoc prije nego što drugi korisnici dobiju poruku!
+  const patchPromise = syncRoomStateViaRestPatch(newMsg);
+  const setDocPromise = Promise.race([
+    setDoc(doc(db, 'chat_messages', newMsg.id), firestoreData).then(() => true),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2500))
+  ]).catch(() => false);
 
   safeFetchJson(
     getApiUrl('/api/chat/messages'),
@@ -903,6 +1040,14 @@ export async function sendChatMessage(
   ).catch(() => {});
 
   syncLastSeenMessageToNative(newMsg.id, newMsg.createdAt).catch(() => {});
+
+  const [patchOk, savedToCloud] = await Promise.all([patchPromise, setDocPromise]);
+  if (!patchOk && !savedToCloud) {
+    return {
+      success: false,
+      error: 'Greška pri slanju poruke. Provjerite internetsku vezu i pokušajte ponovno.'
+    };
+  }
 
   return { 
     success: true, 

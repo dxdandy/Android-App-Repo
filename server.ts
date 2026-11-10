@@ -620,6 +620,7 @@ export interface ChatMessageRecord {
   imageUrl?: string;
   timestamp: string;
   createdAt: number;
+  editedAt?: number;
   readBy?: ChatReadReceipt[];
   replyTo?: {
     id: string;
@@ -810,15 +811,14 @@ try {
 
     // 2. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.7.5',
+      version: '1.7.7',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-10',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.5.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.7.apk',
       changelog: [
-        'Slanje fotografija u LiveChat (ulovi i stanje vode na Dunavu) + prikaz tko je trenutno Online na vodi',
-        'Taktički kalkulator protoka, bistrine i Jig gramaže, Osobni alarm za vodostaj/temp. vode i 3-dnevna prognoza',
-        'Evidencija ulova: Osobni rekordi sezone (PB u kg/cm) i automatska analiza uvjeta kada riba najbolje radi',
-        'Usklađena mobilna navigacija, Povuci za osvježavanje (Pull-to-Refresh) i Sunčani mod visokog kontrasta'
+        'LiveChat: Mogućnost ispravka već poslane poruke (Uredi/Ispravi) i trenutačna isporuka poruka bez kašnjenja',
+        'Potpuno usklađena glasnoća obavijesti sa sistemskim postavkama glasnoće uređaja (uključujući tihi način rada)',
+        'Uređeno zaglavlje LiveChata i optimizirana čitljivost tablica u osnovnom modu'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -838,20 +838,20 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.7.5',
+            version: '1.7.7',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.7.5',
+          version: '1.7.7',
           totalChunks,
           chunkCount: totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.7.5 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.7.7 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
@@ -1574,6 +1574,37 @@ app.post('/api/chat/react', (req, res) => {
 });
 
 /**
+ * API: Uređivanje (ispravak) već poslane poruke u LiveChatu
+ */
+app.post('/api/chat/edit', (req, res) => {
+  const { messageId, deviceId, newText, editedAt } = req.body || {};
+  if (!messageId || !deviceId || !newText) {
+    return res.status(400).json({ error: 'Nedostaju podaci za ispravak poruke' });
+  }
+
+  const cleanText = String(newText).trim().slice(0, 350);
+  if (!cleanText) {
+    return res.status(400).json({ error: 'Tekst poruke ne može biti prazan' });
+  }
+
+  let chat = loadChat();
+  const idx = chat.findIndex(m => m.id === messageId);
+  const editTimestamp = Number(editedAt) || Date.now();
+
+  if (idx >= 0) {
+    chat[idx].text = cleanText;
+    chat[idx].editedAt = editTimestamp;
+    saveChat(chat);
+  }
+
+  if (serverDb) {
+    setDoc(doc(serverDb, 'chat_messages', messageId), { text: cleanText, editedAt: editTimestamp }, { merge: true }).catch(() => {});
+  }
+
+  return res.json({ success: true });
+});
+
+/**
  * API (Admin): Brisanje poruke iz chata
  */
 app.delete('/api/admin/chat/messages/:id', (req, res) => {
@@ -1646,15 +1677,14 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.7.5',
+    version: '1.7.7',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-10',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.5.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.7.7.apk',
     changelog: [
-      'Slanje fotografija u LiveChat (ulovi i stanje vode na Dunavu) + prikaz tko je trenutno Online na vodi',
-      'Taktički kalkulator protoka, bistrine i Jig gramaže, Osobni alarm za vodostaj/temp. vode i 3-dnevna prognoza',
-      'Evidencija ulova: Osobni rekordi sezone (PB u kg/cm) i automatska analiza uvjeta kada riba najbolje radi',
-      'Usklađena mobilna navigacija, Povuci za osvježavanje (Pull-to-Refresh) i Sunčani mod visokog kontrasta'
+      'LiveChat: Mogućnost ispravka već poslane poruke (Uredi/Ispravi) i trenutačna isporuka poruka bez kašnjenja',
+      'Potpuno usklađena glasnoća obavijesti sa sistemskim postavkama glasnoće uređaja (uključujući tihi način rada)',
+      'Uređeno zaglavlje LiveChata i optimizirana čitljivost tablica u osnovnom modu'
     ],
     isCritical: false,
     updateType: 'live_web'

@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { 
   sendChatMessage, 
+  editMyChatMessage,
+  setChatModalFastSync,
   subscribeToChatMessages, 
   subscribeToTypingStatus, 
   setMyTypingStatus, 
@@ -85,6 +87,7 @@ interface SwipeableMessageRowProps {
   onOpenRename: (deviceId: string, userName: string) => void;
   onShowInfo: (msg: ChatMessage) => void;
   onReply: (msg: ChatMessage) => void;
+  onEditMessage: (msg: ChatMessage) => void;
   onPreviewImage: (imageUrl: string, caption?: string, sender?: string) => void;
 }
 
@@ -103,6 +106,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   onOpenRename,
   onShowInfo,
   onReply,
+  onEditMessage,
   onPreviewImage
 }) => {
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -285,9 +289,23 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
             <CornerUpLeft className="w-3.5 h-3.5 text-teal-400" />
             <span className="hidden sm:inline text-[10px] text-teal-400 font-semibold">Odgovori</span>
           </button>
+          {isMine && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditMessage(msg);
+              }}
+              className="px-1.5 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+              title="Ispravi / uredi tekst ove poruke"
+            >
+              <Edit2 className="w-2.5 h-2.5 text-amber-300" />
+              <span>Ispravi</span>
+            </button>
+          )}
         </div>
 
-        {/* Skočni izbornik za lajkanje poruke */}
+        {/* Skočni izbornik za lajkanje poruke (i uređivanje vlastite poruke) */}
         {isReactionPickerOpen && (
           <div
             onClick={(e) => e.stopPropagation()}
@@ -336,6 +354,20 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
                 ✕
               </button>
             </div>
+
+            {isMine && (
+              <button
+                type="button"
+                onClick={() => {
+                  onCloseReactionPicker();
+                  onEditMessage(msg);
+                }}
+                className="mt-1 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-black flex items-center gap-1.5 shadow-lg cursor-pointer active:scale-95"
+              >
+                <Edit2 className="w-3.5 h-3.5 text-amber-300" />
+                <span>Ispravi / uredi ovu poruku</span>
+              </button>
+            )}
 
             {showExtendedReactions && (
               <div className="mt-1.5 p-2.5 rounded-2xl bg-slate-900/98 border border-teal-500/50 shadow-2xl w-[280px] sm:w-[330px] max-h-60 overflow-y-auto space-y-2.5 backdrop-blur-md">
@@ -496,6 +528,11 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3" />
             <span>{msg.timestamp}</span>
+            {msg.editedAt && (
+              <span className="text-[10px] text-amber-300/90 italic font-sans font-semibold ml-0.5">
+                (ispravljeno)
+              </span>
+            )}
           </span>
 
           {readCount > 0 ? (
@@ -563,16 +600,29 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
   const [isClearingChat, setIsClearingChat] = useState<boolean>(false);
 
-  // Stanje za odgovor na poruku (Reply)
+  // Stanje za odgovor na poruku (Reply) i ispravak vlastite poruke (Edit)
   const [replyingTo, setReplyingTo] = useState<ChatReplyTo | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
 
   const handleSelectReply = (msg: ChatMessage) => {
+    setEditingMessage(null);
     setReplyingTo({
       id: msg.id,
       userName: msg.userName,
       text: msg.text || '📷 Fotografija'
     });
     inputRef.current?.focus();
+  };
+
+  const handleSelectEditMessage = (msg: ChatMessage) => {
+    if (msg.deviceId !== myDeviceId && !isAdminUnlocked()) return;
+    setReplyingTo(null);
+    setSelectedImageDataUrl(null);
+    setEditingMessage(msg);
+    setInputText(msg.text || '');
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
   };
 
   const myDeviceId = getDeviceId();
@@ -623,8 +673,10 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
   }, [typingUsers.length]);
 
   useEffect(() => {
+    setChatModalFastSync(isOpen);
     if (!isOpen) {
       setMyTypingStatus(false).catch(() => {});
+      setEditingMessage(null);
       return;
     }
 
@@ -680,6 +732,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     });
 
     return () => {
+      setChatModalFastSync(false);
       unsubscribeChat();
       unsubscribeTyping();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -877,6 +930,24 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
     setIsSending(true);
     setErrorMessage(null);
 
+    // Ako korisnik trenutno ispravlja već poslanu poruku
+    if (editingMessage) {
+      const res = await editMyChatMessage(editingMessage.id, inputText.trim());
+      setIsSending(false);
+      if (res.success && res.message) {
+        const updated = res.message;
+        setMessages(prev => prev.map(m => (m.id === updated.id ? updated : m)));
+        setEditingMessage(null);
+        setInputText('');
+        setRenameSuccessToast('✓ Poruka je uspješno ispravljena.');
+        setTimeout(() => setRenameSuccessToast(null), 2500);
+        inputRef.current?.focus();
+      } else {
+        setErrorMessage(res.error || 'Ispravak poruke nije uspio.');
+      }
+      return;
+    }
+
     const res = await sendChatMessage(
       inputText.trim(),
       replyingTo || undefined,
@@ -944,7 +1015,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
-                  Ribički LiveChat
+                  LiveChat
                 </h2>
                 {!isBlocked && (
                   <span
@@ -1163,6 +1234,7 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
                       onOpenRename={handleOpenRenameUser}
                       onShowInfo={setSelectedMessageForInfo}
                       onReply={handleSelectReply}
+                      onEditMessage={handleSelectEditMessage}
                       onPreviewImage={(url, caption, sender) => setLightboxImage({ url, caption, sender })}
                     />
                   </React.Fragment>
@@ -1253,6 +1325,36 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
           </div>
         )}
 
+        {/* Traka kada korisnik ispravlja već poslanu poruku */}
+        {!isBlocked && editingMessage && (
+          <div className="mx-3 my-1.5 p-2.5 rounded-2xl bg-amber-950/80 border-l-4 border-amber-400 border border-amber-500/40 flex items-center justify-between shadow-xl animate-fadeIn shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0">
+                <Edit2 className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black text-amber-300 truncate">
+                  Ispravak poslane poruke
+                </p>
+                <p className="text-[11px] text-slate-300 truncate italic">
+                  "{editingMessage.text}"
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingMessage(null);
+                setInputText('');
+              }}
+              className="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 ml-2"
+              title="Odustani od ispravka"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Prikaz poruke na koju se odgovara */}
         {!isBlocked && replyingTo && (
           <div className="mx-3 my-1.5 p-2.5 rounded-2xl bg-slate-900/95 border-l-4 border-teal-400 border border-teal-500/35 flex items-center justify-between shadow-xl animate-fadeIn shrink-0">
@@ -1291,23 +1393,25 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
               onChange={handlePhotoFileChange}
               className="hidden"
             />
-            <button
-              type="button"
-              disabled={isCompressingImage || isSending}
-              onClick={() => fileInputRef.current?.click()}
-              className={`h-10 w-10 rounded-xl border flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95 ${
-                selectedImageDataUrl
-                  ? 'bg-teal-500/25 border-teal-400 text-teal-300'
-                  : 'bg-slate-900 hover:bg-slate-800 border-slate-700/80 text-cyan-300'
-              }`}
-              title="Pošalji sliku ulova ili stanja Dunava"
-            >
-              {isCompressingImage ? (
-                <RefreshCw className="w-4 h-4 animate-spin text-teal-300" />
-              ) : (
-                <Camera className="w-4.5 h-4.5" />
-              )}
-            </button>
+            {!editingMessage && (
+              <button
+                type="button"
+                disabled={isCompressingImage || isSending}
+                onClick={() => fileInputRef.current?.click()}
+                className={`h-10 w-10 rounded-xl border flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95 ${
+                  selectedImageDataUrl
+                    ? 'bg-teal-500/25 border-teal-400 text-teal-300'
+                    : 'bg-slate-900 hover:bg-slate-800 border-slate-700/80 text-cyan-300'
+                }`}
+                title="Pošalji sliku ulova ili stanja Dunava"
+              >
+                {isCompressingImage ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-teal-300" />
+                ) : (
+                  <Camera className="w-4.5 h-4.5" />
+                )}
+              </button>
+            )}
 
             <input
               ref={inputRef}
@@ -1315,24 +1419,39 @@ export const FishingChatModal: React.FC<FishingChatModalProps> = ({ isOpen, onCl
               value={inputText}
               onChange={handleInputChange}
               placeholder={
-                selectedImageDataUrl
+                editingMessage
+                  ? 'Ispravi tekst poruke i spremi...'
+                  : selectedImageDataUrl
                   ? 'Dodaj opis uz sliku (ili pošalji odmah)...'
                   : replyingTo
                   ? `Odgovor ribiču (${replyingTo.userName})...`
                   : 'Napiši poruku ili pošalji sliku s vode...'
               }
               maxLength={350}
-              className="flex-1 min-w-0 bg-slate-900 border border-slate-700/80 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-xl px-3 py-2.5 text-sm sm:text-base text-white placeholder-slate-500 outline-none transition-all"
+              className={`flex-1 min-w-0 bg-slate-900 border rounded-xl px-3 py-2.5 text-sm sm:text-base text-white placeholder-slate-500 outline-none transition-all ${
+                editingMessage
+                  ? 'border-amber-400 focus:border-amber-300 focus:ring-1 focus:ring-amber-300'
+                  : 'border-slate-700/80 focus:border-teal-400 focus:ring-1 focus:ring-teal-400'
+              }`}
             />
 
             <button
               type="submit"
               disabled={(!inputText.trim() && !selectedImageDataUrl) || isSending}
-              className="px-3.5 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
-              title="Pošalji poruku"
+              className={`px-3.5 sm:px-4 py-2.5 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                editingMessage
+                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400'
+                  : 'bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400'
+              }`}
+              title={editingMessage ? 'Spremi ispravljenu poruku' : 'Pošalji poruku'}
             >
               {isSending ? (
                 <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+              ) : editingMessage ? (
+                <>
+                  <span>Spremi</span>
+                  <Check className="w-4 h-4 stroke-[2.5]" />
+                </>
               ) : (
                 <>
                   <span className="hidden sm:inline">Pošalji</span>

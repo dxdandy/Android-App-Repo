@@ -51,21 +51,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               if (onResetToBasic) onResetToBasic();
               else onSelectTab('sve');
             }}
-            className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 cursor-pointer shrink"
+            className="flex items-center gap-2 sm:gap-2.5 min-w-0 cursor-pointer shrink-0"
             title="Povratak u Osnovni mod"
           >
             <img 
               src="/pwa-192x192.png" 
               alt="RiboPrognoza ikona" 
-              className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl object-cover shadow-md ring-1 sm:ring-2 ring-cyan-500/30 shrink-0" 
+              className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl object-cover shadow-md ring-1 sm:ring-2 ring-cyan-500/30 shrink-0" 
               referrerPolicy="no-referrer" 
             />
-            <div className="flex flex-col justify-center text-left select-none min-w-0">
-              <span className="font-black text-white text-base sm:text-2xl leading-tight tracking-tight truncate">
-                RiboPrognoza
+            <div className="h-9 sm:h-11 py-[1px] flex flex-col justify-between items-start text-left select-none shrink-0">
+              <span className="font-black text-white text-[15px] sm:text-[19px] leading-none tracking-tight block">
+                Ribo
               </span>
-              <span className="text-[10px] sm:text-xs text-cyan-400 font-bold uppercase tracking-wider hidden xs:block">
-                Dunav Live
+              <span className="font-black text-cyan-300 text-[15px] sm:text-[19px] leading-none tracking-tight block">
+                Prognoza
               </span>
             </div>
           </div>
@@ -125,20 +125,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Desna strana: Mod za sunce (Visoki kontrast), LiveChat i Ažuriraj */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {onToggleHighContrast && (
               <button
                 type="button"
                 onClick={onToggleHighContrast}
-                className={`h-8 sm:h-10 px-2 sm:px-2.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all cursor-pointer active:scale-95 shrink-0 ${
+                className={`h-9 sm:h-10 min-w-[46px] sm:min-w-[54px] px-3 sm:px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer active:scale-95 shrink-0 ${
                   highContrast
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-black'
-                    : 'bg-slate-900/90 hover:bg-slate-800 text-amber-300 border-slate-700/80'
+                    ? 'bg-amber-400 text-slate-950 border-amber-200 shadow-lg shadow-amber-500/20 font-black'
+                    : 'bg-slate-900/95 hover:bg-slate-800 text-amber-300 border-amber-400/50 shadow-md'
                 }`}
                 title="Uključi/isključi visoki kontrast za bolju čitljivost na jakom suncu"
               >
-                <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span className="hidden sm:inline text-[11px]">Sunce</span>
+                <Sun
+                  className={`w-5 h-5 sm:w-6 sm:h-6 shrink-0 ${
+                    highContrast ? 'text-slate-950 fill-slate-950' : 'text-amber-300 fill-amber-400/30'
+                  }`}
+                  strokeWidth={2.4}
+                />
+                <span className="hidden sm:inline text-xs font-extrabold">Sunce</span>
               </button>
             )}
 

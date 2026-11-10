@@ -1,14 +1,23 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { ChatNativeNotifier, clearNativeNotifications } from './nativeNotifierService';
+import { clearNativeNotifications, syncLastSeenMessageToNative } from './nativeNotifierService';
 
 /**
- * Zvučni sintetizator za obavijesti o novim porukama (Web Audio API)
- * Radi 100% pouzdano bez vanjskih datoteka na svim mobilnim i desktop uređajima
+ * Provjerava radi li aplikacija na Android / mobilnom uređaju
+ * Na Androidu Web Audio API (AudioContext) uvijek ide preko STREAM_MUSIC (glasnoća medija)
+ * umjesto STREAM_NOTIFICATION (sistemska glasnoća obavijesti), pa se na mobitelu
+ * isključivo koristi nativni Android sustav obavijesti koji 100% poštuje klizač glasnoće obavijesti korisnika!
  */
+function isAndroidOrNativeMobile(): boolean {
+  if (typeof window === 'undefined') return false;
+  const isCapNative = Boolean((window as any).Capacitor?.isNativePlatform?.());
+  const isAndroidUA = /Android/i.test(navigator.userAgent || '');
+  return isCapNative || isAndroidUA;
+}
+
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined' || isAndroidOrNativeMobile()) return null;
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (AudioContextClass) {
@@ -27,44 +36,50 @@ function getAudioContext(): AudioContext | null {
 }
 
 /**
- * Svira nježan, ugodan i diskretan ribički chime (G5 -> C6)
- * Usklađen sa sistemskim nivoom glasnoće kako ne bi bio preglasan
+ * Svira vrlo tihi diskretni ton isključivo na desktop web pregledniku.
+ * Na Android mobitelima se NE koristi Web Audio jer Android WebView usmjerava Web Audio na
+ * glasnoću medija (STREAM_MUSIC) umjesto na sistemsku glasnoću obavijesti (STREAM_NOTIFICATION).
  */
 export function playNotificationSound(): void {
+  if (isAndroidOrNativeMobile()) {
+    // Na Androidu zvuk reproducira isključivo sustav obavijesti prema sistemskoj glasnoći korisnika
+    return;
+  }
+
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
 
-    // Prvi diskretan ton: 784 Hz (G5) s blagim gainom 0.04
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.type = 'sine';
     osc1.frequency.setValueAtTime(784, now);
-    gain1.gain.setValueAtTime(0.04, now);
-    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+    gain1.gain.setValueAtTime(0.01, now);
+    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
     osc1.connect(gain1);
     gain1.connect(ctx.destination);
     osc1.start(now);
-    osc1.stop(now + 0.26);
+    osc1.stop(now + 0.23);
 
-    // Drugi ton: 1046.5 Hz (C6) s blagim gainom 0.05
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(1046.5, now + 0.1);
+    osc2.frequency.setValueAtTime(1046.5, now + 0.09);
     gain2.gain.setValueAtTime(0, now);
-    gain2.gain.setValueAtTime(0.05, now + 0.1);
-    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+    gain2.gain.setValueAtTime(0.012, now + 0.09);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
     osc2.connect(gain2);
     gain2.connect(ctx.destination);
-    osc2.start(now + 0.1);
-    osc2.stop(now + 0.42);
+    osc2.start(now + 0.09);
+    osc2.stop(now + 0.34);
   } catch (err) {
     console.warn('Greška pri reprodukciji zvučne obavijesti:', err);
   }
 }
+
+export const SYSTEM_NOTIFICATION_CHANNEL_ID = 'ribo_chat_system_default_v6';
 
 /**
  * Traži dozvolu za prikaz sistemskih i zvučnih obavijesti (Android + PWA/Web)
@@ -84,13 +99,14 @@ export async function requestNotificationPermission(): Promise<boolean> {
       }
     }
 
-    // Kreiraj kanal visoke važnosti (heads-up, status bar, zaključani zaslon i Always On Display)
+    // Kreiraj kanal sa standardnom sistemskom razinom glasnoće (importance: 3 = IMPORTANCE_DEFAULT)
+    // kako bi glasnoća obavijesti bila 100% identična ostalim aplikacijama na mobitelu (WhatsApp, Viber, SMS)
     await LocalNotifications.createChannel({
-      id: 'ribo_chat_sms_channel_v5',
-      name: 'RiboPrognoza LiveChat Poruke',
-      description: 'Zvučne, skočne i Lockscreen obavijesti s ikonom udice za nove poruke',
-      importance: 5, // IMPORTANCE_HIGH
-      visibility: 1, // VISIBILITY_PUBLIC (prikaz na Lock screenu i AOD)
+      id: SYSTEM_NOTIFICATION_CHANNEL_ID,
+      name: 'LiveChat Poruke (Sistemska glasnoća)',
+      description: 'Obavijesti o novim porukama usklađene s vašim sistemskim postavkama glasnoće obavijesti',
+      importance: 3, // IMPORTANCE_DEFAULT - poštuje tihi režim i sistemski klizač obavijesti
+      visibility: 1, // VISIBILITY_PUBLIC
       vibration: true,
       lights: true,
       lightColor: '#0891b2'
@@ -113,15 +129,12 @@ export async function requestNotificationPermission(): Promise<boolean> {
     } catch {}
   }
 
-  // Inicijaliziraj audio kontekst na korisnički dodir
-  getAudioContext();
-
   return granted;
 }
 
 /**
- * Prikazuje sistemsku obavijest s tonom i vibracijom kada stigne nova poruka,
- * čak i kada korisnik nije u aplikaciji (u pozadini ili na drugom zaslonu)
+ * Prikazuje sistemsku obavijest kada stigne nova poruka,
+ * koristeći isključivo sistemsku glasnoću obavijesti uređaja (STREAM_NOTIFICATION).
  */
 export async function showIncomingMessageNotification(
   senderName: string,
@@ -131,27 +144,31 @@ export async function showIncomingMessageNotification(
   const title = `🎣 LiveChat: ${senderName}`;
   const body = messageText.length > 70 ? messageText.slice(0, 67) + '...' : messageText;
 
-  // Zvuk se reproducira preko Web Audio samo ako nismo na nativnoj platformi
-  // (Na Android nativnoj platformi Android sustav već sam reproducira ton obavijesti preko STREAM_NOTIFICATION)
-  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
-  if (!isNative) {
+  // Odmah zabilježi ID poruke u nativni RiboChatPrefs kako pozadinski servis ne bi poslao duplu (glasnu) obavijest
+  if (messageId) {
+    try {
+      await syncLastSeenMessageToNative(messageId, Date.now());
+    } catch {}
+  }
+
+  // Na desktop pregledniku odsviraj tihi ton
+  if (!isAndroidOrNativeMobile()) {
     playNotificationSound();
   }
 
-  // 1. Android nativna obavijest s ikonom udice i zvukom:
-  // Pozivamo checkNow() koji koristi zajednički RiboChatPrefs (KEY_LAST_NOTIFIED_ID)
-  // čime se 100% sprječava dvostruka obavijest između WebViewa i pozadinskog servisa!
-  if (isNative) {
-    try {
-      await ChatNativeNotifier.checkNow();
-      return;
-    } catch {
-      // Nastavi na LocalNotifications fallback
-    }
-  }
-
-  // 1b. Capacitor LocalNotifications fallback
+  // 1. Android Capacitor LocalNotifications preko kanala sa sistemskom glasnoćom (importance: 3)
   try {
+    await LocalNotifications.createChannel({
+      id: SYSTEM_NOTIFICATION_CHANNEL_ID,
+      name: 'LiveChat Poruke (Sistemska glasnoća)',
+      description: 'Obavijesti o novim porukama usklađene s vašim sistemskim postavkama glasnoće obavijesti',
+      importance: 3,
+      visibility: 1,
+      vibration: true,
+      lights: true,
+      lightColor: '#0891b2'
+    }).catch(() => {});
+
     const notifId = Math.floor(Math.random() * 100000) + 1;
     await LocalNotifications.schedule({
       notifications: [
@@ -159,7 +176,7 @@ export async function showIncomingMessageNotification(
           id: notifId,
           title,
           body,
-          channelId: 'ribo_chat_sms_channel_v5',
+          channelId: SYSTEM_NOTIFICATION_CHANNEL_ID,
           smallIcon: 'ic_stat_hook',
           iconColor: '#0891b2',
           actionTypeId: '',
@@ -170,7 +187,8 @@ export async function showIncomingMessageNotification(
         }
       ]
     });
-  } catch (err) {
+    return;
+  } catch {
     // Ako nije nativni Capacitor, prelazimo na Web Notification
   }
 
@@ -184,8 +202,7 @@ export async function showIncomingMessageNotification(
             body,
             icon: '/pwa-192x192.png',
             badge: '/pwa-192x192.png',
-            tag: messageId || 'ribo-chat-msg',
-            vibrate: [200, 100, 200]
+            tag: messageId || 'ribo-chat-msg'
           } as any);
           return;
         }
@@ -233,19 +250,19 @@ export function updateAppBadge(count: number): void {
 }
 
 /**
- * Prikazuje obavijest s ikonom udice u traci i na zaključanom zaslonu
- * kada je dostupno novo Live Web ažuriranje za aplikaciju
+ * Prikazuje obavijest s ikonom udice kada je dostupno novo Live Web ažuriranje
  */
 export async function showAppUpdateAvailableNotification(
   version: string,
   summaryText?: string
 ): Promise<void> {
   const title = `🎣 RiboPrognoza - Novo Live ažuriranje (v${version})`;
-  const body = summaryText || 'Dostupna su nova ribička poboljšanja! Dodirnite za trenutačnu primjenu bez preuzimanja APK-a.';
+  const body = summaryText || 'Dostupna su nova poboljšanja! Dodirnite za primjenu.';
 
-  playNotificationSound();
+  if (!isAndroidOrNativeMobile()) {
+    playNotificationSound();
+  }
 
-  // 1. Android nativna obavijest s ikonom udice
   try {
     const notifId = 888800 + (parseInt(version.replace(/\D/g, ''), 10) % 999);
     await LocalNotifications.schedule({
@@ -254,10 +271,9 @@ export async function showAppUpdateAvailableNotification(
           id: notifId,
           title,
           body,
-          channelId: 'ribo_chat_sms_channel_v4',
+          channelId: SYSTEM_NOTIFICATION_CHANNEL_ID,
           smallIcon: 'ic_stat_hook',
           iconColor: '#0891b2',
-          sound: 'beep.wav',
           actionTypeId: '',
           extra: {
             updateVersion: version,
@@ -266,11 +282,8 @@ export async function showAppUpdateAvailableNotification(
         }
       ]
     });
-  } catch {
-    // Nije nativni Capacitor
-  }
+  } catch {}
 
-  // 2. Web / PWA Notification
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
       if ('serviceWorker' in navigator) {
@@ -280,8 +293,7 @@ export async function showAppUpdateAvailableNotification(
             body,
             icon: '/pwa-192x192.png',
             badge: '/pwa-192x192.png',
-            tag: `ribo-update-v${version}`,
-            vibrate: [150, 100, 150]
+            tag: `ribo-update-v${version}`
           } as any);
           return;
         }
@@ -295,4 +307,3 @@ export async function showAppUpdateAvailableNotification(
     } catch {}
   }
 }
-

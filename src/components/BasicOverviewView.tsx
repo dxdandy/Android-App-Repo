@@ -334,12 +334,14 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
     : 'bg-slate-900/95 shadow-lg';
 
   const cellSurfaceClass = highContrast
-    ? 'bg-black border border-white/60'
-    : 'bg-slate-950/85 border border-slate-800/90';
+    ? 'bg-black border border-white/60 overflow-hidden'
+    : 'bg-slate-950/85 border border-slate-800/90 overflow-hidden';
 
   const labelTextClass = highContrast
     ? 'text-[9.5px] sm:text-[10.5px] text-white font-black uppercase leading-tight truncate'
-    : 'text-[9px] sm:text-[10px] text-slate-300 font-bold uppercase leading-tight truncate';
+    : 'text-[9.5px] sm:text-[10px] text-slate-300 font-bold uppercase leading-tight truncate';
+
+  const formatTrendLabel = (trend: string) => (trend || '').replace(/_/g, ' ');
 
   return (
     <div className="space-y-2.5 sm:space-y-3.5 animate-fadeIn">
@@ -370,23 +372,23 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           type="button"
           onClick={() => onOpenExpertSection('sekcija-aljmas')}
           className={`${
-            isLandscape ? 'w-32 sm:w-36 md:w-44' : 'w-[100px] sm:w-32 md:w-36'
-          } shrink-0 bg-gradient-to-br from-teal-950 via-slate-900 to-slate-900/95 border border-teal-500/60 hover:border-teal-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`}
+            isLandscape ? 'w-28 sm:w-34 md:w-42' : 'w-[96px] xs:w-[104px] sm:w-32 md:w-36'
+          } shrink-0 bg-gradient-to-br from-teal-950 via-slate-900 to-slate-900/95 border border-teal-500/60 hover:border-teal-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer overflow-hidden`}
           title="Otvori detaljni Aljmaš u Pro modu"
         >
-          <div className="w-full">
-            <span className="font-black text-teal-300 group-hover:text-teal-200 text-xs sm:text-sm md:text-base tracking-wider uppercase block truncate">
+          <div className="w-full min-w-0">
+            <span className="font-black text-teal-300 group-hover:text-teal-200 text-[11.5px] sm:text-sm md:text-base tracking-tight uppercase block truncate">
               ALJMAŠ
             </span>
           </div>
 
-          <div className="my-1">
-            <div className={`${isLandscape ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl md:text-3xl'} font-black text-white font-mono tracking-tight leading-none`}>
+          <div className="my-1 w-full min-w-0">
+            <div className={`${isLandscape ? 'text-xl sm:text-2xl md:text-3xl' : 'text-lg sm:text-2xl md:text-3xl'} font-black text-white font-mono tracking-tight leading-none truncate`}>
               {aljmas.waterLevelCm} <span className="text-[10px] sm:text-xs font-bold text-teal-300">cm</span>
             </div>
-            <div className="flex items-center gap-1 text-[10.5px] sm:text-xs text-teal-200 font-bold mt-0.5 capitalize truncate">
+            <div className="flex items-center gap-1 text-[10px] sm:text-xs text-teal-200 font-bold mt-1 capitalize truncate">
               {getTrendIcon(aljmas.waterLevelTrend)}
-              <span className="truncate">{aljmas.waterLevelTrend}</span>
+              <span className="truncate">{formatTrendLabel(aljmas.waterLevelTrend)}</span>
             </div>
           </div>
 
@@ -398,74 +400,74 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
 
         {/* DESNA STRANA ALJMAŠ */}
         {isLandscape ? (
-          <div className="flex-1 min-w-0 grid grid-cols-3 gap-2 sm:gap-2.5 md:gap-3 content-stretch">
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
-                <Waves className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="flex-1 min-w-0 grid grid-cols-3 gap-1.5 sm:gap-2 md:gap-2.5 content-stretch">
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
+                <Waves className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Vodostaj</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-white block truncate leading-tight mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-white block truncate leading-tight tracking-tight mt-0.5">
                   {aljmas.waterLevelCm} cm <span className="text-[10px] sm:text-xs text-teal-300 font-bold">({aljmas.waterLevelChangeCm >= 0 ? `+${aljmas.waterLevelChangeCm}` : aljmas.waterLevelChangeCm})</span>
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shrink-0">
-                <Thermometer className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shrink-0">
+                <Thermometer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Temp. vode</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-cyan-200 block truncate leading-tight mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-cyan-200 block truncate leading-tight tracking-tight mt-0.5">
                   {aljmas.waterTempC} °C
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                <Thermometer className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                <Thermometer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Temp. zraka</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-amber-200 block truncate leading-tight mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-amber-200 block truncate leading-tight tracking-tight mt-0.5">
                   {aljmas.airTempC} °C
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
-                <Gauge className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
+                <Gauge className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Tlak zraka</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-indigo-200 block truncate leading-tight mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-indigo-200 block truncate leading-tight tracking-tight mt-0.5">
                   {aljmas.airPressureHpa} hPa
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-blue-500/15 text-blue-300 border border-blue-500/30 shrink-0">
-                <Wind className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-blue-500/15 text-blue-300 border border-blue-500/30 shrink-0">
+                <Wind className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Vjetar</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-blue-200 block truncate leading-tight mt-0.5 whitespace-nowrap">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-blue-200 block truncate leading-tight tracking-tight mt-0.5">
                   {aljmas.windSpeedMs ?? (aljmas.windSpeedKmh / 3.6).toFixed(1)} m/s {aljmas.windDirection}
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-orange-500/15 text-orange-300 border border-orange-500/30 shrink-0">
-                <Sunrise className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-orange-500/15 text-orange-300 border border-orange-500/30 shrink-0">
+                <Sunrise className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Sunce</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-orange-200 block font-mono leading-tight whitespace-nowrap mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-orange-200 block font-mono leading-tight tracking-tight truncate mt-0.5">
                   {solunar.sunrise} - {solunar.sunset}
                 </span>
               </div>
@@ -473,76 +475,64 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           </div>
         ) : (
           <div className="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5 sm:gap-2 content-center">
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
-                <Waves className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Waves className="w-3 h-3 text-teal-400 shrink-0" />
                 <span className={labelTextClass}>Vodostaj</span>
-                <span className="text-xs sm:text-sm font-black text-white block truncate leading-tight">
-                  {aljmas.waterLevelCm} cm <span className="text-[9.5px] sm:text-[10.5px] text-teal-300 font-bold">({aljmas.waterLevelChangeCm >= 0 ? `+${aljmas.waterLevelChangeCm}` : aljmas.waterLevelChangeCm})</span>
-                </span>
               </div>
+              <span className="text-[11.5px] sm:text-xs font-black text-white block truncate leading-tight tracking-tight mt-0.5">
+                {aljmas.waterLevelCm} cm <span className="text-[10px] text-teal-300 font-bold">({aljmas.waterLevelChangeCm >= 0 ? `+${aljmas.waterLevelChangeCm}` : aljmas.waterLevelChangeCm})</span>
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shrink-0">
-                <Thermometer className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Thermometer className="w-3 h-3 text-cyan-400 shrink-0" />
                 <span className={labelTextClass}>Temp. vode</span>
-                <span className="text-xs sm:text-sm font-black text-cyan-200 block truncate leading-tight">
-                  {aljmas.waterTempC} °C
-                </span>
               </div>
+              <span className="text-xs sm:text-sm font-black text-cyan-200 block truncate leading-tight tracking-tight mt-0.5">
+                {aljmas.waterTempC} °C
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                <Thermometer className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Thermometer className="w-3 h-3 text-amber-400 shrink-0" />
                 <span className={labelTextClass}>Temp. zraka</span>
-                <span className="text-xs sm:text-sm font-black text-amber-200 block truncate leading-tight">
-                  {aljmas.airTempC} °C
-                </span>
               </div>
+              <span className="text-xs sm:text-sm font-black text-amber-200 block truncate leading-tight tracking-tight mt-0.5">
+                {aljmas.airTempC} °C
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
-                <Gauge className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Gauge className="w-3 h-3 text-indigo-400 shrink-0" />
                 <span className={labelTextClass}>Tlak zraka</span>
-                <span className="text-xs sm:text-sm font-black text-indigo-200 block truncate leading-tight">
-                  {aljmas.airPressureHpa} hPa
-                </span>
               </div>
+              <span className="text-xs sm:text-sm font-black text-indigo-200 block truncate leading-tight tracking-tight mt-0.5">
+                {aljmas.airPressureHpa} hPa
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 shrink-0">
-                <Wind className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Wind className="w-3 h-3 text-blue-400 shrink-0" />
                 <span className={labelTextClass}>Vjetar</span>
-                <span className="text-[11px] sm:text-xs font-black text-blue-200 block truncate leading-tight whitespace-nowrap">
-                  {aljmas.windSpeedMs ?? (aljmas.windSpeedKmh / 3.6).toFixed(1)} m/s {aljmas.windDirection}
-                </span>
               </div>
+              <span className="text-[11.5px] sm:text-xs font-black text-blue-200 block truncate leading-tight tracking-tight mt-0.5">
+                {aljmas.windSpeedMs ?? (aljmas.windSpeedKmh / 3.6).toFixed(1)} m/s {aljmas.windDirection}
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30 shrink-0">
-                <Sunrise className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Sunrise className="w-3 h-3 text-orange-400 shrink-0" />
                 <span className={labelTextClass}>Sunce</span>
-                <span className="text-[10.5px] sm:text-xs font-black text-orange-200 block font-mono leading-tight whitespace-nowrap">
-                  {solunar.sunrise} - {solunar.sunset}
-                </span>
               </div>
+              <span className="text-[11px] sm:text-xs font-black text-orange-200 block font-mono leading-tight tracking-tight truncate mt-0.5">
+                {solunar.sunrise} - {solunar.sunset}
+              </span>
             </div>
           </div>
         )}
@@ -556,26 +546,26 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           type="button"
           onClick={() => onOpenExpertSection('sekcija-bogojevo')}
           className={`${
-            isLandscape ? 'w-32 sm:w-36 md:w-44' : 'w-[100px] sm:w-32 md:w-36'
-          } shrink-0 bg-gradient-to-br from-cyan-950 via-slate-900 to-slate-900/95 border border-cyan-500/60 hover:border-cyan-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`}
+            isLandscape ? 'w-28 sm:w-34 md:w-42' : 'w-[96px] xs:w-[104px] sm:w-32 md:w-36'
+          } shrink-0 bg-gradient-to-br from-cyan-950 via-slate-900 to-slate-900/95 border border-cyan-500/60 hover:border-cyan-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer overflow-hidden`}
           title="Otvori detaljno Bogojevo u Pro modu"
         >
-          <div className="w-full">
-            <span className="font-black text-cyan-300 group-hover:text-cyan-200 text-xs sm:text-sm md:text-base tracking-wider uppercase block truncate">
+          <div className="w-full min-w-0">
+            <span className="font-black text-cyan-300 group-hover:text-cyan-200 text-[11px] sm:text-sm md:text-base tracking-tight uppercase block truncate">
               BOGOJEVO
             </span>
           </div>
 
-          <div className="my-1">
-            <div className={`${isLandscape ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl md:text-3xl'} font-black text-white font-mono tracking-tight leading-none`}>
+          <div className="my-1 w-full min-w-0">
+            <div className={`${isLandscape ? 'text-xl sm:text-2xl md:text-3xl' : 'text-lg sm:text-2xl md:text-3xl'} font-black text-white font-mono tracking-tight leading-none truncate`}>
               {bogojevo.waterLevelCm} <span className="text-[10px] sm:text-xs font-bold text-cyan-300">cm</span>
             </div>
-            <div className="flex items-center gap-1 text-[10.5px] sm:text-xs text-cyan-200 font-bold mt-0.5 capitalize truncate">
+            <div className="flex items-center gap-1 text-[10px] sm:text-xs text-cyan-200 font-bold mt-0.5 capitalize truncate">
               {getTrendIcon(bogojevo.waterLevelTrend)}
-              <span className="truncate">{bogojevo.waterLevelTrend}</span>
+              <span className="truncate">{formatTrendLabel(bogojevo.waterLevelTrend)}</span>
             </div>
             <div className="text-[10px] sm:text-xs text-cyan-200 font-mono font-bold mt-0.5 truncate">
-              {bogojevo.flowM3s || 985} (m³/s)
+              {bogojevo.flowM3s || 985} m³/s
             </div>
           </div>
 
@@ -586,74 +576,74 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
         </button>
 
         {isLandscape ? (
-          <div className="flex-1 min-w-0 grid grid-cols-3 gap-2 sm:gap-2.5 md:gap-3 content-stretch">
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shrink-0">
-                <Waves className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="flex-1 min-w-0 grid grid-cols-3 gap-1.5 sm:gap-2 md:gap-2.5 content-stretch">
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shrink-0">
+                <Waves className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Vodostaj</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-white block truncate leading-tight mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-white block truncate leading-tight tracking-tight mt-0.5">
                   {bogojevo.waterLevelCm} cm <span className="text-[10px] sm:text-xs text-cyan-300 font-bold">({bogojevo.waterLevelChangeCm >= 0 ? `+${bogojevo.waterLevelChangeCm}` : bogojevo.waterLevelChangeCm})</span>
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
-                <Thermometer className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
+                <Thermometer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Temp. vode</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-teal-200 block truncate leading-tight mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-teal-200 block truncate leading-tight tracking-tight mt-0.5">
                   {bogojevo.waterTempC} °C
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                <Thermometer className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                <Thermometer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Temp. zraka</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-amber-200 block truncate leading-tight mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-amber-200 block truncate leading-tight tracking-tight mt-0.5">
                   {bogojevo.airTempC} °C
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
-                <Gauge className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
+                <Gauge className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Tlak zraka</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-indigo-200 block truncate leading-tight mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-indigo-200 block truncate leading-tight tracking-tight mt-0.5">
                   {bogojevo.airPressureHpa} hPa
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-blue-500/15 text-blue-300 border border-blue-500/30 shrink-0">
-                <Wind className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-blue-500/15 text-blue-300 border border-blue-500/30 shrink-0">
+                <Wind className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Vjetar</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-blue-200 block truncate leading-tight mt-0.5 whitespace-nowrap">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-blue-200 block truncate leading-tight tracking-tight mt-0.5">
                   {bogojevo.windSpeedMs ?? (bogojevo.windSpeedKmh / 3.6).toFixed(1)} m/s {bogojevo.windDirection}
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-orange-500/15 text-orange-300 border border-orange-500/30 shrink-0">
-                <Sunrise className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-orange-500/15 text-orange-300 border border-orange-500/30 shrink-0">
+                <Sunrise className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Sunce</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-orange-200 block font-mono leading-tight whitespace-nowrap mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-orange-200 block font-mono leading-tight tracking-tight truncate mt-0.5">
                   {solunar.sunrise} - {solunar.sunset}
                 </span>
               </div>
@@ -661,76 +651,64 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           </div>
         ) : (
           <div className="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5 sm:gap-2 content-center">
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shrink-0">
-                <Waves className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Waves className="w-3 h-3 text-cyan-400 shrink-0" />
                 <span className={labelTextClass}>Vodostaj</span>
-                <span className="text-xs sm:text-sm font-black text-white block truncate leading-tight">
-                  {bogojevo.waterLevelCm} cm <span className="text-[9.5px] sm:text-[10.5px] text-cyan-300 font-bold">({bogojevo.waterLevelChangeCm >= 0 ? `+${bogojevo.waterLevelChangeCm}` : bogojevo.waterLevelChangeCm})</span>
-                </span>
               </div>
+              <span className="text-[11.5px] sm:text-xs font-black text-white block truncate leading-tight tracking-tight mt-0.5">
+                {bogojevo.waterLevelCm} cm <span className="text-[10px] text-cyan-300 font-bold">({bogojevo.waterLevelChangeCm >= 0 ? `+${bogojevo.waterLevelChangeCm}` : bogojevo.waterLevelChangeCm})</span>
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
-                <Thermometer className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Thermometer className="w-3 h-3 text-teal-400 shrink-0" />
                 <span className={labelTextClass}>Temp. vode</span>
-                <span className="text-xs sm:text-sm font-black text-teal-200 block truncate leading-tight">
-                  {bogojevo.waterTempC} °C
-                </span>
               </div>
+              <span className="text-xs sm:text-sm font-black text-teal-200 block truncate leading-tight tracking-tight mt-0.5">
+                {bogojevo.waterTempC} °C
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                <Thermometer className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Thermometer className="w-3 h-3 text-amber-400 shrink-0" />
                 <span className={labelTextClass}>Temp. zraka</span>
-                <span className="text-xs sm:text-sm font-black text-amber-200 block truncate leading-tight">
-                  {bogojevo.airTempC} °C
-                </span>
               </div>
+              <span className="text-xs sm:text-sm font-black text-amber-200 block truncate leading-tight tracking-tight mt-0.5">
+                {bogojevo.airTempC} °C
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
-                <Gauge className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Gauge className="w-3 h-3 text-indigo-400 shrink-0" />
                 <span className={labelTextClass}>Tlak zraka</span>
-                <span className="text-xs sm:text-sm font-black text-indigo-200 block truncate leading-tight">
-                  {bogojevo.airPressureHpa} hPa
-                </span>
               </div>
+              <span className="text-xs sm:text-sm font-black text-indigo-200 block truncate leading-tight tracking-tight mt-0.5">
+                {bogojevo.airPressureHpa} hPa
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 shrink-0">
-                <Wind className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Wind className="w-3 h-3 text-blue-400 shrink-0" />
                 <span className={labelTextClass}>Vjetar</span>
-                <span className="text-[11px] sm:text-xs font-black text-blue-200 block truncate leading-tight whitespace-nowrap">
-                  {bogojevo.windSpeedMs ?? (bogojevo.windSpeedKmh / 3.6).toFixed(1)} m/s {bogojevo.windDirection}
-                </span>
               </div>
+              <span className="text-[11.5px] sm:text-xs font-black text-blue-200 block truncate leading-tight tracking-tight mt-0.5">
+                {bogojevo.windSpeedMs ?? (bogojevo.windSpeedKmh / 3.6).toFixed(1)} m/s {bogojevo.windDirection}
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30 shrink-0">
-                <Sunrise className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Sunrise className="w-3 h-3 text-orange-400 shrink-0" />
                 <span className={labelTextClass}>Sunce</span>
-                <span className="text-[10.5px] sm:text-xs font-black text-orange-200 block font-mono leading-tight whitespace-nowrap">
-                  {solunar.sunrise} - {solunar.sunset}
-                </span>
               </div>
+              <span className="text-[11px] sm:text-xs font-black text-orange-200 block font-mono leading-tight tracking-tight truncate mt-0.5">
+                {solunar.sunrise} - {solunar.sunset}
+              </span>
             </div>
           </div>
         )}
@@ -744,24 +722,24 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           type="button"
           onClick={() => onOpenExpertSection('sekcija-solunar')}
           className={`${
-            isLandscape ? 'w-32 sm:w-36 md:w-44' : 'w-[100px] sm:w-32 md:w-36'
-          } shrink-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-900/95 border border-indigo-500/60 hover:border-indigo-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer`}
+            isLandscape ? 'w-28 sm:w-34 md:w-42' : 'w-[96px] xs:w-[104px] sm:w-32 md:w-36'
+          } shrink-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-900/95 border border-indigo-500/60 hover:border-indigo-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer overflow-hidden`}
           title="Otvori detaljni Solunarni centar u Pro modu"
         >
-          <div className="w-full flex items-center justify-between min-w-0 pr-0.5">
-            <span className="font-black text-indigo-300 group-hover:text-indigo-200 text-xs sm:text-sm md:text-base uppercase whitespace-nowrap leading-none">
+          <div className="w-full flex items-center justify-between min-w-0">
+            <span className="font-black text-indigo-300 group-hover:text-indigo-200 text-[11px] sm:text-sm md:text-base tracking-tight uppercase truncate leading-none">
               SOLUNAR
             </span>
-            <span className="text-xs sm:text-sm shrink-0 leading-none select-none pl-1" title={solunar.moonPhaseName}>
+            <span className="text-xs sm:text-sm shrink-0 leading-none select-none pl-0.5" title={solunar.moonPhaseName}>
               {getMoonEmoji(solunar.moonPhase)}
             </span>
           </div>
 
-          <div className="my-1">
-            <div className={`${isLandscape ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl md:text-3xl'} font-black text-amber-400 tracking-tight leading-none flex items-baseline gap-0.5`}>
+          <div className="my-1 w-full min-w-0">
+            <div className={`${isLandscape ? 'text-xl sm:text-2xl md:text-3xl' : 'text-lg sm:text-2xl md:text-3xl'} font-black text-amber-400 tracking-tight leading-none flex items-baseline gap-0.5`}>
               {solunar.overallScore}<span className="text-xs text-slate-300 font-bold">/5★</span>
             </div>
-            <div className="text-[10px] sm:text-xs text-indigo-200 font-bold mt-0.5 truncate">
+            <div className="text-[10px] sm:text-xs text-indigo-200 font-bold mt-1 truncate">
               {solunar.activityPercentage}% aktivnost
             </div>
           </div>
@@ -773,78 +751,78 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
         </button>
 
         {isLandscape ? (
-          <div className="flex-1 min-w-0 grid grid-cols-3 gap-2 sm:gap-2.5 md:gap-3 content-stretch">
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0 text-sm">
+          <div className="flex-1 min-w-0 grid grid-cols-3 gap-1.5 sm:gap-2 md:gap-2.5 content-stretch">
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0 text-sm leading-none">
                 {getMoonEmoji(solunar.moonPhase)}
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Faza Mjeseca</span>
-                <span className="text-xs sm:text-sm md:text-base font-black text-white block leading-tight truncate mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-black text-white block leading-tight tracking-tight truncate mt-0.5">
                   {solunar.moonPhaseName} <span className="text-[10px] sm:text-xs text-indigo-300 font-bold">({solunar.illuminationPct}%)</span>
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
-                <Flame className="w-4 h-4 sm:w-5 sm:h-5 fill-amber-400" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
+                <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-amber-400" />
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] sm:text-xs text-amber-300 block uppercase font-black leading-tight truncate">
+                <span className="text-[9.5px] sm:text-[10.5px] text-amber-300 block uppercase font-black leading-tight truncate">
                   {solunar.major1.title || 'Vrhunac 1'}
                 </span>
-                <span className="text-xs sm:text-sm md:text-base font-mono font-black text-white block leading-tight whitespace-nowrap mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-mono font-black text-white block leading-tight tracking-tight truncate mt-0.5">
                   {solunar.major1.start} - {solunar.major1.end}
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
-                <Flame className="w-4 h-4 sm:w-5 sm:h-5 fill-amber-400" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
+                <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-amber-400" />
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] sm:text-xs text-amber-300 block uppercase font-black leading-tight truncate">
+                <span className="text-[9.5px] sm:text-[10.5px] text-amber-300 block uppercase font-black leading-tight truncate">
                   {solunar.major2.title || 'Vrhunac 2'}
                 </span>
-                <span className="text-xs sm:text-sm md:text-base font-mono font-black text-white block leading-tight whitespace-nowrap mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-mono font-black text-white block leading-tight tracking-tight truncate mt-0.5">
                   {solunar.major2.start} - {solunar.major2.end}
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
-                <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>{solunar.minor1.title || 'Impuls 1'}</span>
-                <span className="text-xs sm:text-sm md:text-base font-mono font-bold text-teal-200 block leading-tight whitespace-nowrap mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-mono font-bold text-teal-200 block leading-tight tracking-tight truncate mt-0.5">
                   {solunar.minor1.start} - {solunar.minor1.end}
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
-                <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>{solunar.minor2.title || 'Impuls 2'}</span>
-                <span className="text-xs sm:text-sm md:text-base font-mono font-bold text-teal-200 block leading-tight whitespace-nowrap mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-mono font-bold text-teal-200 block leading-tight tracking-tight truncate mt-0.5">
                   {solunar.minor2.start} - {solunar.minor2.end}
                 </span>
               </div>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-xl p-2 sm:p-2.5 md:p-3 flex items-center gap-2 sm:gap-2.5 min-w-0 shadow-xs`}>
-              <div className="p-1.5 sm:p-2 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
-                <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`${cellSurfaceClass} rounded-xl p-1.5 sm:p-2 md:p-2.5 flex items-center gap-1.5 sm:gap-2 min-w-0 shadow-xs`}>
+              <div className="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className={labelTextClass}>Mjesec hod</span>
-                <span className="text-xs sm:text-sm md:text-base font-mono font-bold text-indigo-200 block leading-tight whitespace-nowrap mt-0.5">
+                <span className="text-xs sm:text-sm md:text-[15px] font-mono font-bold text-indigo-200 block leading-tight tracking-tight truncate mt-0.5">
                   {solunar.moonrise} - {solunar.moonset}
                 </span>
               </div>
@@ -852,80 +830,68 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           </div>
         ) : (
           <div className="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5 sm:gap-2 content-center">
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0 text-xs">
-                {getMoonEmoji(solunar.moonPhase)}
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-[11px] leading-none shrink-0">{getMoonEmoji(solunar.moonPhase)}</span>
                 <span className={labelTextClass}>Faza Mjeseca</span>
-                <span className="text-[10.5px] sm:text-xs font-black text-white block leading-tight truncate">
-                  {solunar.moonPhaseName} <span className="text-[9px] text-indigo-300 font-bold">({solunar.illuminationPct}%)</span>
-                </span>
               </div>
+              <span className="text-[11px] sm:text-xs font-black text-white block leading-tight tracking-tight truncate mt-0.5">
+                {solunar.moonPhaseName} <span className="text-[9.5px] text-indigo-300 font-bold">({solunar.illuminationPct}%)</span>
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
-                <Flame className="w-3.5 h-3.5 fill-amber-400" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className="text-[9px] sm:text-[10px] text-amber-300 block uppercase font-black leading-tight truncate">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Flame className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
+                <span className="text-[9.5px] sm:text-[10px] text-amber-300 block uppercase font-black leading-tight truncate">
                   {solunar.major1.title || 'Vrhunac 1'}
                 </span>
-                <span className="text-[10.5px] sm:text-xs font-mono font-black text-white block leading-tight whitespace-nowrap">
-                  {solunar.major1.start} - {solunar.major1.end}
-                </span>
               </div>
+              <span className="text-[11px] sm:text-xs font-mono font-black text-white block leading-tight tracking-tight truncate mt-0.5">
+                {solunar.major1.start} - {solunar.major1.end}
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
-                <Flame className="w-3.5 h-3.5 fill-amber-400" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className="text-[9px] sm:text-[10px] text-amber-300 block uppercase font-black leading-tight truncate">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Flame className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
+                <span className="text-[9.5px] sm:text-[10px] text-amber-300 block uppercase font-black leading-tight truncate">
                   {solunar.major2.title || 'Vrhunac 2'}
                 </span>
-                <span className="text-[10.5px] sm:text-xs font-mono font-black text-white block leading-tight whitespace-nowrap">
-                  {solunar.major2.start} - {solunar.major2.end}
-                </span>
               </div>
+              <span className="text-[11px] sm:text-xs font-mono font-black text-white block leading-tight tracking-tight truncate mt-0.5">
+                {solunar.major2.start} - {solunar.major2.end}
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
-                <Clock className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Clock className="w-3 h-3 text-teal-400 shrink-0" />
                 <span className={labelTextClass}>{solunar.minor1.title || 'Impuls 1'}</span>
-                <span className="text-[10.5px] sm:text-xs font-mono font-bold text-teal-200 block leading-tight whitespace-nowrap">
-                  {solunar.minor1.start} - {solunar.minor1.end}
-                </span>
               </div>
+              <span className="text-[11px] sm:text-xs font-mono font-bold text-teal-200 block leading-tight tracking-tight truncate mt-0.5">
+                {solunar.minor1.start} - {solunar.minor1.end}
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-teal-500/15 text-teal-300 border border-teal-500/30 shrink-0">
-                <Clock className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Clock className="w-3 h-3 text-teal-400 shrink-0" />
                 <span className={labelTextClass}>{solunar.minor2.title || 'Impuls 2'}</span>
-                <span className="text-[10.5px] sm:text-xs font-mono font-bold text-teal-200 block leading-tight whitespace-nowrap">
-                  {solunar.minor2.start} - {solunar.minor2.end}
-                </span>
               </div>
+              <span className="text-[11px] sm:text-xs font-mono font-bold text-teal-200 block leading-tight tracking-tight truncate mt-0.5">
+                {solunar.minor2.start} - {solunar.minor2.end}
+              </span>
             </div>
 
-            <div className={`${cellSurfaceClass} rounded-lg p-1.5 sm:p-2 flex items-center gap-1.5 min-w-0`}>
-              <div className="p-1 sm:p-1.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
-                <Clock className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
+            <div className={`${cellSurfaceClass} rounded-lg px-2 py-1.5 flex flex-col justify-center min-w-0`}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Clock className="w-3 h-3 text-indigo-400 shrink-0" />
                 <span className={labelTextClass}>Mjesec hod</span>
-                <span className="text-[10.5px] sm:text-xs font-mono font-bold text-indigo-200 block leading-tight whitespace-nowrap">
-                  {solunar.moonrise} - {solunar.moonset}
-                </span>
               </div>
+              <span className="text-[11px] sm:text-xs font-mono font-bold text-indigo-200 block leading-tight tracking-tight truncate mt-0.5">
+                {solunar.moonrise} - {solunar.moonset}
+              </span>
             </div>
           </div>
         )}
