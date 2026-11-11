@@ -853,14 +853,15 @@ try {
 
     // 2. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.8.1',
+      version: '1.8.2',
       name: 'RiboPrognoza',
-      releaseDate: '2026-11-10',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.1.apk',
+      releaseDate: '2026-11-11',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.2.apk',
       changelog: [
-        'LiveChat: Trenutačno brisanje poruka jednim klikom (bez PIN-a i bez potvrda) - korisnici brišu vlastite poruke, a administrator sve poruke',
-        'LiveChat: Popravljeno poravnanje vlastitih poruka s desne strane i poruka ostalih ribiča s lijeve strane',
-        'Zaustavljena petlja višestrukog ažuriranja i uklonjen stari Service Worker cache'
+        'Modularna arhitektura: izolacija i suspenzija LiveChata, gumba sunca i Pro moda',
+        'Ujednačen i čist Osnovni mod: 4-stupačna navigacija (Osnovni, Solunar, Lovostaj, Ulovi)',
+        'Dnevni Solunar: izravan pristup solunarnom dashboardu, mjesečevim mijenama i satima hranjenja bez prelaska u Pro mod',
+        'Mogućnost trenutnog i neovisnog ponovnog aktiviranja svake funkcije po potrebi'
       ],
       isCritical: false,
       updateType: 'live_web',
@@ -880,20 +881,20 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.8.1',
+            version: '1.8.2',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.8.1',
+          version: '1.8.2',
           totalChunks,
           chunkCount: totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.8.1 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.8.2 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
@@ -1757,14 +1758,15 @@ app.post('/api/catches/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.8.1',
+    version: '1.8.2',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-10',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.1.apk',
+    releaseDate: '2026-11-11',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.2.apk',
     changelog: [
-      'LiveChat: Trenutačno brisanje poruka jednim klikom (bez PIN-a i bez potvrda) - korisnici brišu vlastite poruke, a administrator sve poruke',
-      'LiveChat: Popravljeno poravnanje vlastitih poruka s desne strane i poruka ostalih ribiča s lijeve strane',
-      'Zaustavljena petlja višestrukog ažuriranja i uklonjen stari Service Worker cache'
+      'Modularna arhitektura: izolacija i suspenzija LiveChata, gumba sunca i Pro moda',
+      'Ujednačen i čist Osnovni mod: 4-stupačna navigacija (Osnovni, Solunar, Lovostaj, Ulovi)',
+      'Dnevni Solunar: izravan pristup solunarnom dashboardu, mjesečevim mijenama i satima hranjenja bez prelaska u Pro mod',
+      'Mogućnost trenutnog i neovisnog ponovnog aktiviranja svake funkcije po potrebi'
     ],
     isCritical: false,
     updateType: 'live_web'
@@ -1787,7 +1789,7 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.8.1',
+    version: '1.8.2',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs

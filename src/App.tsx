@@ -32,8 +32,10 @@ import { DonationModal } from './components/DonationModal';
 import { FishingChatModal } from './components/FishingChatModal';
 import { LovostajModal } from './components/LovostajModal';
 import { CatchLogModal } from './components/CatchLogModal';
+import { SolunarModal } from './components/SolunarModal';
 import { EdgeSwipeBackGesture } from './components/EdgeSwipeBackGesture';
 import { ModalErrorBoundary } from './components/ModalErrorBoundary';
+import { APP_FEATURES } from './config/features';
 import { isAppActivated, verifyLicenseWithServer, getDeviceId } from './services/licenseService';
 import { 
   fetchChatMessages, 
@@ -70,6 +72,7 @@ export default function App() {
   const [showChatModal, setShowChatModal] = useState<boolean>(false);
   const [showLovostajModal, setShowLovostajModal] = useState<boolean>(false);
   const [showCatchLogModal, setShowCatchLogModal] = useState<boolean>(false);
+  const [showSolunarModal, setShowSolunarModal] = useState<boolean>(false);
   const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
 
   // Stanja za automatska Live Web ažuriranja
@@ -81,15 +84,23 @@ export default function App() {
   const [liveUpdateBanner, setLiveUpdateBanner] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba'>('sve');
-  // Aplikacija se pri svakom ponovnom pokretanju uvijek otvara u Osnovnom modu
+  // Aplikacija radi u Osnovnom modu; Pro mod je aktivan isključivo ako je omogućen u APP_FEATURES
   const [viewMode, setViewMode] = useState<'basic' | 'expert'>('basic');
   const [highContrast, setHighContrast] = useState<boolean>(() => {
+    if (!APP_FEATURES.ENABLE_OUTDOOR_SUN_MODE) return false;
     try {
       return localStorage.getItem('ribo_high_contrast_mode') === 'true';
     } catch {
       return false;
     }
   });
+
+  useEffect(() => {
+    if (!APP_FEATURES.ENABLE_PRO_MODE && viewMode !== 'basic') {
+      setViewMode('basic');
+    }
+  }, [viewMode]);
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [pullDistance, setPullDistance] = useState<number>(0);
   const pullStartYRef = useRef<number | null>(null);
@@ -102,6 +113,7 @@ export default function App() {
   });
 
   const handleToggleHighContrast = () => {
+    if (!APP_FEATURES.ENABLE_OUTDOOR_SUN_MODE) return;
     setHighContrast(prev => {
       const next = !prev;
       try {
@@ -328,6 +340,8 @@ export default function App() {
   const lastNotifiedMsgIdRef = useRef<string>('');
 
   useEffect(() => {
+    if (!APP_FEATURES.ENABLE_LIVE_CHAT) return;
+
     // Inicijalno zatraži dozvolu za prikaz obavijesti i zvuk (Android + PWA)
     requestNotificationPermission().catch(() => {});
 
@@ -370,12 +384,15 @@ export default function App() {
 
   const showChatModalRef = useRef<boolean>(showChatModal);
   useEffect(() => {
+    if (!APP_FEATURES.ENABLE_LIVE_CHAT) return;
     showChatModalRef.current = showChatModal;
     setNativeInChatStatus(showChatModal);
   }, [showChatModal]);
 
   // Pretplata na poruke u stvarnom vremenu za zvučnu obavijest, obavijest na traci i ikoni aplikacije (App Badge)
   useEffect(() => {
+    if (!APP_FEATURES.ENABLE_LIVE_CHAT) return;
+
     const myId = getDeviceId();
     syncDeviceIdToNative(myId);
 
@@ -440,6 +457,7 @@ export default function App() {
   }, [isActivated]);
 
   const handleOpenChat = () => {
+    if (!APP_FEATURES.ENABLE_LIVE_CHAT) return;
     setShowChatModal(true);
     setUnreadChatCount(0);
     markChatAsRead();
@@ -461,13 +479,14 @@ export default function App() {
   // Provjera je li otvoren bilo koji modal ili je aktivan Pro mod
   const isAnyModalOpen = 
     showCatchLogModal || 
-    showChatModal || 
+    showSolunarModal ||
+    (APP_FEATURES.ENABLE_LIVE_CHAT && showChatModal) || 
     showLovostajModal || 
     showAdminModal || 
     showDonationModal || 
     showUpdateModal;
 
-  const isAnySubSectionActive = isAnyModalOpen || viewMode === 'expert';
+  const isAnySubSectionActive = isAnyModalOpen || (APP_FEATURES.ENABLE_PRO_MODE && viewMode === 'expert');
 
   // Središnja funkcija za povratak unatrag (identično kliku na 'X' ili povratku na Osnovni mod)
   const handleGlobalBack = useCallback(() => {
@@ -476,33 +495,38 @@ export default function App() {
       setShowCatchLogModal(false);
       return;
     }
-    // 2. LiveChat
-    if (showChatModal) {
+    // 2. Solunar modal
+    if (showSolunarModal) {
+      setShowSolunarModal(false);
+      return;
+    }
+    // 3. LiveChat (samo ako je omogućen)
+    if (APP_FEATURES.ENABLE_LIVE_CHAT && showChatModal) {
       handleCloseChat();
       return;
     }
-    // 3. Lovostaj
+    // 4. Lovostaj
     if (showLovostajModal) {
       setShowLovostajModal(false);
       return;
     }
-    // 4. Admin kontrolni panel
+    // 5. Admin kontrolni panel
     if (showAdminModal) {
       setShowAdminModal(false);
       return;
     }
-    // 5. Donacije
+    // 6. Donacije
     if (showDonationModal) {
       setShowDonationModal(false);
       return;
     }
-    // 6. Modal ažuriranja
+    // 7. Modal ažuriranja
     if (showUpdateModal) {
       setShowUpdateModal(false);
       return;
     }
-    // 7. Pro mod (povratak na Osnovni mod)
-    if (viewMode === 'expert') {
+    // 8. Pro mod (povratak na Osnovni mod)
+    if (APP_FEATURES.ENABLE_PRO_MODE && viewMode === 'expert') {
       setViewMode('basic');
       try {
         localStorage.setItem('ribo_app_view_mode', 'basic');
@@ -512,6 +536,7 @@ export default function App() {
     }
   }, [
     showCatchLogModal,
+    showSolunarModal,
     showChatModal,
     showLovostajModal,
     showAdminModal,
@@ -550,6 +575,12 @@ export default function App() {
   };
 
   const handleScrollToChapter = (chapterId: string) => {
+    if (!APP_FEATURES.ENABLE_PRO_MODE) {
+      if (chapterId === 'sekcija-solunar') {
+        setShowSolunarModal(true);
+      }
+      return;
+    }
     if (viewMode !== 'expert') {
       setViewMode('expert');
       localStorage.setItem('ribo_app_view_mode', 'expert');
@@ -571,6 +602,12 @@ export default function App() {
   };
 
   const handleOpenExpertSection = (sectionId?: string) => {
+    if (!APP_FEATURES.ENABLE_PRO_MODE) {
+      if (sectionId === 'sekcija-solunar') {
+        setShowSolunarModal(true);
+      }
+      return;
+    }
     setViewMode('expert');
     localStorage.setItem('ribo_app_view_mode', 'expert');
     if (sectionId) {
@@ -665,9 +702,13 @@ export default function App() {
       <Navbar
         activeTab={activeTab}
         onSelectTab={(tab) => {
-          setActiveTab(tab);
-          setViewMode('expert');
-          localStorage.setItem('ribo_app_view_mode', 'expert');
+          if (APP_FEATURES.ENABLE_PRO_MODE) {
+            setActiveTab(tab);
+            setViewMode('expert');
+            localStorage.setItem('ribo_app_view_mode', 'expert');
+          } else if (tab === 'solunar') {
+            setShowSolunarModal(true);
+          }
         }}
         onResetToBasic={() => {
           setViewMode('basic');
@@ -678,6 +719,9 @@ export default function App() {
         isLoading={isLoading}
         lastUpdated={lastUpdated}
         onOpenChat={handleOpenChat}
+        onOpenSolunar={() => setShowSolunarModal(true)}
+        onOpenLovostaj={() => setShowLovostajModal(true)}
+        onOpenCatchLog={() => setShowCatchLogModal(true)}
         unreadChatCount={unreadChatCount}
         highContrast={highContrast}
         onToggleHighContrast={handleToggleHighContrast}
@@ -705,7 +749,7 @@ export default function App() {
       )}
 
       {/* Hero Header sa sažetkom stanja na Dunavu */}
-      <div className={`${highContrast ? 'bg-slate-800/90 border-b border-white/60 shadow-[0_2px_14px_rgba(255,255,255,0.1)]' : 'bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80'} px-3 sm:px-6 lg:px-8 py-2 sm:py-3.5 w-full max-w-full overflow-hidden`}>
+      <div className={`${highContrast && APP_FEATURES.ENABLE_OUTDOOR_SUN_MODE ? 'bg-slate-800/90 border-b border-white/60 shadow-[0_2px_14px_rgba(255,255,255,0.1)]' : 'bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800/80'} px-3 sm:px-6 lg:px-8 py-2 sm:py-3.5 w-full max-w-full overflow-hidden`}>
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-2 sm:gap-3.5 w-full">
           
           <div className="min-w-0">
@@ -719,38 +763,54 @@ export default function App() {
               Hidrometeo & Solunarni Centar Dunava
             </h1>
 
-            {/* Odabir načina prikaza: Na većim ekranima uvijek vidljiv, na mobitelu služi donja traka kako ne bi bilo duplih gumba */}
+            {/* Odabir načina prikaza: Na većim ekranima uvijek vidljiv, na mobitelu služi donja traka */}
             <div className="hidden md:flex mt-2.5 items-center gap-2 flex-nowrap w-full max-w-full overflow-hidden py-0.5">
-              <div className="inline-flex p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode('basic');
-                    localStorage.setItem('ribo_app_view_mode', 'basic');
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                    viewMode === 'basic'
-                      ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 shadow-md font-black'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <span>⚡ Osnovni mod</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode('expert');
-                    localStorage.setItem('ribo_app_view_mode', 'expert');
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                    viewMode === 'expert'
-                      ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md font-black'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <span>🎯 Pro mod</span>
-                </button>
-              </div>
+              {APP_FEATURES.ENABLE_PRO_MODE ? (
+                <div className="inline-flex p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMode('basic');
+                      localStorage.setItem('ribo_app_view_mode', 'basic');
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                      viewMode === 'basic'
+                        ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 shadow-md font-black'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>⚡ Osnovni mod</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMode('expert');
+                      localStorage.setItem('ribo_app_view_mode', 'expert');
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                      viewMode === 'expert'
+                        ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md font-black'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>🎯 Pro mod</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/90 border border-slate-800 text-xs font-bold text-teal-300 shrink-0">
+                  <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+                  <span>⚡ Osnovni pregled</span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowSolunarModal(true)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 bg-gradient-to-r from-indigo-950/90 to-slate-900 hover:from-indigo-900 hover:to-slate-850 text-indigo-200 border border-indigo-500/40 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
+                title="Prikaz Dnevnog Solunara: hranjenje i mjesečeve mijene"
+              >
+                <span>🌙 Solunar</span>
+              </button>
 
               <button
                 type="button"
@@ -771,7 +831,9 @@ export default function App() {
               </button>
 
               <span className="text-[11px] text-slate-400 hidden lg:inline-block truncate">
-                {viewMode === 'basic' ? 'Pojednostavljeni brzi pregled za vodu' : 'Puni ribolovni centar s grafikonima i savjetima'}
+                {APP_FEATURES.ENABLE_PRO_MODE 
+                  ? (viewMode === 'basic' ? 'Pojednostavljeni brzi pregled za vodu' : 'Puni ribolovni centar s grafikonima i savjetima')
+                  : 'Službeni vodostaji Dunava, barometar, Dnevni solunarni griz, lovostaj i ulov'}
               </span>
             </div>
           </div>
@@ -852,6 +914,7 @@ export default function App() {
             isLoading={isLoading} 
             highContrast={highContrast}
             onOpenExpertSection={handleOpenExpertSection}
+            onOpenSolunar={() => setShowSolunarModal(true)}
             onOpenLovostaj={() => setShowLovostajModal(true)}
             onOpenCatchLog={() => setShowCatchLogModal(true)}
           />
@@ -970,17 +1033,23 @@ export default function App() {
       <AndroidBottomNav
         viewMode={viewMode}
         activeTab={activeTab}
+        isSolunarOpen={showSolunarModal}
         onSelectBasicMode={() => {
           setViewMode('basic');
           localStorage.setItem('ribo_app_view_mode', 'basic');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         onSelectExpertTab={(tab) => {
-          setActiveTab(tab);
-          setViewMode('expert');
-          localStorage.setItem('ribo_app_view_mode', 'expert');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          if (APP_FEATURES.ENABLE_PRO_MODE) {
+            setActiveTab(tab);
+            setViewMode('expert');
+            localStorage.setItem('ribo_app_view_mode', 'expert');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else if (tab === 'solunar') {
+            setShowSolunarModal(true);
+          }
         }}
+        onOpenSolunar={() => setShowSolunarModal(true)}
         onOpenLovostaj={() => setShowLovostajModal(true)}
         onOpenChat={handleOpenChat}
         onOpenCatchLog={() => setShowCatchLogModal(true)}
@@ -1061,11 +1130,39 @@ export default function App() {
         onClose={() => setShowDonationModal(false)}
       />
 
-      {/* Modal za interni Dunavski ribički chat */}
-      <ModalErrorBoundary onReset={handleCloseChat} fallbackTitle="LiveChat Smetnja">
-        <FishingChatModal
-          isOpen={showChatModal}
-          onClose={handleCloseChat}
+      {/* Modal za Dnevni Solunar */}
+      <ModalErrorBoundary onReset={() => setShowSolunarModal(false)} fallbackTitle="Solunar Smetnja">
+        <SolunarModal
+          isOpen={showSolunarModal}
+          onClose={() => setShowSolunarModal(false)}
+          solunar={solunarData}
+          isLoading={isLoading}
+        />
+      </ModalErrorBoundary>
+
+      {/* Modal za interni Dunavski ribički chat (prikazuje se isključivo ako je omogućen) */}
+      {APP_FEATURES.ENABLE_LIVE_CHAT && (
+        <ModalErrorBoundary onReset={handleCloseChat} fallbackTitle="LiveChat Smetnja">
+          <FishingChatModal
+            isOpen={showChatModal}
+            onClose={handleCloseChat}
+          />
+        </ModalErrorBoundary>
+      )}
+
+      {/* Modal za Lovostaj i najmanje lovne mjere (PDF) */}
+      <ModalErrorBoundary onReset={() => setShowLovostajModal(false)} fallbackTitle="Lovostaj Smetnja">
+        <LovostajModal
+          isOpen={showLovostajModal}
+          onClose={() => setShowLovostajModal(false)}
+        />
+      </ModalErrorBoundary>
+
+      {/* Modal za Evidenciju ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa) */}
+      <ModalErrorBoundary onReset={() => setShowCatchLogModal(false)} fallbackTitle="Evidencija Ulova Smetnja">
+        <CatchLogModal
+          isOpen={showCatchLogModal}
+          onClose={() => setShowCatchLogModal(false)}
         />
       </ModalErrorBoundary>
 

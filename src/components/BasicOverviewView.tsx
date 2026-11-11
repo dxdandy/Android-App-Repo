@@ -24,6 +24,7 @@ import {
 import { StationWaterData, SolunarDayData } from '../types/fishing';
 import { getSolunarDataForDate } from '../services/weatherService';
 import { showIncomingMessageNotification } from '../services/notificationService';
+import { APP_FEATURES } from '../config/features';
 
 export interface WaterAlertRule {
   id: string;
@@ -61,6 +62,7 @@ interface BasicOverviewViewProps {
   isLoading: boolean;
   highContrast?: boolean;
   onOpenExpertSection: (sectionId?: string) => void;
+  onOpenSolunar?: () => void;
   onOpenLovostaj?: () => void;
   onOpenCatchLog?: () => void;
 }
@@ -120,6 +122,7 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
   solunar,
   highContrast = false,
   onOpenExpertSection,
+  onOpenSolunar,
   onOpenLovostaj,
   onOpenCatchLog
 }) => {
@@ -370,11 +373,13 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
         {/* LIJEVI GUMB ALJMAŠ */}
         <button
           type="button"
-          onClick={() => onOpenExpertSection('sekcija-aljmas')}
+          onClick={() => {
+            if (APP_FEATURES.ENABLE_PRO_MODE) onOpenExpertSection('sekcija-aljmas');
+          }}
           className={`${
             isLandscape ? 'w-28 sm:w-34 md:w-42' : 'w-[96px] xs:w-[104px] sm:w-32 md:w-36'
-          } shrink-0 bg-gradient-to-br from-teal-950 via-slate-900 to-slate-900/95 border border-teal-500/60 hover:border-teal-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer overflow-hidden`}
-          title="Otvori detaljni Aljmaš u Pro modu"
+          } shrink-0 bg-gradient-to-br from-teal-950 via-slate-900 to-slate-900/95 border border-teal-500/60 hover:border-teal-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group ${APP_FEATURES.ENABLE_PRO_MODE ? 'cursor-pointer' : 'cursor-default'} overflow-hidden`}
+          title={APP_FEATURES.ENABLE_PRO_MODE ? "Otvori detaljni Aljmaš u Pro modu" : "Službena hidrološka postaja Aljmaš (Dunav rkm 1380)"}
         >
           <div className="w-full min-w-0">
             <span className="font-black text-teal-300 group-hover:text-teal-200 text-[11.5px] sm:text-sm md:text-base tracking-tight uppercase block truncate">
@@ -394,7 +399,9 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
 
           <div className="w-full pt-1 border-t border-teal-500/20 flex items-center justify-between text-[9.5px] sm:text-[10px] text-teal-300 font-bold">
             <span className="truncate">rkm 1380</span>
-            <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform shrink-0" />
+            {APP_FEATURES.ENABLE_PRO_MODE && (
+              <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform shrink-0" />
+            )}
           </div>
         </button>
 
@@ -544,11 +551,13 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
 
         <button
           type="button"
-          onClick={() => onOpenExpertSection('sekcija-bogojevo')}
+          onClick={() => {
+            if (APP_FEATURES.ENABLE_PRO_MODE) onOpenExpertSection('sekcija-bogojevo');
+          }}
           className={`${
             isLandscape ? 'w-28 sm:w-34 md:w-42' : 'w-[96px] xs:w-[104px] sm:w-32 md:w-36'
-          } shrink-0 bg-gradient-to-br from-cyan-950 via-slate-900 to-slate-900/95 border border-cyan-500/60 hover:border-cyan-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer overflow-hidden`}
-          title="Otvori detaljno Bogojevo u Pro modu"
+          } shrink-0 bg-gradient-to-br from-cyan-950 via-slate-900 to-slate-900/95 border border-cyan-500/60 hover:border-cyan-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group ${APP_FEATURES.ENABLE_PRO_MODE ? 'cursor-pointer' : 'cursor-default'} overflow-hidden`}
+          title={APP_FEATURES.ENABLE_PRO_MODE ? "Otvori detaljno Bogojevo u Pro modu" : "Službena hidrološka postaja Bogojevo (Dunav rkm 1367)"}
         >
           <div className="w-full min-w-0">
             <span className="font-black text-cyan-300 group-hover:text-cyan-200 text-[11px] sm:text-sm md:text-base tracking-tight uppercase block truncate">
@@ -571,7 +580,9 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
 
           <div className="w-full pt-1 border-t border-cyan-500/20 flex items-center justify-between text-[9.5px] sm:text-[10px] text-cyan-300 font-bold">
             <span className="truncate">rkm 1367</span>
-            <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform shrink-0" />
+            {APP_FEATURES.ENABLE_PRO_MODE && (
+              <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform shrink-0" />
+            )}
           </div>
         </button>
 
@@ -720,11 +731,14 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
 
         <button
           type="button"
-          onClick={() => onOpenExpertSection('sekcija-solunar')}
+          onClick={() => {
+            if (onOpenSolunar) onOpenSolunar();
+            else onOpenExpertSection('sekcija-solunar');
+          }}
           className={`${
             isLandscape ? 'w-28 sm:w-34 md:w-42' : 'w-[96px] xs:w-[104px] sm:w-32 md:w-36'
           } shrink-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-900/95 border border-indigo-500/60 hover:border-indigo-400 active:scale-95 transition-all rounded-lg sm:rounded-xl p-2 sm:p-2.5 flex flex-col justify-between items-start text-left shadow-md group cursor-pointer overflow-hidden`}
-          title="Otvori detaljni Solunarni centar u Pro modu"
+          title="Otvori detaljni Dnevni Solunar i vrijeme griza"
         >
           <div className="w-full flex items-center justify-between min-w-0">
             <span className="font-black text-indigo-300 group-hover:text-indigo-200 text-[11px] sm:text-sm md:text-base tracking-tight uppercase truncate leading-none">
@@ -1128,8 +1142,8 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
         </div>
       </div>
 
-      {/* PODNOŽJE: Poziv na prelazak u Pro Ribolovni Mod i Lovostaj */}
-      <div className="mt-4 sm:mt-6 p-3.5 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/90 to-slate-900 border border-indigo-500/40 shadow-xl flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 relative overflow-hidden">
+      {/* PODNOŽJE: Brzi pristup Solunaru, Lovostaju i Ulovima */}
+      <div className="mt-4 sm:mt-6 p-3.5 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/70 to-slate-900 border border-indigo-500/40 shadow-xl flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 relative overflow-hidden">
         <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-indigo-500/10 to-transparent pointer-events-none" />
 
         <div className="flex items-center gap-3 text-center md:text-left w-full md:w-auto">
@@ -1139,27 +1153,29 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
           <div className="min-w-0 text-left">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm sm:text-base md:text-lg font-black text-white tracking-tight">
-                Pro Ribolovni Mod
+                {APP_FEATURES.ENABLE_PRO_MODE ? 'Pro Ribolovni Mod' : 'Ribolovni Centar Dunava'}
               </h3>
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-indigo-500 to-cyan-400 text-slate-950 shadow-xs">
-                PRO NAČIN
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-teal-500 to-indigo-400 text-slate-950 shadow-xs">
+                {APP_FEATURES.ENABLE_PRO_MODE ? 'PRO NAČIN' : 'OSNOVNI MOD'}
               </span>
             </div>
             <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5 max-w-xl leading-snug">
-              24-satna satna prognoza aktivnosti, taktički mamci za smuđa, soma i šarana, te hidrološki grafovi.
+              {APP_FEATURES.ENABLE_PRO_MODE 
+                ? '24-satna prognoza aktivnosti, taktički mamci za smuđa, soma i šarana, te hidrološki grafovi.' 
+                : 'Službeni vodostaji Dunava, barometar, Dnevni solunarni griz, kalendar lovostaja i evidencija ulova.'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
-          {onOpenCatchLog && (
+          {onOpenSolunar && (
             <button
               type="button"
-              onClick={onOpenCatchLog}
-              className="px-3.5 py-2.5 sm:py-3 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-500/40 font-bold text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
-              title="Zajednička evidencija ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa)"
+              onClick={onOpenSolunar}
+              className="px-3.5 py-2.5 sm:py-3 rounded-xl bg-indigo-950/80 hover:bg-indigo-900 text-indigo-200 border border-indigo-500/40 font-bold text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+              title="Otvori detaljni Dnevni Solunar i vrijeme griza"
             >
-              <span>🏆 Evidencija ulova</span>
+              <span>🌙 Dnevni Solunar</span>
             </button>
           )}
           {onOpenLovostaj && (
@@ -1172,14 +1188,26 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
               <span>🐟 Lovostaj</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => onOpenExpertSection()}
-            className="flex-1 md:flex-none px-5 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-indigo-500 via-cyan-400 to-teal-400 hover:from-indigo-400 hover:to-teal-300 text-slate-950 font-black text-xs sm:text-sm tracking-wide uppercase transition-all shadow-lg shadow-cyan-500/20 active:scale-95 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
-          >
-            <span>Otvori Pro Mod</span>
-            <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-          </button>
+          {onOpenCatchLog && (
+            <button
+              type="button"
+              onClick={onOpenCatchLog}
+              className="px-3.5 py-2.5 sm:py-3 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-500/40 font-bold text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+              title="Zajednička evidencija ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa)"
+            >
+              <span>🏆 Evidencija ulova</span>
+            </button>
+          )}
+          {APP_FEATURES.ENABLE_PRO_MODE && (
+            <button
+              type="button"
+              onClick={() => onOpenExpertSection()}
+              className="flex-1 md:flex-none px-5 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-indigo-500 via-cyan-400 to-teal-400 hover:from-indigo-400 hover:to-teal-300 text-slate-950 font-black text-xs sm:text-sm tracking-wide uppercase transition-all shadow-lg shadow-cyan-500/20 active:scale-95 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+            >
+              <span>Otvori Pro Mod</span>
+              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          )}
         </div>
       </div>
 

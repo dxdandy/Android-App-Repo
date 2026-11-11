@@ -40,6 +40,7 @@ import {
   setAdminUnlocked,
   LicenseRecord
 } from '../services/licenseService';
+import { APP_FEATURES } from '../config/features';
 import { 
   fetchChatMessages,
   fetchChatMessagesForAdmin,
@@ -661,27 +662,34 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                     </div>
 
                     {/* Prekidač za LiveChat dozvolu */}
-                    <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-3">
-                      <div>
-                        <span className="text-xs font-bold text-white block">
-                          Pristup internom LiveChatu
-                        </span>
-                        <span className="text-[10px] text-slate-400 block">
-                          Dozvoli ovom korisniku pregled i slanje poruka na vodi
-                        </span>
+                    {APP_FEATURES.ENABLE_LIVE_CHAT ? (
+                      <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-3">
+                        <div>
+                          <span className="text-xs font-bold text-white block">
+                            Pristup internom LiveChatu
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">
+                            Dozvoli ovom korisniku pregled i slanje poruka na vodi
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setNewUserChatEnabled(!newUserChatEnabled)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border ${
+                            newUserChatEnabled
+                              ? 'bg-emerald-600 border-emerald-400 text-white shadow-sm'
+                              : 'bg-rose-950 border-rose-700 text-rose-300'
+                          }`}
+                        >
+                          {newUserChatEnabled ? '✓ Chat: ODOBREN' : '✕ Chat: BLOKIRAN'}
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setNewUserChatEnabled(!newUserChatEnabled)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border ${
-                          newUserChatEnabled
-                            ? 'bg-emerald-600 border-emerald-400 text-white shadow-sm'
-                            : 'bg-rose-950 border-rose-700 text-rose-300'
-                        }`}
-                      >
-                        {newUserChatEnabled ? '✓ Chat: ODOBREN' : '✕ Chat: BLOKIRAN'}
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="p-2.5 rounded-xl bg-slate-900/50 border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-slate-500" />
+                        <span>LiveChat je trenutno globalno suspendiran u postavkama sustava.</span>
+                      </div>
+                    )}
 
                     <div>
                       <input
@@ -792,19 +800,21 @@ export const AdminKeyGeneratorModal: React.FC<AdminKeyGeneratorModalProps> = ({
                               </span>
 
                               {/* LiveChat status & brzi toggle */}
-                              <button
-                                type="button"
-                                onClick={() => handleToggleChatPermission(lic)}
-                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1.5 cursor-pointer border transition-all ${
-                                  lic.chatEnabled !== false
-                                    ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 hover:bg-rose-950/80 hover:text-rose-300 hover:border-rose-500/60'
-                                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-teal-950/80 hover:text-teal-300 hover:border-teal-500/60'
-                                }`}
-                                title={lic.chatEnabled !== false ? 'Klikni za blokiranje chata ovom korisniku' : 'Klikni za odobrenje chata ovom korisniku'}
-                              >
-                                <span className={`w-1.5 h-1.5 rounded-full ${lic.chatEnabled !== false ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                                <span>{lic.chatEnabled !== false ? 'Chat: Odobren' : 'Chat: Blokiran'}</span>
-                              </button>
+                              {APP_FEATURES.ENABLE_LIVE_CHAT && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleChatPermission(lic)}
+                                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1.5 cursor-pointer border transition-all ${
+                                    lic.chatEnabled !== false
+                                      ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 hover:bg-rose-950/80 hover:text-rose-300 hover:border-rose-500/60'
+                                      : 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-teal-950/80 hover:text-teal-300 hover:border-teal-500/60'
+                                  }`}
+                                  title={lic.chatEnabled !== false ? 'Klikni za blokiranje chata ovom korisniku' : 'Klikni za odobrenje chata ovom korisniku'}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full ${lic.chatEnabled !== false ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                                  <span>{lic.chatEnabled !== false ? 'Chat: Odobren' : 'Chat: Blokiran'}</span>
+                                </button>
+                              )}
 
                               {/* Oznaka trajno vezanog imena za ovaj ID */}
                               {(lic.nameSetByAdmin || (lic.userName && !lic.userName.startsWith('Ribič ('))) && (
