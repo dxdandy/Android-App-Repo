@@ -35,5 +35,10 @@ service cloud.firestore {
     match /ota_bundle/{chunkId} {
       allow read, write: if true;
     }
+
+    // Calamari Kup 2026 natjecanje u stvarnom vremenu
+    match /calamari_competition/{docId} {
+      allow read, write: if true;
+    }
   }
 }

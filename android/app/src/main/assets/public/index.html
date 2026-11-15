@@ -92,7 +92,7 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
     <script type="module">
-      window.__BUNDLED_APP_VERSION__ = "1.8.2";
+      window.__BUNDLED_APP_VERSION__ = "1.8.4.2";
       try {
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(regs => {
@@ -180,7 +180,7 @@
           console.warn('[RiboPrognoza OTA] Fallback na ugrađeni paket:', err);
         }
         if (!loadedOta) {
-          window.__RUNNING_OTA_VERSION__ = window.__BUNDLED_APP_VERSION__;
+          window.__RUNNING_OTA_VERSION__ = "1.8.4";
           await import('/assets/app-bundle.js');
         }
       })();
