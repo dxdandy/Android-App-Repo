@@ -681,6 +681,7 @@ const DATA_DIR = path.resolve(__dirname, 'data');
 const LICENSES_FILE = path.join(DATA_DIR, 'licenses.json');
 const CHAT_FILE = path.join(DATA_DIR, 'chat.json');
 const CATCHES_FILE = path.join(DATA_DIR, 'catches.json');
+const CALAMARI_FILE = path.join(DATA_DIR, 'calamari.json');
 
 function ensureDataStorage() {
   try {
@@ -776,6 +777,28 @@ function saveCatches(data: any): void {
   }
 }
 
+function loadCalamari(): any {
+  try {
+    ensureDataStorage();
+    if (fs.existsSync(CALAMARI_FILE)) {
+      const raw = fs.readFileSync(CALAMARI_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error('Greška pri učitavanju Calamari podataka:', err);
+  }
+  return null;
+}
+
+function saveCalamari(data: any): void {
+  try {
+    ensureDataStorage();
+    fs.writeFileSync(CALAMARI_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Greška pri spremanju Calamari podataka:', err);
+  }
+}
+
 interface PollWaiter {
   deviceId: string;
   lastSeenId: string;
@@ -853,17 +876,17 @@ try {
 
     // 2. Sinkroniziraj podatke o najnovijoj verziji za Ažuriranja
     setDoc(doc(serverDb, 'app_updates', 'latest'), {
-      version: '1.8.3',
+      version: '1.8.4',
       name: 'RiboPrognoza',
       releaseDate: '2026-11-15',
-      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.3.apk',
+      apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.4.apk',
       changelog: [
-        'Calamari Kup 2026 (Novi Vinodolski): natjecateljska vertikalna tablica za Dida, Tuna, Silvio i Daniel',
-        'Solunarna teorija (John Alden Knight) za Vinodolski kanal, mjesečeva mijena, Solunarni indeks griza i Google AI analiza',
-        'Administratorski alati za potpuno uređivanje tablice svih sudionika i automatsko pamćenje prijave',
-        'Nova ikona lignje s ekstra velikim očima i detaljni prikaz temperature zraka, vjetra i tlaka zraka'
+        'Popravak Live Web OTA ažuriranja koda: trenutačno preuzimanje i aktivacija sekcije Calamari Kup 2026 na svim uređajima',
+        'Calamari Kup 2026 (Novi Vinodolski): dodan gumb na svim navigacijskim trakama, temperatura mora i puni hrvatski naziv vjetra uživo',
+        'Automatsko osvježavanje svih live dijelova u stvarnom vremenu (vodostaji Aljmaš/Bogojevo, barometar, Solunar, ulovi i Novi Vinodolski)',
+        'Solunarna teorija (John Alden Knight) za Vinodolski kanal, mjesečeva mijena, Solunarni indeks griza i Google AI analiza'
       ],
-      isCritical: false,
+      isCritical: true,
       updateType: 'live_web',
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch(() => {});
@@ -881,20 +904,21 @@ try {
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: '1.8.3',
+            version: '1.8.4.1',
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: '1.8.3',
+          version: '1.8.4.1',
+          appVersion: '1.8.4',
           totalChunks,
           chunkCount: totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Objavljen kompilirani kod v1.8.3 u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Objavljen kompilirani kod v1.8.4.1 u Firestore ota_bundle (${totalChunks} dijelova).`);
       } catch (err) {
         console.warn('Upozorenje pri objavi OTA bundlea u Firestore:', err);
       }
@@ -1753,22 +1777,43 @@ app.post('/api/catches/update', (req, res) => {
 });
 
 /**
+ * API: Dohvat i ažuriranje Calamari Kup 2026 natjecanja u stvarnom vremenu
+ */
+app.get('/api/calamari', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  const data = loadCalamari();
+  res.json(data || { catches: null, updatedAt: 0, loggedParticipants: [] });
+});
+
+app.post('/api/calamari/update', (req, res) => {
+  const incoming = req.body;
+  if (!incoming || typeof incoming !== 'object') {
+    return res.status(400).json({ error: 'Neispravan format Calamari podataka.' });
+  }
+  saveCalamari(incoming);
+  if (serverDb) {
+    setDoc(doc(serverDb, 'calamari_competition', 'novi_vinodolski_2026'), incoming, { merge: true }).catch(() => {});
+  }
+  res.json({ success: true });
+});
+
+/**
  * API: Provjera najnovije verzije aplikacije
  */
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.8.3',
+    version: '1.8.4',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-15',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.3.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.4.apk',
     changelog: [
-      'Calamari Kup 2026 (Novi Vinodolski): natjecateljska vertikalna tablica za Dida, Tuna, Silvio i Daniel',
-      'Solunarna teorija (John Alden Knight) za Vinodolski kanal, mjesečeva mijena, Solunarni indeks griza i Google AI analiza',
-      'Administratorski alati za potpuno uređivanje tablice svih sudionika i automatsko pamćenje prijave',
-      'Nova ikona lignje s ekstra velikim očima i detaljni prikaz temperature zraka, vjetra i tlaka zraka'
+      'Popravak Live Web OTA ažuriranja koda: trenutačno preuzimanje i aktivacija sekcije Calamari Kup 2026 na svim uređajima',
+      'Calamari Kup 2026 (Novi Vinodolski): dodan gumb na svim navigacijskim trakama, temperatura mora i puni hrvatski naziv vjetra uživo',
+      'Automatsko osvježavanje svih live dijelova u stvarnom vremenu (vodostaji Aljmaš/Bogojevo, barometar, Solunar, ulovi i Novi Vinodolski)',
+      'Solunarna teorija (John Alden Knight) za Vinodolski kanal, mjesečeva mijena, Solunarni indeks griza i Google AI analiza'
     ],
-    isCritical: false,
+    isCritical: true,
     updateType: 'live_web'
   });
 });
@@ -1789,7 +1834,8 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.8.3',
+    version: '1.8.4.1',
+    appVersion: '1.8.4',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs

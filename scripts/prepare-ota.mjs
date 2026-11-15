@@ -29,7 +29,8 @@ function copyDirRecursive(src, dest) {
 
 try {
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-  const bundledVersion = pkg.version || '1.8.1';
+  const bundledVersion = pkg.version || '1.8.4';
+  const otaBundleVersion = `${bundledVersion}.1`;
 
   if (fs.existsSync(distIndex)) {
     let html = fs.readFileSync(distIndex, 'utf-8');
@@ -38,7 +39,7 @@ try {
     html = html.replace(/<script id="vite-plugin-pwa:register-sw"[^>]*><\/script>/gi, '');
 
     const otaLoaderScript = `<script type="module">
-      window.__BUNDLED_APP_VERSION__ = "${bundledVersion}";
+      window.__BUNDLED_APP_VERSION__ = "${otaBundleVersion}";
       try {
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(regs => {
@@ -126,7 +127,7 @@ try {
           console.warn('[RiboPrognoza OTA] Fallback na ugrađeni paket:', err);
         }
         if (!loadedOta) {
-          window.__RUNNING_OTA_VERSION__ = window.__BUNDLED_APP_VERSION__;
+          window.__RUNNING_OTA_VERSION__ = "${bundledVersion}";
           await import('/assets/app-bundle.js');
         }
       })();
@@ -172,13 +173,14 @@ self.addEventListener('activate', () => {
     }
     const jsStats = fs.statSync(jsBundle);
     const manifest = {
-      version: bundledVersion,
+      version: otaBundleVersion,
+      appVersion: bundledVersion,
       jsSize: jsStats.size,
       css: cssContent,
       updatedAt: Date.now()
     };
     fs.writeFileSync(path.join(publicOtaDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
-    console.log(`[prepare-ota] Uspješno sinkroniziran public/live-ota paket (v${bundledVersion}, ${jsStats.size} B)`);
+    console.log(`[prepare-ota] Uspješno sinkroniziran public/live-ota paket (v${otaBundleVersion}, ${jsStats.size} B)`);
   }
 
   // Automatski sinkroniziraj dist/ u android/app/src/main/assets/public/

@@ -14,7 +14,7 @@ import { db } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 import { getApiUrl } from './licenseService';
 
-export const BUNDLED_APP_VERSION = '1.8.3';
+export const BUNDLED_APP_VERSION = '1.8.4';
 export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
 export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
 
@@ -69,6 +69,18 @@ async function getFirestoreDocQuotaSafe(collectionName: string, docId: string): 
 }
 
 /**
+ * Normalizira internu 4-dijelnu OTA verziju paketa (npr. '1.8.4.1' -> '1.8.4') za prikaz i usporedbu aplikacije
+ */
+export function normalizeDisplayVersion(ver: string): string {
+  const clean = String(ver || '').replace(/^[vV]/, '').trim();
+  const parts = clean.split('.');
+  if (parts.length > 3) {
+    return parts.slice(0, 3).join('.');
+  }
+  return clean;
+}
+
+/**
  * Uspoređuje dvije semantičke verzije (npr. '1.6.3' > '1.6.2')
  * Vraća true ako je remoteVer novija od currentVer
  */
@@ -92,22 +104,21 @@ export function isNewerVersion(remoteVer: string, currentVer: string): boolean {
 }
 
 /**
- * Vraća trenutnu aktivnu verziju aplikacije (uzima u obzir instalirana Live Web ažuriranja)
+ * Vraća trenutnu aktivnu verziju aplikacije (uzima u obzir stvarno pokrenuti kod i instalirana Live Web ažuriranja)
  */
 export function getCurrentAppVersion(): string {
-  let bestVer = BUNDLED_APP_VERSION;
+  let bestVer = normalizeDisplayVersion(BUNDLED_APP_VERSION);
   if (typeof window !== 'undefined') {
     try {
       const runningOtaVer = (window as any).__RUNNING_OTA_VERSION__;
-      if (runningOtaVer && isNewerVersion(runningOtaVer, bestVer)) {
-        bestVer = runningOtaVer.replace(/^[vV]/, '').trim();
+      if (runningOtaVer) {
+        const cleanRunning = normalizeDisplayVersion(runningOtaVer);
+        if (isNewerVersion(cleanRunning, bestVer)) {
+          bestVer = cleanRunning;
+        }
       }
 
-      const liveVer = localStorage.getItem(LIVE_VERSION_STORAGE_KEY);
-      if (liveVer && isNewerVersion(liveVer, bestVer)) {
-        bestVer = liveVer.replace(/^[vV]/, '').trim();
-      }
-
+      // Sinkroniziraj localStorage sa stvarno izvršavanom verzijom koda
       localStorage.setItem(LIVE_VERSION_STORAGE_KEY, bestVer);
     } catch {}
   }
@@ -487,7 +498,7 @@ function saveOtaBundleToIndexedDB(bundle: { version: string; jsCode: string; css
  * Preuzima stvarni kompilirani JS i CSS kod nove verzije izravno s poslužitelja (i pričuvno iz Firestore ota_bundle)
  * kako bi se promjene u sučelju primijenile na mobitelu bez APK instalacije.
  */
-async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boolean; bundleVersion?: string }> {
+async function downloadAndCacheOtaCodeBundle(forceDownload: boolean = false): Promise<{ downloadedNewCode: boolean; bundleVersion?: string }> {
   const runningCodeVer = (typeof window !== 'undefined' && (window as any).__RUNNING_OTA_VERSION__) || BUNDLED_APP_VERSION;
 
   // 1. Primarni i najbrži izvor: Izravni dohvat s poslužitelja aplikacije (100% neovisan o Firestore kvotama)
@@ -503,7 +514,7 @@ async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boo
       const manifest = await manifestRes.json();
       if (manifest && manifest.version) {
         const remoteBundleVer = String(manifest.version).replace(/^[vV]/, '').trim();
-        if (isNewerVersion(remoteBundleVer, runningCodeVer)) {
+        if (forceDownload || isNewerVersion(remoteBundleVer, runningCodeVer)) {
           console.log(`[OTA] Preuzimam novi kod v${remoteBundleVer} izravno s poslužitelja...`);
           const bundleUrl = getApiUrl(`/api/ota/bundle?t=${Date.now()}`);
           const bundleRes = await fetch(bundleUrl, {
@@ -548,7 +559,7 @@ async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boo
         const ghManifest = await ghManifestRes.json();
         if (ghManifest && ghManifest.version) {
           const ghVer = String(ghManifest.version).replace(/^[vV]/, '').trim();
-          if (isNewerVersion(ghVer, runningCodeVer)) {
+          if (forceDownload || isNewerVersion(ghVer, runningCodeVer)) {
             console.log(`[OTA] Preuzimam novi kod v${ghVer} s GitHub Raw CDN-a...`);
             const ghBundleUrl = `https://raw.githubusercontent.com/${repo}/main/public/live-ota/app-bundle.js?t=${Date.now()}`;
             const ghBundleRes = await fetch(ghBundleUrl, {
@@ -596,7 +607,7 @@ async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boo
 
     const remoteBundleVer = String(manifest.version).replace(/^[vV]/, '').trim();
 
-    if (!isNewerVersion(remoteBundleVer, runningCodeVer)) {
+    if (!forceDownload && !isNewerVersion(remoteBundleVer, runningCodeVer)) {
       return { downloadedNewCode: false, bundleVersion: remoteBundleVer };
     }
 
@@ -632,23 +643,25 @@ async function downloadAndCacheOtaCodeBundle(): Promise<{ downloadedNewCode: boo
 
 /**
  * Primjenjuje Live Web Ažuriranje (OTA) trenutno i tiho unutar aplikacije:
- * - Preuzima najnoviji kompilirani JS/CSS paket iz Firestore ota_bundle kolekcije u IndexedDB
+ * - PRVO preuzima najnoviji kompilirani JS/CSS paket s poslužitelja / GitHub Raw / Firestore ota_bundle u IndexedDB
+ * - Tek nakon preuzimanja zapisuje novu verziju i ponovno učitava sučelje
  * - NIKADA ne pokreće preuzimanje APK datoteka niti izaziva Google Play Protect blokade
- * - NIKADA ne preusmjerava WebView na vanjske 404 adrese
- * - Osvježava predmemoriju, Service Worker i aktivnu verziju odmah po pokretanju
  */
 export async function applyLiveWebUpdate(
   targetVersion?: string,
   changelog?: string[]
 ): Promise<{ success: boolean; version: string; message: string }> {
-  const newVer = (targetVersion || BUNDLED_APP_VERSION).replace(/^[vV]/, '').trim();
+  const newVer = normalizeDisplayVersion(targetVersion || BUNDLED_APP_VERSION);
 
   try {
     if (typeof window !== 'undefined') {
-      // 1. Odmah trajno zabilježi novu verziju u localStorage kako se isto ažuriranje NIKADA ne bi ponavljalo u petlji!
+      // 1. PRVO preuzmi stvarni kompilirani JS i CSS kod nove verzije PRIJE izmjene __RUNNING_OTA_VERSION__!
+      const otaCodeResult = await downloadAndCacheOtaCodeBundle(true);
+
+      // 2. Zabilježi novu verziju u localStorage
       try {
         localStorage.setItem(LIVE_VERSION_STORAGE_KEY, newVer);
-        (window as any).__RUNNING_OTA_VERSION__ = newVer;
+        (window as any).__RUNNING_OTA_VERSION__ = otaCodeResult.bundleVersion || newVer;
         localStorage.setItem(
           LIVE_UPDATE_INFO_STORAGE_KEY,
           JSON.stringify({
@@ -658,9 +671,6 @@ export async function applyLiveWebUpdate(
           })
         );
       } catch {}
-
-      // 2. Preuzmi kompilirani kod nove verzije
-      const otaCodeResult = await downloadAndCacheOtaCodeBundle();
 
       // 3. Očisti zastarjelu CacheStorage predmemoriju i stare podatke o temperaturi vode
       try {
@@ -692,7 +702,7 @@ export async function applyLiveWebUpdate(
         );
       } catch {}
 
-      // 6. Osvježi WebView najviše JEDNOM po novoj verziji kako nikada ne bi ušao u petlju
+      // 6. Osvježi WebView najviše JEDNOM po novoj verziji kako bi se odmah učitao novi JS kod iz IndexedDB-a
       const reloadKey = `ribo_ota_reloaded_${newVer}`;
       if (otaCodeResult.downloadedNewCode && localStorage.getItem(reloadKey) !== 'true') {
         try {

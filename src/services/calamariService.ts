@@ -1,5 +1,6 @@
 import { doc, setDoc, onSnapshot, Unsubscribe, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { getApiUrl } from './licenseService';
 
 export type CalamariParticipantId = 'dida' | 'tuna' | 'silvio' | 'daniel';
 
@@ -82,7 +83,36 @@ export function saveStoredCalamariData(state: CalamariCompetitionState): void {
   } catch {}
 }
 
+async function pushCalamariToBackend(state: CalamariCompetitionState): Promise<void> {
+  try {
+    await fetch(getApiUrl('/api/calamari/update'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state)
+    });
+  } catch {}
+}
+
 export async function fetchCalamariDataServer(): Promise<CalamariCompetitionState> {
+  // 1. Pokušaj dohvatiti s Express poslužitelja
+  try {
+    const res = await fetch(getApiUrl(`/api/calamari?t=${Date.now()}`), {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(4000)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.catches) {
+        const stored = getStoredCalamariData();
+        if (!stored.updatedAt || (data.updatedAt || 0) >= stored.updatedAt) {
+          saveStoredCalamariData(data);
+          return data;
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Dohvat iz Firestore oblaka
   try {
     const snap = await getDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC));
     if (snap.exists()) {
@@ -105,6 +135,7 @@ export async function recordCalamariParticipantLogin(
     current.loggedParticipants = [...existing, participantId];
     current.updatedAt = Date.now();
     saveStoredCalamariData(current);
+    pushCalamariToBackend(current);
     try {
       await setDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC), current, { merge: true });
     } catch (err) {
@@ -129,6 +160,7 @@ export async function updateCalamariCatchesServer(
   current.lastUpdatedBy = editorName;
 
   saveStoredCalamariData(current);
+  pushCalamariToBackend(current);
 
   try {
     await setDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC), current, { merge: true });
@@ -165,6 +197,7 @@ export async function adminResetParticipantOrDateServer(
   current.updatedAt = Date.now();
   current.lastUpdatedBy = editorName;
   saveStoredCalamariData(current);
+  pushCalamariToBackend(current);
 
   try {
     await setDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC), current, { merge: true });
@@ -177,7 +210,7 @@ export async function adminResetParticipantOrDateServer(
 
 export function subscribeToCalamariData(callback: (state: CalamariCompetitionState) => void): Unsubscribe {
   const docRef = doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC);
-  return onSnapshot(docRef, (snap) => {
+  const unsubFirestore = onSnapshot(docRef, (snap) => {
     if (snap.exists()) {
       const data = snap.data() as CalamariCompetitionState;
       if (data && data.catches) {
@@ -188,6 +221,32 @@ export function subscribeToCalamariData(callback: (state: CalamariCompetitionSta
   }, (error) => {
     console.warn('Calamari live sync warning:', error);
   });
+
+  // Dodatni live interval prema poslužitelju svakih 6 sekundi dok je prozor otvoren
+  const pollTimer = setInterval(async () => {
+    if (typeof document !== 'undefined' && document.hidden) return;
+    try {
+      const res = await fetch(getApiUrl(`/api/calamari?t=${Date.now()}`), {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(3500)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.catches) {
+          const local = getStoredCalamariData();
+          if ((data.updatedAt || 0) > (local.updatedAt || 0)) {
+            saveStoredCalamariData(data);
+            callback(data);
+          }
+        }
+      }
+    } catch {}
+  }, 6000);
+
+  return () => {
+    unsubFirestore();
+    clearInterval(pollTimer);
+  };
 }
 
 export interface VinodolskiSolunarAnalysis {

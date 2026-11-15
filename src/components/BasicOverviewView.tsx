@@ -25,6 +25,7 @@ import { StationWaterData, SolunarDayData } from '../types/fishing';
 import { getSolunarDataForDate } from '../services/weatherService';
 import { showIncomingMessageNotification } from '../services/notificationService';
 import { APP_FEATURES } from '../config/features';
+import { getDeviceId } from '../services/licenseService';
 
 export interface WaterAlertRule {
   id: string;
@@ -65,6 +66,7 @@ interface BasicOverviewViewProps {
   onOpenSolunar?: () => void;
   onOpenLovostaj?: () => void;
   onOpenCatchLog?: () => void;
+  onOpenCalamari?: () => void;
 }
 
 function useDeviceIsLandscape(): boolean {
@@ -124,9 +126,11 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
   onOpenExpertSection,
   onOpenSolunar,
   onOpenLovostaj,
-  onOpenCatchLog
+  onOpenCatchLog,
+  onOpenCalamari
 }) => {
   const isLandscape = useDeviceIsLandscape();
+  const isCalamariRestricted = getDeviceId().toUpperCase() === 'RP-HGT8-UC5D';
 
   // Stanja za osobne alarme vodostaja i temperature vode
   const [alerts, setAlerts] = useState<WaterAlertRule[]>(() => loadWaterAlerts());
@@ -1196,6 +1200,24 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
               title="Zajednička evidencija ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa)"
             >
               <span>🏆 Evidencija ulova</span>
+            </button>
+          )}
+          {onOpenCalamari && (
+            <button
+              type="button"
+              disabled={isCalamariRestricted}
+              onClick={() => {
+                if (isCalamariRestricted) return;
+                onOpenCalamari();
+              }}
+              className={`px-3.5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                isCalamariRestricted
+                  ? 'bg-slate-900/50 text-slate-600 border border-slate-800/60 opacity-45 cursor-not-allowed select-none'
+                  : 'bg-cyan-950/80 hover:bg-cyan-900 text-cyan-200 border border-cyan-500/40 shadow-md active:scale-95 cursor-pointer'
+              }`}
+              title={isCalamariRestricted ? 'Pristup ograničen' : 'Calamari Kup 2026 • Novi Vinodolski (18.11. - 22.11.2026.)'}
+            >
+              <span>🦑 Calamari</span>
             </button>
           )}
           {APP_FEATURES.ENABLE_PRO_MODE && (

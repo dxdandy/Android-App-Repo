@@ -17,6 +17,8 @@ import {
   MVODOSTAJI_ALJMAS_URL,
   HIDMET_BOGOJEVO_URL
 } from './services/weatherService';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from './services/firebase';
 import { Navbar } from './components/Navbar';
 import { StationCardAljmas } from './components/StationCardAljmas';
 import { StationCardBogojevo } from './components/StationCardBogojevo';
@@ -236,9 +238,77 @@ export default function App() {
     }
   }, []);
 
-  // Automatsko početno učitavanje podataka
+  // Automatsko početno učitavanje podataka + kontinuirano osvježavanje u stvarnom vremenu
   useEffect(() => {
     handleRefreshAll();
+
+    // Automatsko osvježavanje svih live podataka svake 3 minute dok je aplikacija vidljiva
+    const liveRefreshInterval = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        handleRefreshAll();
+      }
+    }, 3 * 60 * 1000);
+
+    const handleLiveVisibilityOrOnline = () => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        handleRefreshAll();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleLiveVisibilityOrOnline);
+    window.addEventListener('online', handleLiveVisibilityOrOnline);
+
+    // Real-time Firestore pretplata na mjerne postaje Aljmaš i Bogojevo
+    let unsubAljmas: (() => void) | undefined;
+    let unsubBogojevo: (() => void) | undefined;
+    try {
+      unsubAljmas = onSnapshot(doc(db, 'water_stations', 'aljmas'), (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d && typeof d.waterLevelCm === 'number') {
+            setAljmasData(prev => ({
+              ...prev,
+              waterLevelCm: d.waterLevelCm,
+              waterLevelTrend: d.waterLevelTrend || prev.waterLevelTrend,
+              waterLevelChangeCm: typeof d.waterLevelChangeCm === 'number' ? d.waterLevelChangeCm : prev.waterLevelChangeCm,
+              airTempC: typeof d.airTempC === 'number' ? d.airTempC : prev.airTempC,
+              waterTempC: typeof d.waterTempC === 'number' ? d.waterTempC : prev.waterTempC,
+              airPressureHpa: typeof d.airPressureHpa === 'number' ? d.airPressureHpa : prev.airPressureHpa,
+              timeOfMeasurement: d.timeOfMeasurement || prev.timeOfMeasurement,
+              dateOfMeasurement: d.dateOfMeasurement || prev.dateOfMeasurement,
+              isLive: true
+            }));
+          }
+        }
+      }, () => {});
+
+      unsubBogojevo = onSnapshot(doc(db, 'water_stations', 'bogojevo'), (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d && typeof d.waterLevelCm === 'number') {
+            setBogojevoData(prev => ({
+              ...prev,
+              waterLevelCm: d.waterLevelCm,
+              waterLevelTrend: d.waterLevelTrend || prev.waterLevelTrend,
+              waterLevelChangeCm: typeof d.waterLevelChangeCm === 'number' ? d.waterLevelChangeCm : prev.waterLevelChangeCm,
+              airTempC: typeof d.airTempC === 'number' ? d.airTempC : prev.airTempC,
+              waterTempC: typeof d.waterTempC === 'number' ? d.waterTempC : prev.waterTempC,
+              airPressureHpa: typeof d.airPressureHpa === 'number' ? d.airPressureHpa : prev.airPressureHpa,
+              flowM3s: typeof d.flowM3s === 'number' ? d.flowM3s : prev.flowM3s,
+              isLive: true
+            }));
+          }
+        }
+      }, () => {});
+    } catch {}
+
+    return () => {
+      clearInterval(liveRefreshInterval);
+      document.removeEventListener('visibilitychange', handleLiveVisibilityOrOnline);
+      window.removeEventListener('online', handleLiveVisibilityOrOnline);
+      if (unsubAljmas) unsubAljmas();
+      if (unsubBogojevo) unsubBogojevo();
+    };
   }, [handleRefreshAll]);
 
   // Automatska tiha provjera nadogradnje, Live Web sinkronizacija i čišćenje starih instalacijskih datoteka
@@ -840,6 +910,28 @@ export default function App() {
                 <span>🏆 Evidencija ulova</span>
               </button>
 
+              {(() => {
+                const isRestricted = getDeviceId().toUpperCase() === 'RP-HGT8-UC5D';
+                return (
+                  <button
+                    type="button"
+                    disabled={isRestricted}
+                    onClick={() => {
+                      if (isRestricted) return;
+                      setShowCalamariModal(true);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap ${
+                      isRestricted
+                        ? 'bg-slate-900/50 text-slate-600 border border-slate-800/60 opacity-45 cursor-not-allowed select-none'
+                        : 'bg-gradient-to-r from-cyan-950/90 to-blue-950/90 hover:from-cyan-900 hover:to-blue-900 text-cyan-200 border border-cyan-500/40 shadow-md active:scale-95 cursor-pointer'
+                    }`}
+                    title={isRestricted ? 'Pristup ograničen' : 'Calamari Kup 2026 • Novi Vinodolski (18.11. - 22.11.2026.)'}
+                  >
+                    <span>🦑 Calamari</span>
+                  </button>
+                );
+              })()}
+
               <span className="text-[11px] text-slate-400 hidden lg:inline-block truncate">
                 {APP_FEATURES.ENABLE_PRO_MODE 
                   ? (viewMode === 'basic' ? 'Pojednostavljeni brzi pregled za vodu' : 'Puni ribolovni centar s grafikonima i savjetima')
@@ -927,6 +1019,7 @@ export default function App() {
             onOpenSolunar={() => setShowSolunarModal(true)}
             onOpenLovostaj={() => setShowLovostajModal(true)}
             onOpenCatchLog={() => setShowCatchLogModal(true)}
+            onOpenCalamari={() => setShowCalamariModal(true)}
           />
         ) : (
           <div className="space-y-6 sm:space-y-8 animate-fadeIn">
