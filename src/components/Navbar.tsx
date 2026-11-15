@@ -6,9 +6,11 @@ import {
   LayoutDashboard,
   Sparkles,
   Fish,
-  Trophy
+  Trophy,
+  Award
 } from 'lucide-react';
 import { APP_FEATURES } from '../config/features';
+import { getDeviceId } from '../services/licenseService';
 
 interface NavbarProps {
   activeTab: 'sve' | 'aljmas' | 'bogojevo' | 'solunar' | 'usporedba';
@@ -21,6 +23,7 @@ interface NavbarProps {
   onOpenSolunar?: () => void;
   onOpenLovostaj?: () => void;
   onOpenCatchLog?: () => void;
+  onOpenCalamari?: () => void;
   unreadChatCount?: number;
   highContrast?: boolean;
   onToggleHighContrast?: () => void;
@@ -37,10 +40,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSolunar,
   onOpenLovostaj,
   onOpenCatchLog,
+  onOpenCalamari,
   unreadChatCount = 0,
   highContrast = false,
   onToggleHighContrast
 }) => {
+  const isRestrictedUser = getDeviceId() === 'RP-HGT8-UC5D';
+
   const formatTime = (date: Date | null) => {
     if (!date) return '--:--';
     return date.toLocaleTimeString('hr-HR', {
@@ -173,6 +179,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Trophy className="w-3.5 h-3.5 text-amber-400" />
                   <span>🏆 Evidencija ulova</span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (isRestrictedUser) return;
+                    onOpenCalamari && onOpenCalamari();
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 font-bold ${
+                    isRestrictedUser 
+                      ? 'opacity-30 grayscale cursor-not-allowed pointer-events-none' 
+                      : 'cursor-pointer text-teal-300 hover:text-white hover:bg-slate-800/80'
+                  }`}
+                  title={isRestrictedUser ? 'Nedostupno' : 'Calamari kup • Novi Vinodolski'}
+                >
+                  <Award className="w-3.5 h-3.5 text-teal-300" />
+                  <span>🦑 Calamari</span>
                 </button>
               </>
             )}

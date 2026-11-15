@@ -32,6 +32,7 @@ import { DonationModal } from './components/DonationModal';
 import { FishingChatModal } from './components/FishingChatModal';
 import { LovostajModal } from './components/LovostajModal';
 import { CatchLogModal } from './components/CatchLogModal';
+import { CalamariModal } from './components/CalamariModal';
 import { SolunarModal } from './components/SolunarModal';
 import { EdgeSwipeBackGesture } from './components/EdgeSwipeBackGesture';
 import { ModalErrorBoundary } from './components/ModalErrorBoundary';
@@ -73,6 +74,7 @@ export default function App() {
   const [showLovostajModal, setShowLovostajModal] = useState<boolean>(false);
   const [showCatchLogModal, setShowCatchLogModal] = useState<boolean>(false);
   const [showSolunarModal, setShowSolunarModal] = useState<boolean>(false);
+  const [showCalamariModal, setShowCalamariModal] = useState<boolean>(false);
   const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
 
   // Stanja za automatska Live Web ažuriranja
@@ -480,6 +482,7 @@ export default function App() {
   const isAnyModalOpen = 
     showCatchLogModal || 
     showSolunarModal ||
+    showCalamariModal ||
     (APP_FEATURES.ENABLE_LIVE_CHAT && showChatModal) || 
     showLovostajModal || 
     showAdminModal || 
@@ -500,32 +503,37 @@ export default function App() {
       setShowSolunarModal(false);
       return;
     }
-    // 3. LiveChat (samo ako je omogućen)
+    // 3. Calamari modal
+    if (showCalamariModal) {
+      setShowCalamariModal(false);
+      return;
+    }
+    // 4. LiveChat (samo ako je omogućen)
     if (APP_FEATURES.ENABLE_LIVE_CHAT && showChatModal) {
       handleCloseChat();
       return;
     }
-    // 4. Lovostaj
+    // 5. Lovostaj
     if (showLovostajModal) {
       setShowLovostajModal(false);
       return;
     }
-    // 5. Admin kontrolni panel
+    // 6. Admin kontrolni panel
     if (showAdminModal) {
       setShowAdminModal(false);
       return;
     }
-    // 6. Donacije
+    // 7. Donacije
     if (showDonationModal) {
       setShowDonationModal(false);
       return;
     }
-    // 7. Modal ažuriranja
+    // 8. Modal ažuriranja
     if (showUpdateModal) {
       setShowUpdateModal(false);
       return;
     }
-    // 8. Pro mod (povratak na Osnovni mod)
+    // 9. Pro mod (povratak na Osnovni mod)
     if (APP_FEATURES.ENABLE_PRO_MODE && viewMode === 'expert') {
       setViewMode('basic');
       try {
@@ -537,6 +545,7 @@ export default function App() {
   }, [
     showCatchLogModal,
     showSolunarModal,
+    showCalamariModal,
     showChatModal,
     showLovostajModal,
     showAdminModal,
@@ -722,6 +731,7 @@ export default function App() {
         onOpenSolunar={() => setShowSolunarModal(true)}
         onOpenLovostaj={() => setShowLovostajModal(true)}
         onOpenCatchLog={() => setShowCatchLogModal(true)}
+        onOpenCalamari={() => setShowCalamariModal(true)}
         unreadChatCount={unreadChatCount}
         highContrast={highContrast}
         onToggleHighContrast={handleToggleHighContrast}
@@ -1051,9 +1061,11 @@ export default function App() {
         }}
         onOpenSolunar={() => setShowSolunarModal(true)}
         onOpenLovostaj={() => setShowLovostajModal(true)}
+        onOpenCalamari={() => setShowCalamariModal(true)}
         onOpenChat={handleOpenChat}
         onOpenCatchLog={() => setShowCatchLogModal(true)}
         unreadChatCount={unreadChatCount}
+        isCalamariOpen={showCalamariModal}
       />
 
       {/* Podnožje: Donacije i podrška radu autora (bez napadnog bljeskanja) */}
@@ -1166,19 +1178,11 @@ export default function App() {
         />
       </ModalErrorBoundary>
 
-      {/* Modal za Lovostaj i najmanje lovne mjere (PDF) */}
-      <ModalErrorBoundary onReset={() => setShowLovostajModal(false)} fallbackTitle="Lovostaj Smetnja">
-        <LovostajModal
-          isOpen={showLovostajModal}
-          onClose={() => setShowLovostajModal(false)}
-        />
-      </ModalErrorBoundary>
-
-      {/* Modal za Evidenciju ulova po vrstama ribe (Sikac, Krasni, Domo, Mališa) */}
-      <ModalErrorBoundary onReset={() => setShowCatchLogModal(false)} fallbackTitle="Evidencija Ulova Smetnja">
-        <CatchLogModal
-          isOpen={showCatchLogModal}
-          onClose={() => setShowCatchLogModal(false)}
+      {/* Modal za Calamari kup • Novi Vinodolski 2026 */}
+      <ModalErrorBoundary onReset={() => setShowCalamariModal(false)} fallbackTitle="Calamari Smetnja">
+        <CalamariModal
+          isOpen={showCalamariModal}
+          onClose={() => setShowCalamariModal(false)}
         />
       </ModalErrorBoundary>
 

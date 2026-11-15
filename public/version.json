@@ -1,13 +1,13 @@
 {
-  "version": "1.8.2",
+  "version": "1.8.3",
   "name": "RiboPrognoza",
-  "releaseDate": "2026-11-11",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.2.apk",
+  "releaseDate": "2026-11-15",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.3.apk",
   "changelog": [
-    "Modularna arhitektura: izolacija i suspenzija LiveChata, gumba sunca i Pro moda",
-    "Ujednačen i čist Osnovni mod: 4-stupačna navigacija (Osnovni, Solunar, Lovostaj, Ulovi)",
-    "Dnevni Solunar: izravan pristup solunarnom dashboardu, mjesečevim mijenama i satima hranjenja bez prelaska u Pro mod",
-    "Mogućnost trenutnog i neovisnog ponovnog aktiviranja svake funkcije po potrebi"
+    "Calamari Kup 2026 (Novi Vinodolski): natjecateljska vertikalna tablica za Dida, Tuna, Silvio i Daniel",
+    "Solunarna teorija (John Alden Knight) za Vinodolski kanal, mjesečeva mijena, Solunarni indeks griza i Google AI analiza",
+    "Administratorski alati za potpuno uređivanje tablice svih sudionika i automatsko pamćenje prijave",
+    "Nova ikona lignje s ekstra velikim očima i detaljni prikaz temperature zraka, vjetra i tlaka zraka"
   ],
   "isCritical": false,
   "updateType": "live_web"
