@@ -519,26 +519,41 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
             </div>
           </div>
 
-          {/* Prošireni donji dio zaglavlja prema dolje kako bi svi podaci o lokaciji, terminu, mjesečevoj mijeni i vremenu bili potpuno vidljivi */}
-          <div className="mt-2 pt-1.5 border-t border-cyan-500/20 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] sm:text-xs text-cyan-200/90">
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-              <span className="inline-flex items-center gap-1 font-bold text-white">
-                <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                Novi Vinodolski
-              </span>
-              <span className="text-cyan-600">•</span>
-              <span className="inline-flex items-center gap-1 font-mono text-cyan-200">
-                <Calendar className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                18.11. – 22.11.2026.
-              </span>
-              <span className="text-cyan-600">•</span>
+        </div>
+      </header>
+
+      {/* Toast obavijest */}
+      {successToast && (
+        <div className="bg-teal-500/20 border-b border-teal-400/40 px-4 py-2 text-teal-200 text-xs font-bold text-center shrink-0 animate-fade-in">
+          {successToast}
+        </div>
+      )}
+
+      {/* GLAVNI SADRŽAJ - Plivajući (skrolajući) sadržaj koji pri povlačenju prema gore odlazi ispod statičnog naslova */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 sm:px-6 lg:px-8 py-3 sm:py-5">
+        <div className="max-w-5xl mx-auto space-y-3.5 sm:space-y-5">
+
+          {/* PLIVAJUĆA TRAKA S PODACIMA (Lokacija, Mjesečeva mijena, Indeks griza, Temp. zraka, Vjetar, Tlak, Temp. mora, Smjer vjetra) - odlazi ispod naslova pri skrolanju prema gore */}
+          <div className="bg-slate-900/90 border border-cyan-500/35 rounded-2xl px-3 sm:px-4 py-2.5 shadow-md flex flex-col gap-2 text-[11px] sm:text-xs text-cyan-200/90">
+            <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <span className="inline-flex items-center gap-1 font-bold text-white">
+                  <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  Novi Vinodolski
+                </span>
+                <span className="text-cyan-600">•</span>
+                <span className="inline-flex items-center gap-1 font-mono text-cyan-200">
+                  <Calendar className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                  18.11. – 22.11.2026.
+                </span>
+              </div>
               <span className="inline-flex items-center gap-1 font-bold text-amber-300">
                 <span>{solunar24h.moonIcon}</span>
                 <span>{solunar24h.moonPhaseName} ({solunar24h.illuminationPct}%)</span>
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10.5px] sm:text-xs text-teal-300">
+            <div className="pt-1.5 border-t border-cyan-500/20 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10.5px] sm:text-xs text-teal-300">
               <span>Indeks griza: <strong className="text-amber-400">{solunar24h.solunarIndex}/100</strong></span>
               <span className="text-slate-600">•</span>
               <span>Temp. zraka: <strong className="text-white">{noviMeteo.temp}°C</strong></span>
@@ -553,112 +568,98 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
             </div>
           </div>
 
-        </div>
-      </header>
+          {/* RUBRIKA ZA PRIJAVU - Automatski se uklanja kada se svi prijave (i odlazi ispod naslova pri skrolanju) */}
+          {shouldShowLoginSection && (
+            <div className="bg-gradient-to-r from-slate-900/95 via-cyan-950/70 to-slate-900/95 px-3 sm:px-5 py-3 rounded-2xl border border-cyan-500/35 shadow-md">
+              <div className="max-w-4xl mx-auto flex flex-col items-center justify-center gap-2.5">
+                <span className="text-xs font-bold text-cyan-200 text-center">
+                  Odaberite svoje ime za prijavu i unos ulova
+                </span>
 
-      {/* RUBRIKA ZA PRIJAVU - Centrirani gumbovi s povećanim razmakom, automatski se skriva kad su svi prijavljeni */}
-      {shouldShowLoginSection && (
-        <div className="bg-gradient-to-r from-slate-950 via-cyan-950/60 to-slate-950 px-3 sm:px-6 py-3 border-b border-cyan-500/30 shrink-0">
-          <div className="max-w-4xl mx-auto flex flex-col items-center justify-center gap-2.5">
-            <span className="text-xs font-bold text-cyan-200 text-center">
-              Odaberite svoje ime za prijavu i unos ulova
-            </span>
+                {/* Gumbovi Silvio, Tuna i Daniel u sredini ekrana s velikim razmakom */}
+                <div className="flex items-center justify-center gap-8 sm:gap-12 flex-wrap w-full py-1">
+                  {(['silvio', 'tuna', 'daniel'] as CalamariParticipantId[]).map((pid) => {
+                    const pDef = CALAMARI_PARTICIPANTS.find(p => p.id === pid)!;
+                    const isAlreadyLogged = allLoggedParticipants.includes(pid);
+                    const isSelected = selectedUserForPin === pid;
 
-            {/* Gumbovi Silvio, Tuna i Daniel u sredini ekrana s velikim razmakom */}
-            <div className="flex items-center justify-center gap-8 sm:gap-12 flex-wrap w-full py-1">
-              {(['silvio', 'tuna', 'daniel'] as CalamariParticipantId[]).map((pid) => {
-                const pDef = CALAMARI_PARTICIPANTS.find(p => p.id === pid)!;
-                const isAlreadyLogged = allLoggedParticipants.includes(pid);
-                const isSelected = selectedUserForPin === pid;
-
-                return (
-                  <button
-                    key={pid}
-                    type="button"
-                    onClick={() => {
-                      setSelectedUserForPin(pid);
-                      setPinInput('');
-                      setPinError(null);
-                    }}
-                    className={`min-w-[92px] sm:min-w-[110px] px-4 py-2 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5 shadow-md border ${
-                      isSelected
-                        ? 'bg-cyan-500 text-slate-950 border-white shadow-cyan-500/30'
-                        : isAlreadyLogged
-                        ? 'bg-teal-950/90 text-teal-200 border-teal-400/60 hover:bg-teal-900'
-                        : 'bg-cyan-950/90 hover:bg-cyan-900 text-cyan-100 border-cyan-500/50'
-                    }`}
-                  >
-                    {isAlreadyLogged && <Check className="w-3.5 h-3.5 text-teal-400 shrink-0" />}
-                    <span>{pDef.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Polje za unos tajne šifre odabranog natjecatelja */}
-            {selectedUserForPin && (
-              <div className="w-full max-w-md mt-1 bg-slate-900/95 border border-cyan-500/40 rounded-2xl p-3 flex flex-col items-center gap-2 shadow-xl animate-slide-up">
-                <div className="flex items-center gap-2 text-xs font-bold text-cyan-200">
-                  <KeyRound className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <span>
-                    Unesite osobnu šifru za: <strong className="text-white uppercase">{selectedUserForPin}</strong>
-                  </span>
+                    return (
+                      <button
+                        key={pid}
+                        type="button"
+                        onClick={() => {
+                          setSelectedUserForPin(pid);
+                          setPinInput('');
+                          setPinError(null);
+                        }}
+                        className={`min-w-[92px] sm:min-w-[110px] px-4 py-2 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5 shadow-md border ${
+                          isSelected
+                            ? 'bg-cyan-500 text-slate-950 border-white shadow-cyan-500/30'
+                            : isAlreadyLogged
+                            ? 'bg-teal-950/90 text-teal-200 border-teal-400/60 hover:bg-teal-900'
+                            : 'bg-cyan-950/90 hover:bg-cyan-900 text-cyan-100 border-cyan-500/50'
+                        }`}
+                      >
+                        {isAlreadyLogged && <Check className="w-3.5 h-3.5 text-teal-400 shrink-0" />}
+                        <span>{pDef.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className="flex items-center justify-center gap-2 w-full">
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={pinInput}
-                    onChange={(e) => setPinInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleLoginWithPin(selectedUserForPin);
-                    }}
-                    placeholder="Tajna šifra..."
-                    className="bg-slate-950 border border-cyan-500/50 rounded-xl px-3.5 py-2 text-white text-center text-sm font-mono focus:outline-none focus:border-cyan-300 w-36 sm:w-44"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleLoginWithPin(selectedUserForPin)}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 text-xs sm:text-sm font-black cursor-pointer shadow-md shrink-0 active:scale-95"
-                  >
-                    Potvrdi
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedUserForPin(null);
-                      setPinError(null);
-                    }}
-                    className="px-2.5 py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
+                {/* Polje za unos tajne šifre odabranog natjecatelja */}
+                {selectedUserForPin && (
+                  <div className="w-full max-w-md mt-1 bg-slate-900/95 border border-cyan-500/40 rounded-2xl p-3 flex flex-col items-center gap-2 shadow-xl animate-slide-up">
+                    <div className="flex items-center gap-2 text-xs font-bold text-cyan-200">
+                      <KeyRound className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <span>
+                        Unesite osobnu šifru za: <strong className="text-white uppercase">{selectedUserForPin}</strong>
+                      </span>
+                    </div>
 
-                {pinError && (
-                  <span className="text-rose-400 text-[11px] font-bold text-center">
-                    {pinError}
-                  </span>
+                    <div className="flex items-center justify-center gap-2 w-full">
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={pinInput}
+                        onChange={(e) => setPinInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleLoginWithPin(selectedUserForPin);
+                        }}
+                        placeholder="Tajna šifra..."
+                        className="bg-slate-950 border border-cyan-500/50 rounded-xl px-3.5 py-2 text-white text-center text-sm font-mono focus:outline-none focus:border-cyan-300 w-36 sm:w-44"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleLoginWithPin(selectedUserForPin)}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 text-xs sm:text-sm font-black cursor-pointer shadow-md shrink-0 active:scale-95"
+                      >
+                        Potvrdi
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedUserForPin(null);
+                          setPinError(null);
+                        }}
+                        className="px-2.5 py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {pinError && (
+                      <span className="text-rose-400 text-[11px] font-bold text-center">
+                        {pinError}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Toast obavijest */}
-      {successToast && (
-        <div className="bg-teal-500/20 border-b border-teal-400/40 px-4 py-2 text-teal-200 text-xs font-bold text-center shrink-0 animate-fade-in">
-          {successToast}
-        </div>
-      )}
-
-      {/* GLAVNI SADRŽAJ - Morski dizajn, bez horizontalnog skrolanja */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 sm:px-6 lg:px-8 py-3 sm:py-5">
-        <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
+            </div>
+          )}
 
           {/* 1. TRENUTNI POREDAK (Morski trofejni prikaz bez opisa uloga) */}
           <section className="bg-gradient-to-br from-slate-900/95 via-[#07223d]/90 to-slate-950 border border-cyan-500/40 rounded-2xl p-3 sm:p-4 shadow-lg">
