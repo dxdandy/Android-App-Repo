@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, setLogLevel, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, query, orderBy, limitToLast } from 'firebase/firestore';
+import { getFirestore, setLogLevel, collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocs, query, orderBy, limitToLast } from 'firebase/firestore';
 
 // Isključi interne @firebase/firestore GrpcConnection obavijesti o zatvaranju neaktivnih (idle) streamova
 setLogLevel('silent');
@@ -874,48 +874,78 @@ try {
       console.warn('Upozorenje: dohvat licenci iz Firestorea na pokretanju:', err);
     });
 
-    // 2 & 3. Objavi PRVO kompilirani JS i CSS bundle u Firestore ota_bundle, a TEK ZATIM ažuriraj app_updates/latest
-    // (sprječava race-condition gdje mobitel primi obavijest o novoj verziji prije nego što je ota_bundle učitan u Firestore!)
+    // 1b. Učitaj Calamari Kup natjecanje i prijavljene sudionike iz Firestorea na pokretanju poslužitelja
+    getDoc(doc(serverDb, 'calamari_competition', 'novi_vinodolski_2026')).then(snap => {
+      if (snap.exists()) {
+        const fsCalamari = snap.data() as any;
+        const localCalamari = loadCalamari();
+        const mergedLogged = Array.from(new Set([
+          ...(Array.isArray(localCalamari?.loggedParticipants) ? localCalamari.loggedParticipants : []),
+          ...(Array.isArray(fsCalamari?.loggedParticipants) ? fsCalamari.loggedParticipants : [])
+        ]));
+        saveCalamari({
+          ...(localCalamari || {}),
+          ...fsCalamari,
+          loggedParticipants: mergedLogged
+        });
+      }
+    }).catch(() => {});
+
+    // 2 & 3. Objavi PRVO kompilirani JS i CSS bundle u Firestore ota_bundle (tek nakon provjere da dist/assets/app-bundle.js stvarno sadrži v1.8.6!),
+    // a TEK ZATIM ažuriraj app_updates/latest (sprječava da poslužitelj ikada pošalje nekompilirani stari kod s novim brojem verzije!)
     const publishOtaBundleAndVersionToFirestore = async () => {
       try {
+        const TARGET_VER = '1.8.6';
         const jsPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
         const cssPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.css');
-        if (fs.existsSync(jsPath)) {
-          const jsContent = fs.readFileSync(jsPath, 'utf-8');
-          const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf-8') : '';
-          const CHUNK_SIZE = 400000; // 400 KB po Firestore dokumentu (limit je 1 MB)
-          const totalChunks = Math.ceil(jsContent.length / CHUNK_SIZE);
-          for (let i = 0; i < totalChunks; i++) {
-            const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-            await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-              version: '1.8.5',
-              index: i,
-              data: slice,
-              updatedAt: Date.now()
-            });
-          }
-          await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-            version: '1.8.5',
-            appVersion: '1.8.5',
-            totalChunks,
-            chunkCount: totalChunks,
-            css: cssContent,
+        if (!fs.existsSync(jsPath)) {
+          console.warn('[OTA] dist/assets/app-bundle.js još ne postoji — čekam završetak builda.');
+          return;
+        }
+
+        const jsContent = fs.readFileSync(jsPath, 'utf-8');
+        // STROGA PROVJERA: Objavi u Firestore samo ako kompilirani JS bundle stvarno sadrži verziju TARGET_VER!
+        if (!jsContent.includes(TARGET_VER)) {
+          console.warn(`[OTA] dist/assets/app-bundle.js još nije kompiliran za v${TARGET_VER} — preskačem objavu dok build ne završi.`);
+          return;
+        }
+
+        const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf-8') : '';
+        const CHUNK_SIZE = 400000; // 400 KB po Firestore dokumentu (limit je 1 MB)
+        const totalChunks = Math.ceil(jsContent.length / CHUNK_SIZE);
+        for (let i = 0; i < totalChunks; i++) {
+          const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
+            version: TARGET_VER,
+            index: i,
+            data: slice,
             updatedAt: Date.now()
           });
-          console.log(`[OTA] Objavljen kompilirani kod v1.8.5 u Firestore ota_bundle (${totalChunks} dijelova).`);
         }
+        await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
+          version: TARGET_VER,
+          appVersion: TARGET_VER,
+          totalChunks,
+          chunkCount: totalChunks,
+          css: cssContent,
+          updatedAt: Date.now()
+        });
+        console.log(`[OTA] Verificiran i objavljen kompilirani kod v${TARGET_VER} u Firestore ota_bundle (${totalChunks} dijelova).`);
+
+        // Kratka pauza (1.2 s) kako bi svi Firestore čvorovi potvrdili ota_bundle dijelove prije slanja obavijesti klijentima
+        await new Promise(r => setTimeout(r, 1200));
 
         // Tek kada je ota_bundle 100% spreman u Firestoreu, objavi app_updates/latest!
         await setDoc(doc(serverDb, 'app_updates', 'latest'), {
-          version: '1.8.5',
+          version: TARGET_VER,
           name: 'RiboPrognoza',
           releaseDate: '2026-11-15',
-          apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.5.apk',
+          apkUrl: `https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v${TARGET_VER}.apk`,
           changelog: [
-            'Trajni popravak Live Web OTA ažuriranja: verzija se ažurira isključivo nakon stvarnog preuzimanja novog paketa koda',
-            'Calamari Kup 2026: plivajuća traka s Indeksom griza i meteo podacima koja pri povlačenju odlazi ispod naslova',
-            'Automatsko uklanjanje rubrike za prijavu nakon što se svi sudionici prijave',
-            'Sinkronizacija svih live dijelova u stvarnom vremenu (Dunav Aljmaš/Bogojevo, Novi Vinodolski temperatura mora i naziv vjetra)'
+            'Calamari Kup 2026: automatsko uklanjanje već prijavljenih natjecatelja s liste prijava kako bi se vidjelo tko je još ostao neprijavljen',
+            'Dodana nautička ocjena stanja mora (Douglasova ljestvica 0–5: od mirnog mora/bonace do velikih valova) i visina valova uživo za ribolov s obale u Novom Vinodolskom',
+            'Obogaćen jadranski morski ugođaj i dizajn Calamari sekcije uz plivajuću traku za Indeks griza',
+            'Verificirano Live Web OTA ažuriranje koje jamči prijenos kompletnog novog koda prije promjene broja verzije'
           ],
           isCritical: true,
           updateType: 'live_web',
@@ -1792,9 +1822,19 @@ app.post('/api/calamari/update', (req, res) => {
   if (!incoming || typeof incoming !== 'object') {
     return res.status(400).json({ error: 'Neispravan format Calamari podataka.' });
   }
-  saveCalamari(incoming);
+  const existing = loadCalamari();
+  const mergedLogged = Array.from(new Set([
+    ...(Array.isArray(existing?.loggedParticipants) ? existing.loggedParticipants : []),
+    ...(Array.isArray(incoming.loggedParticipants) ? incoming.loggedParticipants : [])
+  ]));
+  const mergedData = {
+    ...(existing || {}),
+    ...incoming,
+    loggedParticipants: mergedLogged
+  };
+  saveCalamari(mergedData);
   if (serverDb) {
-    setDoc(doc(serverDb, 'calamari_competition', 'novi_vinodolski_2026'), incoming, { merge: true }).catch(() => {});
+    setDoc(doc(serverDb, 'calamari_competition', 'novi_vinodolski_2026'), mergedData, { merge: true }).catch(() => {});
   }
   res.json({ success: true });
 });
@@ -1805,15 +1845,15 @@ app.post('/api/calamari/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.8.5',
+    version: '1.8.6',
     name: 'RiboPrognoza',
     releaseDate: '2026-11-15',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.5.apk',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.6.apk',
     changelog: [
-      'Trajni popravak Live Web OTA ažuriranja: verzija se ažurira isključivo nakon stvarnog preuzimanja novog paketa koda',
-      'Calamari Kup 2026: plivajuća traka s Indeksom griza i meteo podacima koja pri povlačenju odlazi ispod naslova',
-      'Automatsko uklanjanje rubrike za prijavu nakon što se svi sudionici prijave',
-      'Sinkronizacija svih live dijelova u stvarnom vremenu (Dunav Aljmaš/Bogojevo, Novi Vinodolski temperatura mora i naziv vjetra)'
+      'Calamari Kup 2026: automatsko uklanjanje već prijavljenih natjecatelja s liste prijava kako bi se vidjelo tko je još ostao neprijavljen',
+      'Dodana nautička ocjena stanja mora (Douglasova ljestvica 0–5: od mirnog mora/bonace do velikih valova) i visina valova uživo za ribolov s obale u Novom Vinodolskom',
+      'Obogaćen jadranski morski ugođaj i dizajn Calamari sekcije uz plivajuću traku za Indeks griza',
+      'Verificirano Live Web OTA ažuriranje koje jamči prijenos kompletnog novog koda prije promjene broja verzije'
     ],
     isCritical: true,
     updateType: 'live_web'
@@ -1836,8 +1876,8 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.8.5',
-    appVersion: '1.8.5',
+    version: '1.8.6',
+    appVersion: '1.8.6',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs

@@ -35,6 +35,7 @@ import { FishingChatModal } from './components/FishingChatModal';
 import { LovostajModal } from './components/LovostajModal';
 import { CatchLogModal } from './components/CatchLogModal';
 import { CalamariModal } from './components/CalamariModal';
+import { syncLocalCalamariLoginsToServer } from './services/calamariService';
 import { SolunarModal } from './components/SolunarModal';
 import { EdgeSwipeBackGesture } from './components/EdgeSwipeBackGesture';
 import { ModalErrorBoundary } from './components/ModalErrorBoundary';
@@ -395,8 +396,9 @@ export default function App() {
       } catch {}
     };
 
-    // Provjeri pri učitavanju
+    // Provjeri pri učitavanju i sinkroniziraj spremljene Calamari prijave s ovog uređaja
     checkStatus();
+    syncLocalCalamariLoginsToServer().catch(() => {});
 
     // Provjeri svakih 5 minuta samo dok je zaslon uključen (sprječava buđenje u pozadini i trošenje baterije)
     const interval = setInterval(checkStatus, 5 * 60 * 1000);

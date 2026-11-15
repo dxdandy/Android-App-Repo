@@ -17,10 +17,12 @@ import {
   RotateCcw,
   Star,
   Flame,
-  Clock
+  Clock,
+  Anchor
 } from 'lucide-react';
 import { 
   CALAMARI_PARTICIPANTS, 
+  CALAMARI_PIN_PARTICIPANTS,
   CALAMARI_DATES, 
   CalamariCompetitionState, 
   CalamariParticipantId, 
@@ -30,6 +32,7 @@ import {
   getStoredCalamariData, 
   recordCalamariParticipantLogin,
   subscribeToCalamariData, 
+  syncLocalCalamariLoginsToServer,
   updateCalamariCatchesServer 
 } from '../services/calamariService';
 import { fetchMeteoForCoords } from '../services/weatherService';
@@ -52,12 +55,94 @@ const SHORT_DAY_LABELS: Record<string, { dayName: string; dateShort: string; iso
 
 type SolunarTargetOption = 'now_24h' | 'now_48h' | 'now_72h' | '18.11.2026' | '19.11.2026' | '20.11.2026' | '21.11.2026' | '22.11.2026';
 
+export interface NauticalSeaStateInfo {
+  douglasDegree: number; // 0 - 5
+  shortLabel: string;
+  fullNauticalName: string;
+  waveRangeLabel: string;
+  shoreFishingAdvice: string;
+  badgeColor: string;
+}
+
+/**
+ * Pomorska Douglasova ljestvica stanja mora (0 – 5) prilagođena za ribolov i lignjolov s obale u Vinodolskom kanalu
+ */
+export const NAUTICAL_SEA_STATE_SCALE: NauticalSeaStateInfo[] = [
+  {
+    douglasDegree: 0,
+    shortLabel: '0 • Mirno (Bonaca)',
+    fullNauticalName: 'Mirno more (Bonaca)',
+    waveRangeLabel: '0 – 5 cm (0.00 – 0.05 m)',
+    shoreFishingAdvice: 'More kao ulje — vrhunski uvjeti za daleki izbačaj s obale i prirodnu prezentaciju skosavica 2.5–3.0.',
+    badgeColor: 'text-emerald-300 border-emerald-500/50 bg-emerald-950/70'
+  },
+  {
+    douglasDegree: 1,
+    shortLabel: '1 • Malo valovito',
+    fullNauticalName: 'Malo valovito (Naborano more)',
+    waveRangeLabel: '5 – 15 cm (0.05 – 0.15 m)',
+    shoreFishingAdvice: 'Lagano naborana površina bez krijesti — idealno za lignjolov s obale i lukobrana jer smanjuje oprez liganja.',
+    badgeColor: 'text-teal-300 border-teal-500/50 bg-teal-950/70'
+  },
+  {
+    douglasDegree: 2,
+    shortLabel: '2 • Umjereno valovito',
+    fullNauticalName: 'Umjereno valovito more',
+    waveRangeLabel: '15 – 50 cm (0.15 – 0.50 m)',
+    shoreFishingAdvice: 'Mali valovi uz obalu pokreću sitnu plavu ribu — odličan griz liganja uz rubove lukobrana i kamenite punte.',
+    badgeColor: 'text-cyan-300 border-cyan-500/50 bg-cyan-950/70'
+  },
+  {
+    douglasDegree: 3,
+    shortLabel: '3 • Valovito more',
+    fullNauticalName: 'Valovito more (Bijele krijeste)',
+    waveRangeLabel: '0.50 – 1.25 m',
+    shoreFishingAdvice: 'Srednji valovi s povremenim zapjenjenim vrhovima — birajte teže skosavice (3.0–3.5) i lovite u zavjetrini lukobrana.',
+    badgeColor: 'text-amber-300 border-amber-500/50 bg-amber-950/70'
+  },
+  {
+    douglasDegree: 4,
+    shortLabel: '4 • Jače valovito',
+    fullNauticalName: 'Jače valovito more',
+    waveRangeLabel: '1.25 – 2.50 m',
+    shoreFishingAdvice: 'Izraženi valovi i prskanje obale — otežan ribolov s otvorenih stijena, držite se zaštićene unutarnje strane luke.',
+    badgeColor: 'text-orange-300 border-orange-500/50 bg-orange-950/70'
+  },
+  {
+    douglasDegree: 5,
+    shortLabel: '5 • Veliki valovi',
+    fullNauticalName: 'Veliki valovi (Uzburkano more)',
+    waveRangeLabel: 'preko 2.50 m',
+    shoreFishingAdvice: 'Visoki i opasni valovi uz obalu — ne preporučuje se izlazak na izložene stijene i vanjski lukobran.',
+    badgeColor: 'text-rose-300 border-rose-500/50 bg-rose-950/70'
+  }
+];
+
+function evaluateNauticalSeaState(waveHeightM: number): NauticalSeaStateInfo {
+  if (waveHeightM < 0.05) return NAUTICAL_SEA_STATE_SCALE[0];
+  if (waveHeightM < 0.15) return NAUTICAL_SEA_STATE_SCALE[1];
+  if (waveHeightM < 0.50) return NAUTICAL_SEA_STATE_SCALE[2];
+  if (waveHeightM < 1.25) return NAUTICAL_SEA_STATE_SCALE[3];
+  if (waveHeightM < 2.50) return NAUTICAL_SEA_STATE_SCALE[4];
+  return NAUTICAL_SEA_STATE_SCALE[5];
+}
+
 export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose }) => {
   const [state, setState] = useState<CalamariCompetitionState>(() => getStoredCalamariData());
   const [loggedUser, setLoggedUser] = useState<CalamariParticipantId | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
-      return (localStorage.getItem(STORAGE_LOGGED_USER_KEY) as CalamariParticipantId) || null;
+      const saved = localStorage.getItem(STORAGE_LOGGED_USER_KEY) as CalamariParticipantId | null;
+      if (saved) return saved;
+      // Ako je na ovom uređaju već aktiviran glavni Admin (Daniel), automatski ga prepoznaj
+      const isMainAdmin =
+        localStorage.getItem('ribo_device_id') === 'RP-ADMIN' ||
+        localStorage.getItem('ribo_admin_authenticated') === 'true';
+      if (isMainAdmin) {
+        localStorage.setItem(STORAGE_LOGGED_USER_KEY, 'daniel');
+        return 'daniel';
+      }
+      return null;
     } catch {
       return null;
     }
@@ -71,6 +156,12 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
       const single = localStorage.getItem(STORAGE_LOGGED_USER_KEY) as CalamariParticipantId | null;
       if (single && !parsed.includes(single)) {
         parsed.push(single);
+      }
+      const isMainAdmin =
+        localStorage.getItem('ribo_device_id') === 'RP-ADMIN' ||
+        localStorage.getItem('ribo_admin_authenticated') === 'true';
+      if (isMainAdmin && !parsed.includes('daniel')) {
+        parsed.push('daniel');
       }
       return parsed;
     } catch {
@@ -100,14 +191,18 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     windNameHr: string;
     condition: string;
     pressure: number;
+    waveHeightM: number;
+    wavePeriodS: number;
   }>({
     temp: 8.4,
-    seaTemp: 16.9,
+    seaTemp: 16.8,
     windSpeed: 1.7,
     windDirectionDeg: 28,
     windNameHr: 'Sjeveroistočni vjetar (Bura)',
     condition: 'djelomicno_oblacno',
-    pressure: 1023
+    pressure: 1023,
+    waveHeightM: 0.08,
+    wavePeriodS: 2.7
   });
 
   useEffect(() => {
@@ -140,7 +235,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
             { signal: AbortSignal.timeout(4500) }
           ).then(r => (r.ok ? r.json() : null)),
           fetch(
-            'https://marine-api.open-meteo.com/v1/marine?latitude=45.11&longitude=14.76&current=sea_surface_temperature&timezone=Europe%2FZagreb',
+            'https://marine-api.open-meteo.com/v1/marine?latitude=45.11&longitude=14.76&current=sea_surface_temperature,wave_height,wave_direction,wave_period&timezone=Europe%2FZagreb',
             { signal: AbortSignal.timeout(4500) }
           ).then(r => (r.ok ? r.json() : null))
         ]);
@@ -172,7 +267,18 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
         const seaTemp =
           typeof marineCurr?.sea_surface_temperature === 'number'
             ? Math.round(marineCurr.sea_surface_temperature * 10) / 10
-            : 16.9;
+            : 16.8;
+
+        // Izračun realne visine valova uz obalu Novog Vinodolskog (kombinacija Open-Meteo Marine valova i lokalnog vjetrovnog vala u kanalu)
+        const apiWaveM =
+          typeof marineCurr?.wave_height === 'number' ? marineCurr.wave_height : 0.06;
+        const windInducedWaveM = windSpeed <= 0.8 ? 0.02 : Math.round(Math.pow(windSpeed, 1.35) * 0.045 * 100) / 100;
+        const effectiveWaveHeightM = Math.round(Math.max(apiWaveM, windInducedWaveM) * 100) / 100;
+
+        const wavePeriodS =
+          typeof marineCurr?.wave_period === 'number'
+            ? Math.round(marineCurr.wave_period * 10) / 10
+            : 2.7;
 
         setNoviMeteo({
           temp: airTemp,
@@ -181,7 +287,9 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
           windDirectionDeg: windDeg,
           windNameHr: getFullCroatianWindName(windDeg, windSpeed),
           condition: baseMeteo?.weatherCondition || 'djelomicno_oblacno',
-          pressure
+          pressure,
+          waveHeightM: effectiveWaveHeightM,
+          wavePeriodS
         });
       } catch {}
     };
@@ -191,10 +299,10 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     return () => window.clearInterval(intervalId);
   }, [isOpen]);
 
-  // Sinkronizacija u stvarnom vremenu s Firestoreom
+  // Sinkronizacija u stvarnom vremenu s Firestoreom i automatska sinkronizacija lokalno prijavljenih sudionika
   useEffect(() => {
     if (!isOpen) return;
-    fetchCalamariDataServer().then(res => setState(res));
+    syncLocalCalamariLoginsToServer().then(res => setState(res));
     const unsubscribe = subscribeToCalamariData((newData) => {
       setState(newData);
     });
@@ -210,7 +318,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Kombinirana lista svih prijavljenih sudionika (lokalno + sinkronizirano)
+  // Kombinirana lista svih prijavljenih sudionika (lokalno + sinkronizirano iz Firestorea)
   const allLoggedParticipants = useMemo(() => {
     const set = new Set<CalamariParticipantId>(localLoggedHistory);
     if (loggedUser) set.add(loggedUser);
@@ -220,19 +328,38 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     return Array.from(set);
   }, [localLoggedHistory, loggedUser, state.loggedParticipants]);
 
-  // Provjera jesu li se sva trojica s šiframa (Silvio, Tuna, Daniel) prijavila
-  const areAllUsersLogged = useMemo(() => {
-    return (
-      allLoggedParticipants.includes('silvio') &&
-      allLoggedParticipants.includes('tuna') &&
-      allLoggedParticipants.includes('daniel')
-    );
+  // Lista sudionika koji se JOŠ NISU prijavili sa svojom šifrom (prijavljeni se odmah uklanjaju s liste!)
+  const unloggedParticipants = useMemo(() => {
+    return CALAMARI_PIN_PARTICIPANTS.filter(pid => !allLoggedParticipants.includes(pid));
   }, [allLoggedParticipants]);
+
+  // Lista sudionika koji su se VEĆ prijavili (uklonjeni s liste gumba za prijavu)
+  const alreadyLoggedPinParticipants = useMemo(() => {
+    return CALAMARI_PIN_PARTICIPANTS.filter(pid => allLoggedParticipants.includes(pid));
+  }, [allLoggedParticipants]);
+
+  // Provjera jesu li se sva trojica sa šiframa (Silvio, Tuna, Daniel) prijavila
+  const areAllUsersLogged = useMemo(() => {
+    return unloggedParticipants.length === 0;
+  }, [unloggedParticipants]);
 
   // Je li na ovom uređaju prijavljen administrator (Daniel)
   const isAdminUser = useMemo(() => {
     return loggedUser === 'daniel' || localLoggedHistory.includes('daniel');
   }, [loggedUser, localLoggedHistory]);
+
+  // Trenutno nautičko stanje mora prema Douglasovoj ljestvici
+  const currentSeaState = useMemo(() => {
+    return evaluateNauticalSeaState(noviMeteo.waveHeightM);
+  }, [noviMeteo.waveHeightM]);
+
+  const formattedWaveHeight = useMemo(() => {
+    const cm = Math.round(noviMeteo.waveHeightM * 100);
+    if (noviMeteo.waveHeightM < 0.5) {
+      return `${noviMeteo.waveHeightM.toFixed(2)} m (${cm} cm)`;
+    }
+    return `${noviMeteo.waveHeightM.toFixed(2)} m`;
+  }, [noviMeteo.waveHeightM]);
 
   const handleLoginWithPin = async (participantId: CalamariParticipantId) => {
     const participant = CALAMARI_PARTICIPANTS.find(p => p.id === participantId);
@@ -256,8 +383,8 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
       setPinError(null);
       setSelectedUserForPin(null);
       setShowManualLoginPanel(false);
-      setSuccessToast(`✓ Prijava spremljena: ${participant.name}`);
-      setTimeout(() => setSuccessToast(null), 2800);
+      setSuccessToast(`✓ Prijava spremljena: ${participant.name} (uklonjen s liste neprijavljenih)`);
+      setTimeout(() => setSuccessToast(null), 3000);
 
       const updatedState = await recordCalamariParticipantLogin(participantId);
       setState(updatedState);
@@ -269,9 +396,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
   // Provjera može li ovaj uređaj uređivati ulov za odabranog natjecatelja
   const canEditParticipant = (targetId: CalamariParticipantId): boolean => {
     if (isAdminUser) {
-      // Ako je Admin uključio uređivanje svih (zadano uključeno), može uređivati svima (Dida, Tuna, Silvio, Daniel)
       if (adminEditAllEnabled) return true;
-      // Inače uređuje za sebe (Daniel) i za Dida
       return targetId === 'daniel' || targetId === 'dida';
     }
     if (loggedUser === targetId || localLoggedHistory.includes(targetId)) {
@@ -365,12 +490,20 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
   if (!isOpen) return null;
 
   const shouldShowLoginSection = !areAllUsersLogged || showManualLoginPanel;
+  // U osnovnom prikazu prikazuju se isključivo neprijavljeni natjecatelji; ako korisnik ručno klikne ikonu ključa u zaglavlju, može odabrati bilo koga za promjenu računa na uređaju
+  const visibleLoginButtons = showManualLoginPanel ? CALAMARI_PIN_PARTICIPANTS : unloggedParticipants;
 
   return (
-    <div className="fixed inset-0 z-[60] bg-gradient-to-b from-slate-950 via-[#041428] to-slate-950 flex flex-col w-full h-full overflow-hidden animate-fade-in">
+    <div className="fixed inset-0 z-[60] bg-gradient-to-b from-[#020a18] via-[#041b35] to-[#020916] flex flex-col w-full h-full overflow-hidden animate-fade-in">
       
-      {/* STATIČNO ZAGLAVLJE NA VRHU EKRANA - na istoj poziciji i visini kao RiboPrognoza, s proširenjem prema dolje za sve podatke */}
-      <header className="sticky top-0 z-30 shrink-0 w-full bg-slate-950/95 backdrop-blur-md border-b border-cyan-500/40 shadow-[0_4px_24px_rgba(6,182,212,0.18)] pt-[env(safe-area-inset-top,0px)]">
+      {/* Dekorativni morski pozadinski sjaj Jadrana */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden z-0 opacity-35">
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[520px] h-[220px] bg-cyan-500/20 blur-3xl rounded-full" />
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-teal-950/40 to-transparent" />
+      </div>
+
+      {/* STATIČNO ZAGLAVLJE NA VRHU EKRANA - na istoj poziciji i visini kao RiboPrognoza */}
+      <header className="sticky top-0 z-30 shrink-0 w-full bg-[#020c1d]/95 backdrop-blur-md border-b border-cyan-500/45 shadow-[0_4px_24px_rgba(6,182,212,0.22)] pt-[env(safe-area-inset-top,0px)]">
         <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-1.5 sm:py-2.5 w-full">
           
           {/* Glavni red zaglavlja - identičan položaj ikone i naslova kao RiboPrognoza */}
@@ -458,7 +591,6 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                   />
 
                   {/* EKSTRA VELIKE OČI (Lijevo i Desno) */}
-                  {/* Lijevo oko */}
                   <circle cx="21.5" cy="29.5" r="9.5" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
                   <circle cx="22.5" cy="29.5" r="5.6" fill="#020617" />
                   <circle cx="22.5" cy="29.5" r="4.2" fill="#06b6d4" />
@@ -466,7 +598,6 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                   <circle cx="19.5" cy="26.5" r="2.4" fill="#ffffff" />
                   <circle cx="24.8" cy="32.2" r="1.1" fill="#ffffff" />
 
-                  {/* Desno oko */}
                   <circle cx="42.5" cy="29.5" r="9.5" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
                   <circle cx="41.5" cy="29.5" r="5.6" fill="#020617" />
                   <circle cx="41.5" cy="29.5" r="4.2" fill="#06b6d4" />
@@ -503,7 +634,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                     ? 'bg-cyan-600 text-white border-cyan-300 shadow-md'
                     : 'bg-slate-900/90 hover:bg-slate-800 text-cyan-300 border-cyan-500/40'
                 }`}
-                title="Prijava natjecatelja / Admin pristup"
+                title="Prijava natjecatelja / Pregled prijavljenih"
               >
                 <KeyRound className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               </button>
@@ -524,22 +655,34 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
 
       {/* Toast obavijest */}
       {successToast && (
-        <div className="bg-teal-500/20 border-b border-teal-400/40 px-4 py-2 text-teal-200 text-xs font-bold text-center shrink-0 animate-fade-in">
+        <div className="relative z-20 bg-teal-500/20 border-b border-teal-400/40 px-4 py-2 text-teal-200 text-xs font-bold text-center shrink-0 animate-fade-in">
           {successToast}
         </div>
       )}
 
       {/* GLAVNI SADRŽAJ - Plivajući (skrolajući) sadržaj koji pri povlačenju prema gore odlazi ispod statičnog naslova */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 sm:px-6 lg:px-8 py-3 sm:py-5">
+      <div className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 sm:px-6 lg:px-8 py-3 sm:py-5">
         <div className="max-w-5xl mx-auto space-y-3.5 sm:space-y-5">
 
-          {/* PLIVAJUĆA TRAKA S PODACIMA (Lokacija, Mjesečeva mijena, Indeks griza, Temp. zraka, Vjetar, Tlak, Temp. mora, Smjer vjetra) - odlazi ispod naslova pri skrolanju prema gore */}
-          <div className="bg-slate-900/90 border border-cyan-500/35 rounded-2xl px-3 sm:px-4 py-2.5 shadow-md flex flex-col gap-2 text-[11px] sm:text-xs text-cyan-200/90">
-            <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1">
+          {/* PLIVAJUĆA POMORSKA METEO & INDEKS GRIZA SEKCIJA (Novi Vinodolski, Mjesec, Indeks griza, Temp. zraka, Vjetar, Tlak zraka, Temp. mora, Smjer vjetra + Nautičko stanje mora i valovi) */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-[#041a33]/95 via-[#062544]/90 to-[#031326]/95 border border-cyan-400/45 rounded-2xl px-3 sm:px-4 py-3 shadow-[0_8px_28px_rgba(6,182,212,0.16)] flex flex-col gap-2.5 text-[11px] sm:text-xs text-cyan-100">
+            {/* Dekorativni morski val u pozadini kartice */}
+            <svg
+              viewBox="0 0 1200 60"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute bottom-0 left-0 w-full h-6 opacity-15 text-cyan-400"
+              fill="currentColor"
+            >
+              <path d="M0,25 C200,55 400,-5 600,25 C800,55 1000,-5 1200,25 L1200,60 L0,60 Z" />
+            </svg>
+
+            {/* Red 1: Lokacija, datum natjecanja i trenutna mjesečeva mijena */}
+            <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1 relative z-10">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <span className="inline-flex items-center gap-1 font-bold text-white">
-                  <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  Novi Vinodolski
+                <span className="inline-flex items-center gap-1 font-black text-white tracking-tight">
+                  <Anchor className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <MapPin className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                  Novi Vinodolski (Vinodolski kanal)
                 </span>
                 <span className="text-cyan-600">•</span>
                 <span className="inline-flex items-center gap-1 font-mono text-cyan-200">
@@ -547,65 +690,125 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                   18.11. – 22.11.2026.
                 </span>
               </div>
-              <span className="inline-flex items-center gap-1 font-bold text-amber-300">
+              <span className="inline-flex items-center gap-1.5 font-bold text-amber-300 bg-slate-950/70 px-2.5 py-0.5 rounded-lg border border-amber-400/30">
                 <span>{solunar24h.moonIcon}</span>
                 <span>{solunar24h.moonPhaseName} ({solunar24h.illuminationPct}%)</span>
               </span>
             </div>
 
-            <div className="pt-1.5 border-t border-cyan-500/20 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10.5px] sm:text-xs text-teal-300">
+            {/* Red 2: Indeks griza + svi live meteo/maritime podaci + Nautičko stanje mora i visina valova */}
+            <div className="pt-2 border-t border-cyan-500/25 flex flex-wrap items-center gap-x-2 gap-y-1.5 font-mono text-[10.5px] sm:text-xs text-teal-200 relative z-10">
               <span>Indeks griza: <strong className="text-amber-400">{solunar24h.solunarIndex}/100</strong></span>
-              <span className="text-slate-600">•</span>
+              <span className="text-cyan-700">•</span>
               <span>Temp. zraka: <strong className="text-white">{noviMeteo.temp}°C</strong></span>
-              <span className="text-slate-600">•</span>
+              <span className="text-cyan-700">•</span>
               <span>Vjetar: <strong className="text-white">{noviMeteo.windSpeed} m/s</strong></span>
-              <span className="text-slate-600">•</span>
+              <span className="text-cyan-700">•</span>
               <span>Tlak zraka: <strong className="text-white">{noviMeteo.pressure} hPa</strong></span>
-              <span className="text-slate-600">•</span>
+              <span className="text-cyan-700">•</span>
               <span>Temp. mora: <strong className="text-cyan-300">{noviMeteo.seaTemp}°C</strong></span>
-              <span className="text-slate-600">•</span>
+              <span className="text-cyan-700">•</span>
               <span>Smjer vjetra: <strong className="text-amber-300">{noviMeteo.windNameHr}</strong></span>
+              <span className="text-cyan-700">•</span>
+              <span className="inline-flex items-center gap-1">
+                <Waves className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span>Stanje mora:</span>
+                <strong className="text-emerald-300">
+                  Stupanj {currentSeaState.douglasDegree} – {currentSeaState.fullNauticalName} (valovi {formattedWaveHeight})
+                </strong>
+              </span>
+            </div>
+
+            {/* Red 3: Nautička ljestvica stanja mora (od mirnog mora do velikih valova) za ribolov s obale */}
+            <div className="pt-2 border-t border-cyan-500/20 flex flex-col gap-1.5 relative z-10">
+              <div className="flex flex-wrap items-center justify-between gap-1 text-[10.5px] sm:text-[11px]">
+                <span className="font-bold text-cyan-200 flex items-center gap-1">
+                  <Compass className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span>Nautička ocjena stanja mora (Douglas 0–5) za ribolov s obale:</span>
+                </span>
+                <span className="text-teal-300 font-medium">
+                  {currentSeaState.shoreFishingAdvice}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 sm:gap-1.5">
+                {NAUTICAL_SEA_STATE_SCALE.map((step) => {
+                  const isActive = step.douglasDegree === currentSeaState.douglasDegree;
+                  return (
+                    <div
+                      key={step.douglasDegree}
+                      className={`px-2 py-1 rounded-lg border text-center transition-all flex flex-col items-center justify-center ${
+                        isActive
+                          ? 'bg-cyan-500/25 border-amber-400 text-white shadow-[0_0_12px_rgba(251,191,36,0.25)] scale-[1.02]'
+                          : 'bg-slate-950/60 border-cyan-500/20 text-slate-400 opacity-75'
+                      }`}
+                    >
+                      <span className={`font-black text-[10px] sm:text-[10.5px] leading-tight ${isActive ? 'text-amber-300' : 'text-cyan-300/80'}`}>
+                        {step.shortLabel}
+                      </span>
+                      <span className="font-mono text-[9.5px] text-slate-300 leading-tight mt-0.5">
+                        {step.waveRangeLabel.split(' (')[0]}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* RUBRIKA ZA PRIJAVU - Automatski se uklanja kada se svi prijave (i odlazi ispod naslova pri skrolanju) */}
+          {/* RUBRIKA ZA PRIJAVU - Svi koji su se prijavili odmah su uklonjeni s liste prijava kako bi se vidjelo tko je još ostao neprijavljen! */}
           {shouldShowLoginSection && (
-            <div className="bg-gradient-to-r from-slate-900/95 via-cyan-950/70 to-slate-900/95 px-3 sm:px-5 py-3 rounded-2xl border border-cyan-500/35 shadow-md">
+            <div className="bg-gradient-to-r from-[#04182e]/95 via-cyan-950/80 to-[#04182e]/95 px-3 sm:px-5 py-3.5 rounded-2xl border border-cyan-400/40 shadow-lg">
               <div className="max-w-4xl mx-auto flex flex-col items-center justify-center gap-2.5">
-                <span className="text-xs font-bold text-cyan-200 text-center">
-                  Odaberite svoje ime za prijavu i unos ulova
-                </span>
+                <div className="flex flex-wrap items-center justify-center gap-2 text-center">
+                  <span className="text-xs font-bold text-cyan-100">
+                    {unloggedParticipants.length > 0
+                      ? `Neprijavljeni natjecatelji (${unloggedParticipants.length}): Odaberite svoje ime i unesite šifru`
+                      : 'Svi natjecatelji su prijavljeni! (Ručni odabir aktivnog natjecatelja na uređaju)'}
+                  </span>
 
-                {/* Gumbovi Silvio, Tuna i Daniel u sredini ekrana s velikim razmakom */}
-                <div className="flex items-center justify-center gap-8 sm:gap-12 flex-wrap w-full py-1">
-                  {(['silvio', 'tuna', 'daniel'] as CalamariParticipantId[]).map((pid) => {
-                    const pDef = CALAMARI_PARTICIPANTS.find(p => p.id === pid)!;
-                    const isAlreadyLogged = allLoggedParticipants.includes(pid);
-                    const isSelected = selectedUserForPin === pid;
-
-                    return (
-                      <button
-                        key={pid}
-                        type="button"
-                        onClick={() => {
-                          setSelectedUserForPin(pid);
-                          setPinInput('');
-                          setPinError(null);
-                        }}
-                        className={`min-w-[92px] sm:min-w-[110px] px-4 py-2 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5 shadow-md border ${
-                          isSelected
-                            ? 'bg-cyan-500 text-slate-950 border-white shadow-cyan-500/30'
-                            : isAlreadyLogged
-                            ? 'bg-teal-950/90 text-teal-200 border-teal-400/60 hover:bg-teal-900'
-                            : 'bg-cyan-950/90 hover:bg-cyan-900 text-cyan-100 border-cyan-500/50'
-                        }`}
-                      >
-                        {isAlreadyLogged && <Check className="w-3.5 h-3.5 text-teal-400 shrink-0" />}
-                        <span>{pDef.name}</span>
-                      </button>
-                    );
-                  })}
+                  {alreadyLoggedPinParticipants.length > 0 && (
+                    <span className="px-2.5 py-0.5 rounded-lg bg-teal-950/90 border border-teal-400/40 text-[11px] font-bold text-teal-300 inline-flex items-center gap-1">
+                      <Check className="w-3 h-3 text-teal-400 shrink-0" />
+                      <span>
+                        Već prijavljeni: {alreadyLoggedPinParticipants.map(id => CALAMARI_PARTICIPANTS.find(p => p.id === id)?.name).join(', ')}
+                      </span>
+                    </span>
+                  )}
                 </div>
+
+                {/* Gumbovi samo za one koji su JOŠ OSTALI NEPRIJAVLJENI (u sredini ekrana s velikim razmakom) */}
+                {visibleLoginButtons.length > 0 && (
+                  <div className="flex items-center justify-center gap-8 sm:gap-12 flex-wrap w-full py-1">
+                    {visibleLoginButtons.map((pid) => {
+                      const pDef = CALAMARI_PARTICIPANTS.find(p => p.id === pid)!;
+                      const isAlreadyLogged = allLoggedParticipants.includes(pid);
+                      const isSelected = selectedUserForPin === pid;
+
+                      return (
+                        <button
+                          key={pid}
+                          type="button"
+                          onClick={() => {
+                            setSelectedUserForPin(pid);
+                            setPinInput('');
+                            setPinError(null);
+                          }}
+                          className={`min-w-[96px] sm:min-w-[115px] px-4 py-2 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5 shadow-md border ${
+                            isSelected
+                              ? 'bg-cyan-500 text-slate-950 border-white shadow-cyan-500/30'
+                              : isAlreadyLogged
+                              ? 'bg-teal-950/90 text-teal-200 border-teal-400/60 hover:bg-teal-900'
+                              : 'bg-cyan-950/90 hover:bg-cyan-900 text-cyan-100 border-cyan-400/60'
+                          }`}
+                        >
+                          {isAlreadyLogged && <Check className="w-3.5 h-3.5 text-teal-400 shrink-0" />}
+                          <span>{pDef.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Polje za unos tajne šifre odabranog natjecatelja */}
                 {selectedUserForPin && (
@@ -661,15 +864,16 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
             </div>
           )}
 
-          {/* 1. TRENUTNI POREDAK (Morski trofejni prikaz bez opisa uloga) */}
-          <section className="bg-gradient-to-br from-slate-900/95 via-[#07223d]/90 to-slate-950 border border-cyan-500/40 rounded-2xl p-3 sm:p-4 shadow-lg">
+          {/* 1. TRENUTNI POREDAK (Morski trofejni prikaz) */}
+          <section className="relative overflow-hidden bg-gradient-to-br from-[#04182e]/95 via-[#072644]/90 to-[#020f1f]/95 border border-cyan-500/45 rounded-2xl p-3 sm:p-4 shadow-lg">
             <div className="flex items-center justify-between gap-2 mb-3">
-              <h2 className="text-xs sm:text-sm font-black text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+              <h2 className="text-xs sm:text-sm font-black text-cyan-200 uppercase tracking-wider flex items-center gap-1.5">
                 <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Trenutni poredak</span>
+                <span>Trenutni poredak • Calamari Kup</span>
               </h2>
-              <span className="text-[11px] font-mono text-cyan-200/80">
-                Novi Vinodolski 2026
+              <span className="text-[11px] font-mono text-cyan-300/90 flex items-center gap-1">
+                <Waves className="w-3.5 h-3.5 text-teal-400" />
+                <span>Novi Vinodolski 2026</span>
               </span>
             </div>
 
@@ -682,8 +886,8 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                     key={p.id}
                     className={`rounded-xl p-2.5 sm:p-3 border flex flex-col items-center justify-center text-center transition-all ${
                       isLeader
-                        ? 'bg-gradient-to-b from-amber-500/20 via-cyan-950/80 to-slate-900 border-amber-400/70 shadow-md shadow-amber-500/10'
-                        : 'bg-slate-950/75 border-cyan-500/25'
+                        ? 'bg-gradient-to-b from-amber-500/25 via-cyan-950/85 to-slate-900 border-amber-400/80 shadow-md shadow-amber-500/15'
+                        : 'bg-[#031122]/85 border-cyan-500/30 hover:border-cyan-400/50'
                     }`}
                   >
                     <div className="flex items-center gap-1 text-xs sm:text-sm font-bold text-cyan-200">
@@ -695,7 +899,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                       <span className="text-xl sm:text-2xl font-black text-teal-300 font-mono tabular-nums leading-none">
                         {total}
                       </span>
-                      <span className="text-[10px] text-cyan-300/70 block mt-0.5">
+                      <span className="text-[10px] text-cyan-300/75 block mt-0.5">
                         liganja
                       </span>
                     </div>
@@ -706,8 +910,8 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
           </section>
 
           {/* 2. VERTIKALNA TABLICA ULOVA PO DANIMA I SUDIONICIMA + ADMIN KONTROLE ZA UREĐIVANJE SVIH */}
-          <section className="bg-gradient-to-b from-slate-900/95 via-[#061c33]/95 to-slate-950 border border-cyan-500/40 rounded-2xl overflow-hidden shadow-xl">
-            <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-cyan-950/50 border-b border-cyan-500/30 flex flex-wrap items-center justify-between gap-2">
+          <section className="bg-gradient-to-b from-[#04182e]/95 via-[#061e38]/95 to-[#020d1a]/95 border border-cyan-500/45 rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-r from-cyan-950/70 via-[#072a4a]/70 to-cyan-950/70 border-b border-cyan-500/35 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <Waves className="w-4 h-4 text-cyan-400 shrink-0" />
                 <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">
@@ -715,7 +919,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                 </span>
               </div>
 
-              {/* Admin kontrole ako je Daniel prijavljen, ili brzi gumb za Admin prijavu */}
+              {/* Admin kontrole ako je Daniel prijavljen */}
               {isAdminUser ? (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <button
@@ -819,7 +1023,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
             <div className="w-full overflow-x-hidden">
               <table className="w-full table-fixed border-collapse text-center">
                 <thead>
-                  <tr className="bg-slate-950/90 border-b border-cyan-500/30 text-[11px] sm:text-xs">
+                  <tr className="bg-[#020c1b]/95 border-b border-cyan-500/35 text-[11px] sm:text-xs">
                     <th className="w-[62px] sm:w-[110px] py-2.5 px-1.5 text-left font-black text-cyan-300">
                       Dan
                     </th>
@@ -838,7 +1042,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                         </th>
                       );
                     })}
-                    <th className="w-[42px] sm:w-[72px] py-2.5 px-1 font-black text-amber-300 bg-slate-950">
+                    <th className="w-[42px] sm:w-[72px] py-2.5 px-1 font-black text-amber-300 bg-[#020a16]">
                       Σ
                     </th>
                   </tr>
@@ -850,9 +1054,9 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                     const dayTotal = calculateTotalForDate(d.dateStr);
 
                     return (
-                      <tr key={d.dateStr} className="hover:bg-cyan-950/25 transition-colors">
+                      <tr key={d.dateStr} className="hover:bg-cyan-950/30 transition-colors">
                         {/* Stupac: Dan i datum */}
-                        <td className="py-2.5 px-1.5 text-left align-middle bg-slate-950/40">
+                        <td className="py-2.5 px-1.5 text-left align-middle bg-[#020c1b]/50">
                           <div className="flex flex-col leading-tight">
                             <span className="font-bold text-white text-[11px] sm:text-xs">
                               {shortInfo.dayName}
@@ -871,7 +1075,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                           return (
                             <td key={p.id} className="py-2 px-0.5 sm:px-1.5 align-middle font-mono">
                               {canEdit ? (
-                                <div className="inline-flex items-center justify-center bg-slate-950/90 border border-cyan-500/40 rounded-lg sm:rounded-xl p-0.5 max-w-full">
+                                <div className="inline-flex items-center justify-center bg-slate-950/90 border border-cyan-500/45 rounded-lg sm:rounded-xl p-0.5 max-w-full">
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateCatch(p.id, d.dateStr, count - 1)}
@@ -910,7 +1114,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                         })}
 
                         {/* Stupac: Ukupno za taj dan */}
-                        <td className="py-2.5 px-1 align-middle font-mono font-black text-xs sm:text-sm text-amber-300 bg-slate-950/60 tabular-nums">
+                        <td className="py-2.5 px-1 align-middle font-mono font-black text-xs sm:text-sm text-amber-300 bg-[#020c1b]/70 tabular-nums">
                           {dayTotal}
                         </td>
                       </tr>
@@ -919,7 +1123,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                 </tbody>
 
                 <tfoot>
-                  <tr className="bg-slate-950 border-t-2 border-cyan-500/40 font-black text-xs sm:text-sm">
+                  <tr className="bg-[#020a16] border-t-2 border-cyan-500/45 font-black text-xs sm:text-sm">
                     <td className="py-2.5 px-1.5 text-left text-cyan-300 uppercase text-[10px] sm:text-xs">
                       Ukupno
                     </td>
@@ -931,7 +1135,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                         {calculateTotalForParticipant(p.id)}
                       </td>
                     ))}
-                    <td className="py-2.5 px-1 text-center font-mono text-sm sm:text-base text-amber-400 bg-cyan-950/50 tabular-nums">
+                    <td className="py-2.5 px-1 text-center font-mono text-sm sm:text-base text-amber-400 bg-cyan-950/55 tabular-nums">
                       {grandTotal}
                     </td>
                   </tr>
@@ -941,7 +1145,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
           </section>
 
           {/* 3. MJESEČEVA MIJENA, SOLUNARNI INDEKS GRIZA, SOLUNARNA TEORIJA (JOHN ALDEN KNIGHT) & POLOŽAJ MJESECA U VINODOLSKOM KANALU + GOOGLE AI ANALIZA */}
-          <section className="p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-[#04182e] via-slate-900 to-slate-950 border border-cyan-500/50 text-xs text-slate-200 space-y-4 shadow-xl">
+          <section className="p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-[#04182e] via-[#062240]/90 to-[#020d1c] border border-cyan-500/50 text-xs text-slate-200 space-y-4 shadow-xl">
             
             {/* Zaglavlje sekcije */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-cyan-500/30 pb-3">
@@ -985,7 +1189,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
               </div>
             </div>
 
-            {/* Gornji blok: Mjesečeva mijena + Solunarni indeks griza */}
+            {/* Gornji blok: Mjesečeva mijena + Solunarni indeks griza & Stanje mora */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               
               {/* Kartica 1: Mjesečeva mijena i astronomski parametri */}
@@ -1010,8 +1214,8 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
 
-              {/* Kartica 2: Solunarni indeks griza liganja */}
-              <div className="bg-slate-950/85 border border-amber-500/40 rounded-xl p-3.5 flex flex-col justify-between">
+              {/* Kartica 2: Solunarni indeks griza liganja + Nautičko stanje mora i valovi */}
+              <div className="bg-slate-950/85 border border-amber-500/40 rounded-xl p-3.5 flex flex-col justify-between gap-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10.5px] font-bold text-amber-300 uppercase tracking-wider">
                     Solunarni indeks griza (Vinodolski kanal)
@@ -1028,7 +1232,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                   </div>
                 </div>
 
-                <div className="my-1.5 flex items-baseline justify-between gap-2">
+                <div className="flex items-baseline justify-between gap-2">
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-2xl sm:text-3xl font-black text-amber-400 font-mono tabular-nums leading-none">
                       {activeSolunarAnalysis.solunarIndex}
@@ -1046,6 +1250,17 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                     className="h-full bg-gradient-to-r from-teal-400 via-cyan-400 to-amber-400 rounded-full transition-all duration-300"
                     style={{ width: `${activeSolunarAnalysis.solunarIndex}%` }}
                   />
+                </div>
+
+                {/* Dodatak u kartici Indeksa griza: Nautičko stanje mora i visina valova za ribolov s obale */}
+                <div className="pt-1.5 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-1 text-[10.5px] font-mono">
+                  <span className="text-cyan-300 flex items-center gap-1">
+                    <Waves className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    <span>Stanje mora: <strong className="text-white">{currentSeaState.douglasDegree} – {currentSeaState.fullNauticalName}</strong></span>
+                  </span>
+                  <span className="text-amber-300">
+                    Valovi: <strong className="text-white">{formattedWaveHeight}</strong>
+                  </span>
                 </div>
               </div>
 
@@ -1199,14 +1414,14 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
           </section>
 
           {/* 4. REAL-TIME PROGNOZA I PREPORUKA BOJA SKOSAVICA ZA NOVI VINODOLSKI */}
-          <section className="p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-[#05263b]/80 to-slate-950 border border-teal-500/35 text-xs text-slate-300 space-y-3 shadow-lg">
+          <section className="p-3.5 sm:p-5 rounded-2xl bg-gradient-to-br from-[#04182e] via-[#05263b]/85 to-[#020c1a] border border-teal-500/40 text-xs text-slate-300 space-y-3 shadow-lg">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-teal-500/20 pb-2.5">
               <span className="font-black text-white text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5">
                 <Compass className="w-4 h-4 text-teal-400 shrink-0" />
                 <span>Taktička preporuka skosavica (Egi) i mikrolokacije • Novi Vinodolski</span>
               </span>
               <span className="font-mono text-[11px] text-teal-300">
-                Uživo: Zrak {noviMeteo.temp}°C • More {noviMeteo.seaTemp}°C • {noviMeteo.windNameHr} ({noviMeteo.windSpeed} m/s) • {noviMeteo.pressure} hPa
+                Uživo: Zrak {noviMeteo.temp}°C • More {noviMeteo.seaTemp}°C • {currentSeaState.fullNauticalName} ({formattedWaveHeight}) • {noviMeteo.windNameHr}
               </span>
             </div>
 
@@ -1220,9 +1435,9 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                     <span>
                       Uz bistrije more i vedrije vrijeme najbolji odabir su <strong>plava leđa (Blue Sardine)</strong>, <strong>prirodni dekor skuše/srdele</strong> te <strong>Keimura (UV ljubičasta/plava)</strong> veličine <strong>3.0</strong> (brzina tonjenja 3.2 s/m).
                     </span>
-                  ) : noviMeteo.windSpeed > 5 ? (
+                  ) : noviMeteo.windSpeed > 5 || noviMeteo.waveHeightM >= 0.5 ? (
                     <span>
-                      Zbog pojačanog vjetra i valova birajte <strong>narančasto-zlatnu (Orange Gold)</strong>, <strong>žuto-zelenu fluo</strong> i teže skosavice <strong>3.0 – 3.5</strong> za stabilan kontakt s dnom.
+                      Zbog pojačanog vjetra i valova ({formattedWaveHeight}) birajte <strong>narančasto-zlatnu (Orange Gold)</strong>, <strong>žuto-zelenu fluo</strong> i teže skosavice <strong>3.0 – 3.5</strong> za stabilan kontakt s dnom s obale.
                     </span>
                   ) : (
                     <span>
@@ -1234,7 +1449,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
 
               <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1.5">
                 <span className="font-black text-cyan-300 block text-xs uppercase">
-                  📍 Top pozicije i dubine (Vinodolski kanal)
+                  📍 Top pozicije i dubine s obale (Vinodolski kanal)
                 </span>
                 <p className="text-slate-300 text-xs leading-relaxed">
                   U sumrak pretražujte vanjski dio <strong>glavnog lukobrana u Novom Vinodolskom</strong>, strme pragove oko <strong>otočića San Marino</strong> i uvalu <strong>Povile</strong> na dubinama od <strong>7 do 16 metara</strong> gdje plimni kurenat nosi sitnu plavu ribu.
@@ -1247,7 +1462,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
       </div>
 
       {/* Donja traka za brzi povratak */}
-      <div className="p-2.5 sm:p-3 bg-slate-950/95 border-t border-cyan-500/30 text-center shrink-0">
+      <div className="relative z-20 p-2.5 sm:p-3 bg-[#020a18]/95 border-t border-cyan-500/35 text-center shrink-0">
         <button
           type="button"
           onClick={onClose}
