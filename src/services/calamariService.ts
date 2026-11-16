@@ -1,4 +1,4 @@
-import { doc, setDoc, onSnapshot, Unsubscribe, getDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, Unsubscribe, getDoc, arrayUnion } from 'firebase/firestore';
 import { db } from './firebase';
 import { getApiUrl } from './licenseService';
 
@@ -37,12 +37,18 @@ export interface CalamariCompetitionState {
   updatedAt: number;
   lastUpdatedBy?: string;
   loggedParticipants?: CalamariParticipantId[];
+  logged_silvio?: boolean;
+  logged_tuna?: boolean;
+  logged_daniel?: boolean;
 }
 
 const LOCAL_CALAMARI_KEY = 'ribo_calamari_competition_v1';
 const STORAGE_LOGGED_USER_KEY = 'ribo_calamari_logged_user_v1';
 const STORAGE_LOGGED_HISTORY_KEY = 'ribo_calamari_logged_users_history_v1';
 const FIRESTORE_CALAMARI_DOC = 'novi_vinodolski_2026';
+
+const FIRESTORE_REST_BASE =
+  'https://firestore.googleapis.com/v1/projects/titanium-domain-wv4kj/databases/ai-studio-hrvatskiradnipro-badf4099-cdd8-4a4a-b90c-6a3aea6c7b94/documents';
 
 export function createEmptyCalamariData(): AllCalamariData {
   const emptyDays = (): DailyCatches => ({
@@ -62,7 +68,25 @@ export function createEmptyCalamariData(): AllCalamariData {
 }
 
 /**
+ * Izvlači listu prijavljenih sudionika iz dokumenta (podržava i polje loggedParticipants i neovisne zastavice logged_silvio / logged_tuna / logged_daniel)
+ */
+export function extractLoggedFromState(data?: Partial<CalamariCompetitionState> | null): CalamariParticipantId[] {
+  if (!data) return [];
+  const set = new Set<CalamariParticipantId>();
+  if (Array.isArray(data.loggedParticipants)) {
+    data.loggedParticipants.forEach((id: any) => {
+      if (CALAMARI_PIN_PARTICIPANTS.includes(id)) set.add(id);
+    });
+  }
+  if (data.logged_silvio === true) set.add('silvio');
+  if (data.logged_tuna === true) set.add('tuna');
+  if (data.logged_daniel === true) set.add('daniel');
+  return Array.from(set);
+}
+
+/**
  * Dohvaća sve prijave spremljene lokalno na ovom uređaju
+ * (Strogo provjerava samo stvarno unesene šifre na ovom uređaju kako ne bi lažno označio tuđu prijavu)
  */
 export function getLocalDeviceLoggedParticipants(): CalamariParticipantId[] {
   if (typeof window === 'undefined') return [];
@@ -77,15 +101,6 @@ export function getLocalDeviceLoggedParticipants(): CalamariParticipantId[] {
       const parsed = JSON.parse(rawHist);
       if (Array.isArray(parsed)) {
         parsed.forEach((id: any) => {
-          if (CALAMARI_PIN_PARTICIPANTS.includes(id)) set.add(id);
-        });
-      }
-    }
-    const rawComp = localStorage.getItem(LOCAL_CALAMARI_KEY);
-    if (rawComp) {
-      const parsedComp = JSON.parse(rawComp);
-      if (Array.isArray(parsedComp?.loggedParticipants)) {
-        parsedComp.loggedParticipants.forEach((id: any) => {
           if (CALAMARI_PIN_PARTICIPANTS.includes(id)) set.add(id);
         });
       }
@@ -110,6 +125,91 @@ function mergeLoggedParticipants(
   return Array.from(set);
 }
 
+function buildLoggedFlags(loggedList: CalamariParticipantId[]): {
+  logged_silvio?: boolean;
+  logged_tuna?: boolean;
+  logged_daniel?: boolean;
+} {
+  const flags: { logged_silvio?: boolean; logged_tuna?: boolean; logged_daniel?: boolean } = {};
+  if (loggedList.includes('silvio')) flags.logged_silvio = true;
+  if (loggedList.includes('tuna')) flags.logged_tuna = true;
+  if (loggedList.includes('daniel')) flags.logged_daniel = true;
+  return flags;
+}
+
+/**
+ * Pričuvni dohvat i zapis preko izravnog Firestore REST API-ja (radi čak i ako WebChannel zapne na mobilnoj mreži)
+ */
+async function syncParticipantLoginRestFallback(participantId: CalamariParticipantId): Promise<void> {
+  try {
+    const flagField = `logged_${participantId}`;
+    const url = `${FIRESTORE_REST_BASE}/calamari_competition/${FIRESTORE_CALAMARI_DOC}?updateMask.fieldPaths=${flagField}`;
+    await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          [flagField]: { booleanValue: true }
+        }
+      }),
+      signal: AbortSignal.timeout(4500)
+    });
+  } catch {}
+}
+
+async function fetchCalamariRestFallback(): Promise<Partial<CalamariCompetitionState> | null> {
+  try {
+    const url = `${FIRESTORE_REST_BASE}/calamari_competition/${FIRESTORE_CALAMARI_DOC}?updateMask.fieldPaths=_ping`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { _ping: { integerValue: '1' } } }),
+      signal: AbortSignal.timeout(4500)
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const fields = json?.fields;
+    if (!fields) return null;
+
+    const loggedSet = new Set<CalamariParticipantId>();
+    if (fields.logged_silvio?.booleanValue === true) loggedSet.add('silvio');
+    if (fields.logged_tuna?.booleanValue === true) loggedSet.add('tuna');
+    if (fields.logged_daniel?.booleanValue === true) loggedSet.add('daniel');
+    if (Array.isArray(fields.loggedParticipants?.arrayValue?.values)) {
+      fields.loggedParticipants.arrayValue.values.forEach((v: any) => {
+        const s = v?.stringValue as CalamariParticipantId;
+        if (s && CALAMARI_PIN_PARTICIPANTS.includes(s)) loggedSet.add(s);
+      });
+    }
+
+    const catches = createEmptyCalamariData();
+    const catchesMap = fields.catches?.mapValue?.fields;
+    if (catchesMap) {
+      for (const pid of ['dida', 'tuna', 'silvio', 'daniel'] as CalamariParticipantId[]) {
+        const pDays = catchesMap[pid]?.mapValue?.fields;
+        if (pDays) {
+          for (const [dKey, dVal] of Object.entries(pDays)) {
+            const v = dVal as any;
+            catches[pid][dKey] = Number(v?.integerValue ?? v?.doubleValue ?? 0) || 0;
+          }
+        }
+      }
+    }
+
+    const updatedAt = Number(fields.updatedAt?.integerValue ?? fields.updatedAt?.doubleValue ?? 0) || Date.now();
+    const loggedParticipants = Array.from(loggedSet);
+
+    return {
+      catches,
+      updatedAt,
+      loggedParticipants,
+      ...buildLoggedFlags(loggedParticipants)
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function getStoredCalamariData(): CalamariCompetitionState {
   if (typeof window === 'undefined') {
     return { catches: createEmptyCalamariData(), updatedAt: Date.now(), loggedParticipants: [] };
@@ -119,26 +219,32 @@ export function getStoredCalamariData(): CalamariCompetitionState {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.catches) {
+        const mergedLogged = mergeLoggedParticipants(extractLoggedFromState(parsed));
         return {
           ...parsed,
-          loggedParticipants: mergeLoggedParticipants(parsed.loggedParticipants)
+          loggedParticipants: mergedLogged,
+          ...buildLoggedFlags(mergedLogged)
         };
       }
     }
   } catch {}
+  const localLogged = getLocalDeviceLoggedParticipants();
   return {
     catches: createEmptyCalamariData(),
     updatedAt: Date.now(),
-    loggedParticipants: getLocalDeviceLoggedParticipants()
+    loggedParticipants: localLogged,
+    ...buildLoggedFlags(localLogged)
   };
 }
 
 export function saveStoredCalamariData(state: CalamariCompetitionState): void {
   if (typeof window === 'undefined') return;
   try {
+    const mergedLogged = mergeLoggedParticipants(extractLoggedFromState(state));
     const merged: CalamariCompetitionState = {
       ...state,
-      loggedParticipants: mergeLoggedParticipants(state.loggedParticipants)
+      loggedParticipants: mergedLogged,
+      ...buildLoggedFlags(mergedLogged)
     };
     localStorage.setItem(LOCAL_CALAMARI_KEY, JSON.stringify(merged));
   } catch {}
@@ -149,55 +255,90 @@ async function pushCalamariToBackend(state: CalamariCompetitionState): Promise<v
     await fetch(getApiUrl('/api/calamari/update'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state)
+      body: JSON.stringify(state),
+      signal: AbortSignal.timeout(4000)
     });
   } catch {}
 }
 
 /**
  * Automatski sinkronizira lokalno prijavljene sudionike s ovog uređaja u Firestore i poslužitelj
- * (osigurava da se svatko tko se već prijavio odmah ukloni s liste prijava na svim uređajima)
+ * bez prepisivanja prijava drugih sudionika (koristi arrayUnion i neovisne zastavice logged_silvio/tuna/daniel)
  */
 export async function syncLocalCalamariLoginsToServer(): Promise<CalamariCompetitionState> {
   const localLogged = getLocalDeviceLoggedParticipants();
-  const state = await fetchCalamariDataServer();
-  const remoteLogged = Array.isArray(state.loggedParticipants) ? state.loggedParticipants : [];
-  const mergedLogged = mergeLoggedParticipants(remoteLogged, localLogged);
 
-  const hasNewLocal = mergedLogged.some(id => !remoteLogged.includes(id));
-  if (hasNewLocal) {
-    const updated: CalamariCompetitionState = {
-      ...state,
-      loggedParticipants: mergedLogged,
-      updatedAt: Math.max(Date.now(), state.updatedAt || 0)
-    };
-    saveStoredCalamariData(updated);
-    pushCalamariToBackend(updated);
+  // Ako na ovom uređaju postoji spremljena prijava, odmah pošalji atomsku zastavicu u Firestore
+  if (localLogged.length > 0) {
+    for (const pid of localLogged) {
+      syncParticipantLoginRestFallback(pid).catch(() => {});
+    }
     try {
-      await setDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC), updated, { merge: true });
+      await Promise.race([
+        setDoc(
+          doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC),
+          {
+            loggedParticipants: arrayUnion(...localLogged),
+            ...buildLoggedFlags(localLogged)
+          },
+          { merge: true }
+        ),
+        new Promise(r => setTimeout(r, 3500))
+      ]);
     } catch {}
-    return updated;
   }
-  return state;
+
+  return fetchCalamariDataServer();
 }
 
 export async function fetchCalamariDataServer(): Promise<CalamariCompetitionState> {
   const stored = getStoredCalamariData();
   let bestState: CalamariCompetitionState = stored;
   let remoteLogged: CalamariParticipantId[] = [];
+  let gotFirestoreOrRest = false;
 
-  // 1. Pokušaj dohvatiti s Express poslužitelja
+  // 1. Dohvat iz Firestore oblaka (s timeoutom od 3.5 s)
+  try {
+    const snap = await Promise.race([
+      getDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC)),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 3500))
+    ]);
+    if (snap && (snap as any).exists && (snap as any).exists()) {
+      const data = (snap as any).data() as CalamariCompetitionState;
+      if (data) {
+        gotFirestoreOrRest = true;
+        remoteLogged = mergeLoggedParticipants(remoteLogged, extractLoggedFromState(data));
+        if (data.catches && (!bestState.updatedAt || (data.updatedAt || 0) >= bestState.updatedAt)) {
+          bestState = data;
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Ako WebChannel getDoc nije odgovorio, dohvati izravno preko Firestore REST API-ja
+  if (!gotFirestoreOrRest) {
+    const restData = await fetchCalamariRestFallback();
+    if (restData) {
+      gotFirestoreOrRest = true;
+      remoteLogged = mergeLoggedParticipants(remoteLogged, extractLoggedFromState(restData));
+      if (restData.catches && (!bestState.updatedAt || (restData.updatedAt || 0) >= bestState.updatedAt)) {
+        bestState = restData as CalamariCompetitionState;
+      }
+    }
+  }
+
+  // 3. Pokušaj dohvatiti i s Express poslužitelja
   try {
     const res = await fetch(getApiUrl(`/api/calamari?t=${Date.now()}`), {
       cache: 'no-store',
-      signal: AbortSignal.timeout(4000)
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(3500)
     });
-    if (res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
       const data = await res.json();
       if (data && data.catches) {
-        if (Array.isArray(data.loggedParticipants)) {
-          remoteLogged = mergeLoggedParticipants(remoteLogged, data.loggedParticipants);
-        }
+        remoteLogged = mergeLoggedParticipants(remoteLogged, extractLoggedFromState(data));
         if (!bestState.updatedAt || (data.updatedAt || 0) >= bestState.updatedAt) {
           bestState = data;
         }
@@ -205,41 +346,38 @@ export async function fetchCalamariDataServer(): Promise<CalamariCompetitionStat
     }
   } catch {}
 
-  // 2. Dohvat iz Firestore oblaka
-  try {
-    const snap = await getDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC));
-    if (snap.exists()) {
-      const data = snap.data() as CalamariCompetitionState;
-      if (data && data.catches) {
-        if (Array.isArray(data.loggedParticipants)) {
-          remoteLogged = mergeLoggedParticipants(remoteLogged, data.loggedParticipants);
-        }
-        if (!bestState.updatedAt || (data.updatedAt || 0) >= bestState.updatedAt) {
-          bestState = data;
-        }
-      }
-    }
-  } catch {}
-
-  const mergedLogged = mergeLoggedParticipants(
-    stored.loggedParticipants,
-    bestState.loggedParticipants,
-    remoteLogged
-  );
+  // Priznajemo lokalnu prijavu s ovog uređaja + sve potvrđene prijave iz Firestorea/poslužitelja
+  const localDeviceOnly = getLocalDeviceLoggedParticipants();
+  const mergedLogged = Array.from(new Set([...localDeviceOnly, ...remoteLogged]));
 
   const finalState: CalamariCompetitionState = {
     ...bestState,
-    loggedParticipants: mergedLogged
+    loggedParticipants: mergedLogged,
+    ...buildLoggedFlags(mergedLogged)
   };
 
   saveStoredCalamariData(finalState);
 
-  // Ako ovaj uređaj ima lokalnu prijavu koja još nije zapisana u oblaku, odmah ju zapiši
-  const cloudMissingLocal = mergedLogged.some(id => !remoteLogged.includes(id));
-  if (cloudMissingLocal && mergedLogged.length > 0) {
+  // Ako ovaj uređaj ima vlastitu lokalnu prijavu koja još nije u oblaku, odmah ju zapiši
+  const cloudMissingLocal = localDeviceOnly.some(id => !remoteLogged.includes(id));
+  if (cloudMissingLocal && localDeviceOnly.length > 0) {
+    for (const pid of localDeviceOnly) {
+      syncParticipantLoginRestFallback(pid).catch(() => {});
+    }
     pushCalamariToBackend(finalState);
     try {
-      await setDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC), finalState, { merge: true });
+      await Promise.race([
+        setDoc(
+          doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC),
+          {
+            loggedParticipants: arrayUnion(...localDeviceOnly),
+            ...buildLoggedFlags(localDeviceOnly),
+            updatedAt: Date.now()
+          },
+          { merge: true }
+        ),
+        new Promise(r => setTimeout(r, 3500))
+      ]);
     } catch {}
   }
 
@@ -249,22 +387,96 @@ export async function fetchCalamariDataServer(): Promise<CalamariCompetitionStat
 export async function recordCalamariParticipantLogin(
   participantId: CalamariParticipantId
 ): Promise<CalamariCompetitionState> {
+  // 1. Odmah pošalji neovisnu zastavicu preko REST-a (100% otporno na sve mrežne uvjete)
+  await syncParticipantLoginRestFallback(participantId);
+
   const current = await fetchCalamariDataServer();
-  const mergedLogged = mergeLoggedParticipants(current.loggedParticipants, [participantId]);
+  const mergedLogged = Array.from(
+    new Set([...extractLoggedFromState(current), ...getLocalDeviceLoggedParticipants(), participantId])
+  );
 
   const updated: CalamariCompetitionState = {
     ...current,
     loggedParticipants: mergedLogged,
+    ...buildLoggedFlags(mergedLogged),
     updatedAt: Date.now()
   };
 
   saveStoredCalamariData(updated);
   pushCalamariToBackend(updated);
+
   try {
-    await setDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC), updated, { merge: true });
+    await Promise.race([
+      setDoc(
+        doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC),
+        {
+          ...updated,
+          loggedParticipants: arrayUnion(...mergedLogged),
+          ...buildLoggedFlags(mergedLogged)
+        },
+        { merge: true }
+      ),
+      new Promise(r => setTimeout(r, 4000))
+    ]);
   } catch (err) {
     console.warn('Greška pri spremanju prijave u Firestore:', err);
   }
+  return updated;
+}
+
+/**
+ * Omogućuje Administratoru (Danielu) da ručno označi ili poništi status prijave za pojedinog sudionika
+ */
+export async function adminToggleParticipantLoginServer(
+  participantId: CalamariParticipantId,
+  shouldBeLogged: boolean
+): Promise<CalamariCompetitionState> {
+  const current = await fetchCalamariDataServer();
+  const existing = extractLoggedFromState(current);
+  const nextLogged = shouldBeLogged
+    ? Array.from(new Set([...existing, participantId]))
+    : existing.filter(id => id !== participantId);
+
+  const flagField = `logged_${participantId}`;
+  const updated: any = {
+    ...current,
+    loggedParticipants: nextLogged,
+    logged_silvio: nextLogged.includes('silvio'),
+    logged_tuna: nextLogged.includes('tuna'),
+    logged_daniel: nextLogged.includes('daniel'),
+    updatedAt: Date.now()
+  };
+
+  try {
+    const raw = localStorage.getItem(LOCAL_CALAMARI_KEY);
+    if (raw) {
+      localStorage.setItem(LOCAL_CALAMARI_KEY, JSON.stringify(updated));
+    }
+  } catch {}
+
+  pushCalamariToBackend(updated);
+
+  try {
+    const url = `${FIRESTORE_REST_BASE}/calamari_competition/${FIRESTORE_CALAMARI_DOC}?updateMask.fieldPaths=${flagField}`;
+    await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          [flagField]: { booleanValue: shouldBeLogged }
+        }
+      }),
+      signal: AbortSignal.timeout(4000)
+    });
+  } catch {}
+
+  try {
+    await Promise.race([
+      setDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC), updated, { merge: true }),
+      new Promise(r => setTimeout(r, 3500))
+    ]);
+  } catch {}
+
   return updated;
 }
 
@@ -281,13 +493,28 @@ export async function updateCalamariCatchesServer(
   current.catches[participantId][dateStr] = Math.max(0, count);
   current.updatedAt = Date.now();
   current.lastUpdatedBy = editorName;
-  current.loggedParticipants = mergeLoggedParticipants(current.loggedParticipants);
+  const mergedLogged = mergeLoggedParticipants(extractLoggedFromState(current));
+  current.loggedParticipants = mergedLogged;
+  Object.assign(current, buildLoggedFlags(mergedLogged));
 
   saveStoredCalamariData(current);
   pushCalamariToBackend(current);
 
   try {
-    await setDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC), current, { merge: true });
+    await Promise.race([
+      setDoc(
+        doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC),
+        {
+          catches: current.catches,
+          updatedAt: current.updatedAt,
+          lastUpdatedBy: current.lastUpdatedBy,
+          ...(mergedLogged.length > 0 ? { loggedParticipants: arrayUnion(...mergedLogged) } : {}),
+          ...buildLoggedFlags(mergedLogged)
+        },
+        { merge: true }
+      ),
+      new Promise(r => setTimeout(r, 3500))
+    ]);
   } catch (err) {
     console.warn('Greška pri spremanju Calamari podataka u Firestore:', err);
   }
@@ -320,12 +547,17 @@ export async function adminResetParticipantOrDateServer(
 
   current.updatedAt = Date.now();
   current.lastUpdatedBy = editorName;
-  current.loggedParticipants = mergeLoggedParticipants(current.loggedParticipants);
+  const mergedLogged = mergeLoggedParticipants(extractLoggedFromState(current));
+  current.loggedParticipants = mergedLogged;
+  Object.assign(current, buildLoggedFlags(mergedLogged));
   saveStoredCalamariData(current);
   pushCalamariToBackend(current);
 
   try {
-    await setDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC), current, { merge: true });
+    await Promise.race([
+      setDoc(doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC), current, { merge: true }),
+      new Promise(r => setTimeout(r, 3500))
+    ]);
   } catch (err) {
     console.warn('Greška pri admin resetiranju Calamari podataka:', err);
   }
@@ -339,10 +571,13 @@ export function subscribeToCalamariData(callback: (state: CalamariCompetitionSta
     if (snap.exists()) {
       const data = snap.data() as CalamariCompetitionState;
       if (data && data.catches) {
-        const local = getStoredCalamariData();
+        const localDeviceOnly = getLocalDeviceLoggedParticipants();
+        const remoteLogged = extractLoggedFromState(data);
+        const mergedLogged = Array.from(new Set([...localDeviceOnly, ...remoteLogged]));
         const merged: CalamariCompetitionState = {
           ...data,
-          loggedParticipants: mergeLoggedParticipants(local.loggedParticipants, data.loggedParticipants)
+          loggedParticipants: mergedLogged,
+          ...buildLoggedFlags(mergedLogged)
         };
         saveStoredCalamariData(merged);
         callback(merged);
@@ -352,34 +587,14 @@ export function subscribeToCalamariData(callback: (state: CalamariCompetitionSta
     console.warn('Calamari live sync warning:', error);
   });
 
-  // Dodatni live interval prema poslužitelju svakih 6 sekundi dok je prozor otvoren
+  // Dodatni live interval svakih 5 sekundi dok je prozor otvoren (koristi i REST fallback za 100% pouzdanost na mobitelu)
   const pollTimer = setInterval(async () => {
     if (typeof document !== 'undefined' && document.hidden) return;
     try {
-      const res = await fetch(getApiUrl(`/api/calamari?t=${Date.now()}`), {
-        cache: 'no-store',
-        signal: AbortSignal.timeout(3500)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.catches) {
-          const local = getStoredCalamariData();
-          const mergedLogged = mergeLoggedParticipants(local.loggedParticipants, data.loggedParticipants);
-          if (
-            (data.updatedAt || 0) > (local.updatedAt || 0) ||
-            mergedLogged.length !== (local.loggedParticipants?.length || 0)
-          ) {
-            const merged: CalamariCompetitionState = {
-              ...((data.updatedAt || 0) >= (local.updatedAt || 0) ? data : local),
-              loggedParticipants: mergedLogged
-            };
-            saveStoredCalamariData(merged);
-            callback(merged);
-          }
-        }
-      }
+      const fresh = await fetchCalamariDataServer();
+      callback(fresh);
     } catch {}
-  }, 6000);
+  }, 5000);
 
   return () => {
     unsubFirestore();
@@ -430,7 +645,6 @@ export function calculateVinodolskiSolunar(
   windSpeedMs: number = 2.8,
   tempC: number = 13.5
 ): VinodolskiSolunarAnalysis {
-  // Referentni mlađak: 18.01.2026. 18:50 UTC
   const refNewMoon = new Date('2026-01-18T18:50:00Z');
   const synodicMonth = 29.53058867;
   const diffDays = (targetDate.getTime() - refNewMoon.getTime()) / (1000 * 60 * 60 * 24);
@@ -468,19 +682,15 @@ export function calculateVinodolskiSolunar(
     moonPhaseName = 'Opadajući srp';
   }
 
-  // Meridijanski tranzit Mjeseca za Novi Vinodolski (14.79° E)
   const transitHour = (ageDays * 0.815 + 12.15) % 24;
   const nadirHour = (transitHour + 12) % 24;
   const moonriseHour = (transitHour - 5.8 + 24) % 24;
   const moonsetHour = (transitHour + 5.8) % 24;
 
-  // Studeni u Vinodolskom kanalu: izlazak Sunca ~06:58, zalazak ~16:34
   const sunriseHour = 6.96;
   const sunsetHour = 16.56;
 
-  // John Alden Knight Solunar Index izračun (baza + faza Mjeseca + preklapanje sa sumrakom/zorom + barometar/vjetar)
   let index = 76;
-  // Utjecaj syzygya (Mlađak / Uštap) ili prve/zadnje četvrti
   if (ageDays <= 2.5 || Math.abs(ageDays - 14.76) <= 2.5) {
     index += 14;
   } else if (Math.abs(ageDays - 7.38) <= 2.0 || Math.abs(ageDays - 22.15) <= 2.0) {
@@ -489,7 +699,6 @@ export function calculateVinodolskiSolunar(
     index += 6;
   }
 
-  // John Alden Knight bonus kada se Major ili Minor preklopi sa zalaskom ili izlaskom Sunca
   const minDistToTwilight = Math.min(
     Math.abs(transitHour - sunsetHour),
     Math.abs(nadirHour - sunsetHour),
@@ -502,7 +711,6 @@ export function calculateVinodolskiSolunar(
     index += 4;
   }
 
-  // Utjecaj barometra i vjetra u Vinodolskom kanalu
   if (pressureHpa >= 1013 && pressureHpa <= 1024) index += 4;
   if (windSpeedMs <= 4.5) index += 3;
   else if (windSpeedMs > 7.5) index -= 6;

@@ -29,7 +29,7 @@ function copyDirRecursive(src, dest) {
 
 try {
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-  const bundledVersion = String(pkg.version || '1.8.6').trim();
+  const bundledVersion = String(pkg.version || '1.8.7').trim();
   const otaBundleVersion = bundledVersion;
 
   if (fs.existsSync(distIndex)) {

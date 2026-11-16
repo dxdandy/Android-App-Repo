@@ -891,11 +891,11 @@ try {
       }
     }).catch(() => {});
 
-    // 2 & 3. Objavi PRVO kompilirani JS i CSS bundle u Firestore ota_bundle (tek nakon provjere da dist/assets/app-bundle.js stvarno sadrži v1.8.6!),
+    // 2 & 3. Objavi PRVO kompilirani JS i CSS bundle u Firestore ota_bundle (tek nakon provjere da dist/assets/app-bundle.js stvarno sadrži v1.8.7!),
     // a TEK ZATIM ažuriraj app_updates/latest (sprječava da poslužitelj ikada pošalje nekompilirani stari kod s novim brojem verzije!)
     const publishOtaBundleAndVersionToFirestore = async () => {
       try {
-        const TARGET_VER = '1.8.6';
+        const TARGET_VER = '1.8.7';
         const jsPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
         const cssPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.css');
         if (!fs.existsSync(jsPath)) {
@@ -939,13 +939,12 @@ try {
         await setDoc(doc(serverDb, 'app_updates', 'latest'), {
           version: TARGET_VER,
           name: 'RiboPrognoza',
-          releaseDate: '2026-11-15',
+          releaseDate: '2026-11-16',
           apkUrl: `https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v${TARGET_VER}.apk`,
           changelog: [
-            'Calamari Kup 2026: automatsko uklanjanje već prijavljenih natjecatelja s liste prijava kako bi se vidjelo tko je još ostao neprijavljen',
-            'Dodana nautička ocjena stanja mora (Douglasova ljestvica 0–5: od mirnog mora/bonace do velikih valova) i visina valova uživo za ribolov s obale u Novom Vinodolskom',
-            'Obogaćen jadranski morski ugođaj i dizajn Calamari sekcije uz plivajuću traku za Indeks griza',
-            'Verificirano Live Web OTA ažuriranje koje jamči prijenos kompletnog novog koda prije promjene broja verzije'
+            'Calamari Kup 2026: nova animacija lignje u zaglavlju koja nakon 2 sekunde poprska crnilom tekst Calamari Kup 2026, slije se dolje u lokvu i povremeno maše krakovima kao pozdrav',
+            'Unaprijeđena sinkronizacija prijava natjecatelja (atomske zastavice i izravni REST API prema oblaku) uz ostavljenu otvorenu prijavu za Silvija i Tunu dok se ne prijave',
+            'Dodana ručna kontrola statusa prijava za Administratora (Daniel) u Admin alatima'
           ],
           isCritical: true,
           updateType: 'live_web',
@@ -1825,12 +1824,18 @@ app.post('/api/calamari/update', (req, res) => {
   const existing = loadCalamari();
   const mergedLogged = Array.from(new Set([
     ...(Array.isArray(existing?.loggedParticipants) ? existing.loggedParticipants : []),
-    ...(Array.isArray(incoming.loggedParticipants) ? incoming.loggedParticipants : [])
+    ...(Array.isArray(incoming.loggedParticipants) ? incoming.loggedParticipants : []),
+    ...(existing?.logged_silvio === true || incoming.logged_silvio === true ? ['silvio'] : []),
+    ...(existing?.logged_tuna === true || incoming.logged_tuna === true ? ['tuna'] : []),
+    ...(existing?.logged_daniel === true || incoming.logged_daniel === true ? ['daniel'] : [])
   ]));
   const mergedData = {
     ...(existing || {}),
     ...incoming,
-    loggedParticipants: mergedLogged
+    loggedParticipants: mergedLogged,
+    logged_silvio: mergedLogged.includes('silvio'),
+    logged_tuna: mergedLogged.includes('tuna'),
+    logged_daniel: mergedLogged.includes('daniel')
   };
   saveCalamari(mergedData);
   if (serverDb) {
@@ -1845,15 +1850,14 @@ app.post('/api/calamari/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.8.6',
+    version: '1.8.7',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-15',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.6.apk',
+    releaseDate: '2026-11-16',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.7.apk',
     changelog: [
-      'Calamari Kup 2026: automatsko uklanjanje već prijavljenih natjecatelja s liste prijava kako bi se vidjelo tko je još ostao neprijavljen',
-      'Dodana nautička ocjena stanja mora (Douglasova ljestvica 0–5: od mirnog mora/bonace do velikih valova) i visina valova uživo za ribolov s obale u Novom Vinodolskom',
-      'Obogaćen jadranski morski ugođaj i dizajn Calamari sekcije uz plivajuću traku za Indeks griza',
-      'Verificirano Live Web OTA ažuriranje koje jamči prijenos kompletnog novog koda prije promjene broja verzije'
+      'Calamari Kup 2026: nova animacija lignje u zaglavlju koja nakon 2 sekunde poprska crnilom tekst Calamari Kup 2026, slije se dolje u lokvu i povremeno maše krakovima kao pozdrav',
+      'Unaprijeđena sinkronizacija prijava natjecatelja (atomske zastavice i izravni REST API prema oblaku) uz ostavljenu otvorenu prijavu za Silvija i Tunu dok se ne prijave',
+      'Dodana ručna kontrola statusa prijava za Administratora (Daniel) u Admin alatima'
     ],
     isCritical: true,
     updateType: 'live_web'
@@ -1876,8 +1880,8 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.8.6',
-    appVersion: '1.8.6',
+    version: '1.8.7',
+    appVersion: '1.8.7',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs

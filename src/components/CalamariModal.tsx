@@ -18,7 +18,8 @@ import {
   Star,
   Flame,
   Clock,
-  Anchor
+  Anchor,
+  RefreshCw
 } from 'lucide-react';
 import { 
   CALAMARI_PARTICIPANTS, 
@@ -27,7 +28,9 @@ import {
   CalamariCompetitionState, 
   CalamariParticipantId, 
   adminResetParticipantOrDateServer,
+  adminToggleParticipantLoginServer,
   calculateVinodolskiSolunar,
+  extractLoggedFromState,
   fetchCalamariDataServer, 
   getStoredCalamariData, 
   recordCalamariParticipantLogin,
@@ -127,6 +130,8 @@ function evaluateNauticalSeaState(waveHeightM: number): NauticalSeaStateInfo {
   return NAUTICAL_SEA_STATE_SCALE[5];
 }
 
+type SquidInkAnimStage = 'idle' | 'spraying' | 'melting' | 'puddle_waving';
+
 export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose }) => {
   const [state, setState] = useState<CalamariCompetitionState>(() => getStoredCalamariData());
   const [loggedUser, setLoggedUser] = useState<CalamariParticipantId | null>(() => {
@@ -134,7 +139,6 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     try {
       const saved = localStorage.getItem(STORAGE_LOGGED_USER_KEY) as CalamariParticipantId | null;
       if (saved) return saved;
-      // Ako je na ovom uređaju već aktiviran glavni Admin (Daniel), automatski ga prepoznaj
       const isMainAdmin =
         localStorage.getItem('ribo_device_id') === 'RP-ADMIN' ||
         localStorage.getItem('ribo_admin_authenticated') === 'true';
@@ -174,6 +178,12 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
   const [selectedUserForPin, setSelectedUserForPin] = useState<CalamariParticipantId | null>(null);
   const [showManualLoginPanel, setShowManualLoginPanel] = useState<boolean>(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [isRefreshingLogins, setIsRefreshingLogins] = useState<boolean>(false);
+
+  // Faza animacije lignje i prskanja crnila po tekstu "Calamari Kup 2026"
+  const [inkStage, setInkStage] = useState<SquidInkAnimStage>('idle');
+  const [isWavingGreeting, setIsWavingGreeting] = useState<boolean>(false);
+  const [animTriggerCount, setAnimTriggerCount] = useState<number>(0);
 
   // Admin napredne kontrole za uređivanje svih sudionika u tablici
   const [adminEditAllEnabled, setAdminEditAllEnabled] = useState<boolean>(true);
@@ -204,6 +214,54 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     waveHeightM: 0.08,
     wavePeriodS: 2.7
   });
+
+  // Pokretanje animacije lignje 2 sekunde nakon ulaska u Calamari sekciju:
+  // 1) t=2.0s: Lignja poprska crnilom po tekstu "Calamari Kup 2026"
+  // 2) t=2.7s: Crnilo se počinje slijavati i kapati dolje ispod teksta
+  // 3) t=4.5s: Crnilo ostaje ispod teksta kao sjajna lokva, a lignja povremeno maše krakovima kao pozdrav!
+  useEffect(() => {
+    if (!isOpen) {
+      setInkStage('idle');
+      setIsWavingGreeting(false);
+      return;
+    }
+
+    setInkStage('idle');
+    setIsWavingGreeting(false);
+
+    const sprayTimer = window.setTimeout(() => {
+      setInkStage('spraying');
+    }, 2000);
+
+    const meltTimer = window.setTimeout(() => {
+      setInkStage('melting');
+    }, 2750);
+
+    const puddleTimer = window.setTimeout(() => {
+      setInkStage('puddle_waving');
+      setIsWavingGreeting(true);
+    }, 4500);
+
+    const firstWaveStopTimer = window.setTimeout(() => {
+      setIsWavingGreeting(false);
+    }, 6800);
+
+    // Nakon prskanja, lignja povremeno (svakih 5.5 sekundi) mahne krakovima kao pozdrav
+    const waveInterval = window.setInterval(() => {
+      setIsWavingGreeting(true);
+      window.setTimeout(() => {
+        setIsWavingGreeting(false);
+      }, 2200);
+    }, 6000);
+
+    return () => {
+      window.clearTimeout(sprayTimer);
+      window.clearTimeout(meltTimer);
+      window.clearTimeout(puddleTimer);
+      window.clearTimeout(firstWaveStopTimer);
+      window.clearInterval(waveInterval);
+    };
+  }, [isOpen, animTriggerCount]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -269,7 +327,6 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
             ? Math.round(marineCurr.sea_surface_temperature * 10) / 10
             : 16.8;
 
-        // Izračun realne visine valova uz obalu Novog Vinodolskog (kombinacija Open-Meteo Marine valova i lokalnog vjetrovnog vala u kanalu)
         const apiWaveM =
           typeof marineCurr?.wave_height === 'number' ? marineCurr.wave_height : 0.06;
         const windInducedWaveM = windSpeed <= 0.8 ? 0.02 : Math.round(Math.pow(windSpeed, 1.35) * 0.045 * 100) / 100;
@@ -318,15 +375,13 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Kombinirana lista svih prijavljenih sudionika (lokalno + sinkronizirano iz Firestorea)
+  // Kombinirana lista svih prijavljenih sudionika (lokalno + sinkronizirano iz Firestorea uključujući neovisne zastavice logged_silvio/tuna/daniel)
   const allLoggedParticipants = useMemo(() => {
     const set = new Set<CalamariParticipantId>(localLoggedHistory);
     if (loggedUser) set.add(loggedUser);
-    if (Array.isArray(state.loggedParticipants)) {
-      state.loggedParticipants.forEach(id => set.add(id));
-    }
+    extractLoggedFromState(state).forEach(id => set.add(id));
     return Array.from(set);
-  }, [localLoggedHistory, loggedUser, state.loggedParticipants]);
+  }, [localLoggedHistory, loggedUser, state]);
 
   // Lista sudionika koji se JOŠ NISU prijavili sa svojom šifrom (prijavljeni se odmah uklanjaju s liste!)
   const unloggedParticipants = useMemo(() => {
@@ -361,6 +416,32 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     return `${noviMeteo.waveHeightM.toFixed(2)} m`;
   }, [noviMeteo.waveHeightM]);
 
+  const handleManualRefreshLogins = async () => {
+    setIsRefreshingLogins(true);
+    try {
+      const fresh = await fetchCalamariDataServer();
+      setState(fresh);
+      setSuccessToast('✓ Status prijava i tablice osvježen iz oblaka');
+      setTimeout(() => setSuccessToast(null), 2200);
+    } catch {} finally {
+      setIsRefreshingLogins(false);
+    }
+  };
+
+  const handleAdminToggleParticipantLogin = async (pid: CalamariParticipantId) => {
+    if (!isAdminUser) return;
+    const currentlyLogged = allLoggedParticipants.includes(pid);
+    const pName = CALAMARI_PARTICIPANTS.find(p => p.id === pid)?.name || pid;
+    const updated = await adminToggleParticipantLoginServer(pid, !currentlyLogged);
+    setState(updated);
+    setSuccessToast(
+      !currentlyLogged
+        ? `✓ Admin: ${pName} označen kao prijavljen`
+        : `↺ Admin: Prijava za ${pName} ponovno otvorena`
+    );
+    setTimeout(() => setSuccessToast(null), 2800);
+  };
+
   const handleLoginWithPin = async (participantId: CalamariParticipantId) => {
     const participant = CALAMARI_PARTICIPANTS.find(p => p.id === participantId);
     if (!participant) return;
@@ -383,7 +464,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
       setPinError(null);
       setSelectedUserForPin(null);
       setShowManualLoginPanel(false);
-      setSuccessToast(`✓ Prijava spremljena: ${participant.name} (uklonjen s liste neprijavljenih)`);
+      setSuccessToast(`✓ Prijava spremljena u oblak: ${participant.name}`);
       setTimeout(() => setSuccessToast(null), 3000);
 
       const updatedState = await recordCalamariParticipantLogin(participantId);
@@ -490,8 +571,11 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
   if (!isOpen) return null;
 
   const shouldShowLoginSection = !areAllUsersLogged || showManualLoginPanel;
-  // U osnovnom prikazu prikazuju se isključivo neprijavljeni natjecatelji; ako korisnik ručno klikne ikonu ključa u zaglavlju, može odabrati bilo koga za promjenu računa na uređaju
   const visibleLoginButtons = showManualLoginPanel ? CALAMARI_PIN_PARTICIPANTS : unloggedParticipants;
+
+  const isSpraying = inkStage === 'spraying';
+  const isMelting = inkStage === 'melting';
+  const isPuddleVisible = inkStage === 'melting' || inkStage === 'puddle_waving';
 
   return (
     <div className="fixed inset-0 z-[60] bg-gradient-to-b from-[#020a18] via-[#041b35] to-[#020916] flex flex-col w-full h-full overflow-hidden animate-fade-in">
@@ -502,80 +586,143 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-teal-950/40 to-transparent" />
       </div>
 
-      {/* STATIČNO ZAGLAVLJE NA VRHU EKRANA - na istoj poziciji i visini kao RiboPrognoza */}
+      {/* STATIČNO ZAGLAVLJE NA VRHU EKRANA - Veća animirana ikona lignje koja nakon 2s poprska crnilom tekst Calamari Kup 2026, crnilo se slije u lokvu ispod teksta, a lignja povremeno maše krakovima */}
       <header className="sticky top-0 z-30 shrink-0 w-full bg-[#020c1d]/95 backdrop-blur-md border-b border-cyan-500/45 shadow-[0_4px_24px_rgba(6,182,212,0.22)] pt-[env(safe-area-inset-top,0px)]">
-        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-1.5 sm:py-2.5 w-full">
+        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-2 sm:py-2.5 w-full">
           
-          {/* Glavni red zaglavlja - identičan položaj ikone i naslova kao RiboPrognoza */}
           <div className="flex items-center justify-between gap-2 w-full">
             
-            {/* Lijevo: Ikona s glavom lignje, krakovima i ekstra velikim očima + bijeli dvoredni naslov */}
-            <div 
-              onClick={onClose}
-              className="flex items-center gap-2 sm:gap-2.5 min-w-0 cursor-pointer shrink-0 group"
-              title="Povratak na RiboPrognozu"
-            >
-              <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-cyan-500/35 via-blue-700/40 to-slate-900 border border-cyan-400/70 flex items-center justify-center shadow-md ring-1 sm:ring-2 ring-cyan-500/30 group-hover:ring-cyan-400/60 transition-all shrink-0 overflow-hidden p-0.5">
+            {/* Lijevo: Veća animirana lignja + pomaknuti naslov "Calamari Kup 2026" s animacijom prskanja crnila i lokvom ispod teksta */}
+            <div className="relative flex items-center gap-3 sm:gap-4 min-w-0 shrink-0 py-0.5">
+              
+              {/* ANIMIRANA IKONA LIGNJE (veća da se sve jasno vidi, klik na nju ponavlja pozdrav/animaciju) */}
+              <div
+                onClick={() => setAnimTriggerCount(c => c + 1)}
+                title="Klikni za pozdrav lignje"
+                className={`relative h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-gradient-to-br from-cyan-500/35 via-blue-800/45 to-slate-950 border border-cyan-400/75 flex items-center justify-center shadow-lg ring-2 ring-cyan-500/30 cursor-pointer select-none shrink-0 overflow-visible p-0.5 transition-transform duration-500 ${
+                  isSpraying
+                    ? 'scale-110 rotate-12 ring-amber-400/70'
+                    : isWavingGreeting
+                    ? 'scale-105 -rotate-3 ring-teal-400/70'
+                    : 'hover:scale-105'
+                }`}
+              >
                 <svg
-                  viewBox="0 0 64 64"
-                  className="w-full h-full drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]"
+                  viewBox="0 0 68 68"
+                  className="w-full h-full overflow-visible drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
-                  aria-label="Calamari ikona"
+                  aria-label="Animirana Calamari lignja"
                 >
                   <defs>
-                    <linearGradient id="squidHeadGrad" x1="32" y1="4" x2="32" y2="42" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stopColor="#ff7eb3" />
+                    <linearGradient id="squidHeadGradAnim" x1="34" y1="3" x2="34" y2="42" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stopColor="#ff85b3" />
                       <stop offset="55%" stopColor="#f43f5e" />
                       <stop offset="100%" stopColor="#be123c" />
                     </linearGradient>
-                    <linearGradient id="squidTentacleGrad" x1="32" y1="38" x2="32" y2="62" gradientUnits="userSpaceOnUse">
+                    <linearGradient id="squidTentacleGradAnim" x1="34" y1="38" x2="34" y2="65" gradientUnits="userSpaceOnUse">
                       <stop offset="0%" stopColor="#fb7185" />
                       <stop offset="100%" stopColor="#38bdf8" />
                     </linearGradient>
                   </defs>
 
-                  {/* Krakovi (tentacles) dolje */}
+                  {/* Lijevi vanjski krak koji MAŠE KAO POZDRAV */}
+                  <g
+                    className=" transition-transform duration-300"
+                    style={{
+                      transformOrigin: '19px 40px',
+                      transform: isWavingGreeting
+                        ? 'rotate(34deg) translateY(-3px)'
+                        : isSpraying
+                        ? 'rotate(-18deg)'
+                        : 'rotate(0deg)'
+                    }}
+                  >
+                    <path
+                      d={
+                        isWavingGreeting
+                          ? 'M19 40 C9 34, 4 24, 9 16 C12 22, 14 31, 21 41'
+                          : 'M19 40 C13 48, 9 55, 12 62 C15 58, 18 51, 22 42'
+                      }
+                      stroke="url(#squidTentacleGradAnim)"
+                      strokeWidth="3.8"
+                      strokeLinecap="round"
+                    />
+                  </g>
+
+                  {/* Drugi lijevi krak (prati mahanje) */}
+                  <g
+                    className="transition-transform duration-300"
+                    style={{
+                      transformOrigin: '25px 41px',
+                      transform: isWavingGreeting ? 'rotate(18deg) translateY(-1px)' : 'rotate(0deg)'
+                    }}
+                  >
+                    <path
+                      d="M25 41 C22 50, 20 58, 23 64"
+                      stroke="url(#squidTentacleGradAnim)"
+                      strokeWidth="3.6"
+                      strokeLinecap="round"
+                    />
+                  </g>
+
+                  {/* Srednji krakovi */}
                   <path
-                    d="M18 39 C13 47, 9 53, 12 60 C14 56, 17 50, 21 42"
-                    stroke="url(#squidTentacleGrad)"
+                    d={isWavingGreeting ? 'M31 42 C29 51, 31 59, 29 65' : 'M31 42 C30 51, 30 58, 32 64'}
+                    stroke="url(#squidTentacleGradAnim)"
                     strokeWidth="3.6"
                     strokeLinecap="round"
                   />
                   <path
-                    d="M24 41 C21 49, 19 56, 22 62"
-                    stroke="url(#squidTentacleGrad)"
-                    strokeWidth="3.6"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M29 42 C28 50, 28 57, 30 62"
-                    stroke="url(#squidTentacleGrad)"
-                    strokeWidth="3.6"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M35 42 C36 50, 36 57, 34 62"
-                    stroke="url(#squidTentacleGrad)"
-                    strokeWidth="3.6"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M40 41 C43 49, 45 56, 42 62"
-                    stroke="url(#squidTentacleGrad)"
-                    strokeWidth="3.6"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M46 39 C51 47, 55 53, 52 60 C50 56, 47 50, 43 42"
-                    stroke="url(#squidTentacleGrad)"
+                    d={isWavingGreeting ? 'M37 42 C39 51, 37 59, 39 65' : 'M37 42 C38 51, 38 58, 36 64'}
+                    stroke="url(#squidTentacleGradAnim)"
                     strokeWidth="3.6"
                     strokeLinecap="round"
                   />
 
+                  {/* Drugi desni krak */}
+                  <g
+                    className="transition-transform duration-300"
+                    style={{
+                      transformOrigin: '43px 41px',
+                      transform: isWavingGreeting ? 'rotate(-20deg) translateY(-1px)' : 'rotate(0deg)'
+                    }}
+                  >
+                    <path
+                      d="M43 41 C46 50, 48 58, 45 64"
+                      stroke="url(#squidTentacleGradAnim)"
+                      strokeWidth="3.6"
+                      strokeLinecap="round"
+                    />
+                  </g>
+
+                  {/* Desni vanjski krak koji MAŠE KAO POZDRAV */}
+                  <g
+                    className="transition-transform duration-300"
+                    style={{
+                      transformOrigin: '49px 40px',
+                      transform: isWavingGreeting
+                        ? 'rotate(-36deg) translateY(-4px)'
+                        : isSpraying
+                        ? 'rotate(15deg)'
+                        : 'rotate(0deg)'
+                    }}
+                  >
+                    <path
+                      d={
+                        isWavingGreeting
+                          ? 'M49 40 C59 33, 64 22, 59 14 C56 21, 53 31, 47 41'
+                          : 'M49 40 C55 48, 59 55, 56 62 C53 58, 50 51, 46 42'
+                      }
+                      stroke="url(#squidTentacleGradAnim)"
+                      strokeWidth="3.8"
+                      strokeLinecap="round"
+                    />
+                  </g>
+
                   {/* Bočne peraje glave lignje (plašt) */}
                   <path
-                    d="M32 3 L54 18 L44 26 L20 26 L10 18 Z"
+                    d="M34 3 L57 18 L46 27 L22 27 L11 18 Z"
                     fill="#fb7185"
                     stroke="#fda4af"
                     strokeWidth="1.5"
@@ -584,35 +731,151 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
 
                   {/* Glava / Plašt lignje */}
                   <path
-                    d="M32 4 C43 12, 48 23, 46 38 C45 41, 39 43, 32 43 C25 43, 19 41, 18 38 C16 23, 21 12, 32 4 Z"
-                    fill="url(#squidHeadGrad)"
+                    d="M34 4 C45 12, 50 23, 48 39 C47 42, 41 44, 34 44 C27 44, 21 42, 20 39 C18 23, 23 12, 34 4 Z"
+                    fill="url(#squidHeadGradAnim)"
                     stroke="#ffe4e6"
                     strokeWidth="1.5"
                   />
 
                   {/* EKSTRA VELIKE OČI (Lijevo i Desno) */}
-                  <circle cx="21.5" cy="29.5" r="9.5" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
-                  <circle cx="22.5" cy="29.5" r="5.6" fill="#020617" />
-                  <circle cx="22.5" cy="29.5" r="4.2" fill="#06b6d4" />
-                  <circle cx="22.5" cy="29.5" r="2.7" fill="#020617" />
-                  <circle cx="19.5" cy="26.5" r="2.4" fill="#ffffff" />
-                  <circle cx="24.8" cy="32.2" r="1.1" fill="#ffffff" />
+                  <circle cx="23" cy="29.5" r="9.8" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
+                  <circle cx={isSpraying ? '25' : '24'} cy="29.5" r="5.8" fill="#020617" />
+                  <circle cx={isSpraying ? '25' : '24'} cy="29.5" r="4.3" fill="#06b6d4" />
+                  <circle cx={isSpraying ? '25' : '24'} cy="29.5" r="2.8" fill="#020617" />
+                  <circle cx="20.8" cy="26.5" r="2.5" fill="#ffffff" />
+                  <circle cx="26.2" cy="32.2" r="1.1" fill="#ffffff" />
 
-                  <circle cx="42.5" cy="29.5" r="9.5" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
-                  <circle cx="41.5" cy="29.5" r="5.6" fill="#020617" />
-                  <circle cx="41.5" cy="29.5" r="4.2" fill="#06b6d4" />
-                  <circle cx="41.5" cy="29.5" r="2.7" fill="#020617" />
-                  <circle cx="39.5" cy="26.5" r="2.4" fill="#ffffff" />
-                  <circle cx="44.8" cy="32.2" r="1.1" fill="#ffffff" />
+                  <circle cx="45" cy="29.5" r="9.8" fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
+                  <circle cx={isSpraying ? '46.5' : '44'} cy="29.5" r="5.8" fill="#020617" />
+                  <circle cx={isSpraying ? '46.5' : '44'} cy="29.5" r="4.3" fill="#06b6d4" />
+                  <circle cx={isSpraying ? '46.5' : '44'} cy="29.5" r="2.8" fill="#020617" />
+                  <circle cx="42" cy="26.5" r="2.5" fill="#ffffff" />
+                  <circle cx="47.2" cy="32.2" r="1.1" fill="#ffffff" />
+
+                  {/* Mlaznica (sifon) iz koje lignja špricne crnilo u 2. sekundi */}
+                  {isSpraying && (
+                    <g>
+                      <path
+                        d="M50 36 Q 68 28, 92 22"
+                        stroke="#020617"
+                        strokeWidth="6"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M50 36 Q 68 28, 92 22"
+                        stroke="#38bdf8"
+                        strokeWidth="1.2"
+                        strokeDasharray="4 3"
+                        strokeLinecap="round"
+                      />
+                      <circle cx="66" cy="30" r="3.5" fill="#020617" stroke="#38bdf8" strokeWidth="0.8" />
+                      <circle cx="79" cy="25" r="4.2" fill="#020617" stroke="#38bdf8" strokeWidth="0.8" />
+                    </g>
+                  )}
                 </svg>
+
+                {/* Mali pozdravni oblačić dok maše krakovima */}
+                {isWavingGreeting && (
+                  <span className="pointer-events-none absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full bg-cyan-500 text-slate-950 font-black text-[9px] shadow-md animate-bounce">
+                    👋
+                  </span>
+                )}
               </div>
-              <div className="h-9 sm:h-11 py-[1px] flex flex-col justify-between items-start text-left select-none shrink-0">
-                <span className="font-black text-white text-[15px] sm:text-[19px] leading-none tracking-tight block">
+
+              {/* NASLOV "Calamari Kup 2026" pomaknut udesno s animacijom crnila koje se slijeva u lokvu ispod teksta */}
+              <div
+                onClick={onClose}
+                className="relative pl-1 sm:pl-2 pr-2 pb-3 pt-0.5 flex flex-col justify-between items-start text-left select-none shrink-0 cursor-pointer"
+                title="Povratak na RiboPrognozu"
+              >
+                {/* Tekst naslova u bijeloj boji */}
+                <span className="relative z-10 font-black text-white text-[15px] sm:text-[19px] leading-tight tracking-tight block drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                   Calamari
                 </span>
-                <span className="font-black text-white text-[15px] sm:text-[19px] leading-none tracking-tight block">
+                <span className="relative z-10 font-black text-white text-[15px] sm:text-[19px] leading-tight tracking-tight block drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                   Kup 2026
                 </span>
+
+                {/* MRLJE CRNILA PREKO TEKSTA koje se u fazi 'spraying' pojave na tekstu, a u fazi 'melting' polako slijevaju i kapaju dolje */}
+                {(isSpraying || isMelting) && (
+                  <svg
+                    viewBox="0 0 140 52"
+                    className={`pointer-events-none absolute inset-0 w-full h-full z-20 overflow-visible transition-all duration-[1650ms] ease-in ${
+                      isMelting ? 'translate-y-5 opacity-25 scale-y-125' : 'translate-y-0 opacity-95 scale-100'
+                    }`}
+                  >
+                    {/* Glavne mrlje crnila po slovima Calamari Kup 2026 */}
+                    <path
+                      d="M12,12 C22,6 35,8 42,15 C49,9 64,8 72,16 C82,10 98,12 104,20 C108,27 96,34 86,33 C82,40 74,45 69,43 C63,41 61,34 52,35 C45,42 36,46 31,43 C25,40 24,33 14,31 C6,28 5,18 12,12 Z"
+                      fill="#02040a"
+                      stroke="#38bdf8"
+                      strokeWidth="1.1"
+                    />
+                    {/*Sjaj mokrog crnila */}
+                    <path
+                      d="M20,16 Q38,12 56,18"
+                      stroke="#bae6fd"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      fill="none"
+                      opacity="0.7"
+                    />
+                    <path
+                      d="M66,22 Q82,19 94,24"
+                      stroke="#bae6fd"
+                      strokeWidth="1.3"
+                      strokeLinecap="round"
+                      fill="none"
+                      opacity="0.65"
+                    />
+                    {/* Kapi crnila koje se cijede prema dolje u lokvu */}
+                    <circle cx="26" cy="44" r="3.5" fill="#02040a" stroke="#38bdf8" strokeWidth="0.9" />
+                    <circle cx="54" cy="46" r="4" fill="#02040a" stroke="#38bdf8" strokeWidth="0.9" />
+                    <circle cx="82" cy="43" r="3.2" fill="#02040a" stroke="#38bdf8" strokeWidth="0.9" />
+                  </svg>
+                )}
+
+                {/* TRAJNA LOKVA CRNILA ("lokva") ISPOD TEKSTA Calamari Kup 2026 u koju se crnilo slije i ostane */}
+                <svg
+                  viewBox="0 0 150 22"
+                  className={`pointer-events-none absolute -bottom-1 left-0 w-[112%] h-5 z-20 overflow-visible transition-all duration-1000 ease-out ${
+                    isPuddleVisible
+                      ? 'opacity-100 scale-x-100 translate-y-0'
+                      : isSpraying
+                      ? 'opacity-45 scale-x-50 -translate-y-1'
+                      : 'opacity-0 scale-x-0'
+                  }`}
+                >
+                  {/* Glavna lokva crnila ispod teksta */}
+                  <path
+                    d="M4,12 C14,6 38,5 68,7 C98,5 126,6 142,12 C147,15 138,20 112,20 C84,21 52,21 24,20 C6,19 -1,15 4,12 Z"
+                    fill="#010308"
+                    stroke="#38bdf8"
+                    strokeWidth="1.2"
+                  />
+                  {/* Unutarnji tamni ljubičasto-crni odsjaj */}
+                  <ellipse cx="74" cy="13.5" rx="55" ry="4.2" fill="#090d1a" />
+                  {/* Mokri odsjaj na površini lokve crnila */}
+                  <path
+                    d="M22,12 Q56,9 98,12"
+                    stroke="#7dd3fc"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    fill="none"
+                    opacity="0.8"
+                  />
+                  <path
+                    d="M108,14 Q120,13 128,14.5"
+                    stroke="#e0f2fe"
+                    strokeWidth="1.1"
+                    strokeLinecap="round"
+                    fill="none"
+                    opacity="0.75"
+                  />
+                  {/* Dvije male kapljice crnila uz rub lokve */}
+                  <ellipse cx="145" cy="15" rx="3.2" ry="1.8" fill="#010308" stroke="#38bdf8" strokeWidth="0.8" />
+                  <ellipse cx="2" cy="15.5" rx="2.5" ry="1.4" fill="#010308" stroke="#38bdf8" strokeWidth="0.8" />
+                </svg>
               </div>
             </div>
 
@@ -664,9 +927,8 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
       <div className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 sm:px-6 lg:px-8 py-3 sm:py-5">
         <div className="max-w-5xl mx-auto space-y-3.5 sm:space-y-5">
 
-          {/* PLIVAJUĆA POMORSKA METEO & INDEKS GRIZA SEKCIJA (Novi Vinodolski, Mjesec, Indeks griza, Temp. zraka, Vjetar, Tlak zraka, Temp. mora, Smjer vjetra + Nautičko stanje mora i valovi) */}
+          {/* PLIVAJUĆA POMORSKA METEO & INDEKS GRIZA SEKCIJA */}
           <div className="relative overflow-hidden bg-gradient-to-br from-[#041a33]/95 via-[#062544]/90 to-[#031326]/95 border border-cyan-400/45 rounded-2xl px-3 sm:px-4 py-3 shadow-[0_8px_28px_rgba(6,182,212,0.16)] flex flex-col gap-2.5 text-[11px] sm:text-xs text-cyan-100">
-            {/* Dekorativni morski val u pozadini kartice */}
             <svg
               viewBox="0 0 1200 60"
               preserveAspectRatio="none"
@@ -775,6 +1037,17 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                       </span>
                     </span>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={handleManualRefreshLogins}
+                    disabled={isRefreshingLogins}
+                    className="px-2 py-0.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/35 text-[10.5px] font-bold text-cyan-300 inline-flex items-center gap-1 cursor-pointer active:scale-95"
+                    title="Osvježi status prijava iz oblaka"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isRefreshingLogins ? 'animate-spin' : ''}`} />
+                    <span>Osvježi</span>
+                  </button>
                 </div>
 
                 {/* Gumbovi samo za one koji su JOŠ OSTALI NEPRIJAVLJENI (u sredini ekrana s velikim razmakom) */}
@@ -956,20 +1229,44 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
               )}
             </div>
 
-            {/* Prošireni Admin alati za brzo uređivanje ili nuliranje po potrebi */}
+            {/* Prošireni Admin alati za upravljanje prijavama i brzo nuliranje po potrebi */}
             {isAdminUser && showAdminTools && (
               <div className="p-3 sm:p-4 bg-slate-950/95 border-b border-cyan-500/30 space-y-3 animate-fade-in">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-black text-teal-300 flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-teal-400" />
-                    Administratorska upravljačka ploča tablice (Daniel)
+                    Administratorska upravljačka ploča tablice i prijava (Daniel)
                   </span>
                   <span className="text-[11px] text-slate-400">
-                    U tablici ispod možete izravno mijenjati broj liganja (- / + / upis) za Dida, Tuna, Silvio i Daniel
+                    Možete izravno uređivati broj liganja te upravljati statusom prijava
                   </span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 pt-1">
+                {/* Admin ručna kontrola statusa prijava (ako netko kaže da se prijavio ili treba ponovno otvoriti prijavu) */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-b border-slate-800 pb-2.5">
+                  <span className="text-[11px] font-bold text-cyan-300 mr-1">Status prijava sudionika (klik za promjenu):</span>
+                  {CALAMARI_PIN_PARTICIPANTS.map(pid => {
+                    const p = CALAMARI_PARTICIPANTS.find(item => item.id === pid)!;
+                    const isLogged = allLoggedParticipants.includes(pid);
+                    return (
+                      <button
+                        key={pid}
+                        type="button"
+                        onClick={() => handleAdminToggleParticipantLogin(pid)}
+                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold cursor-pointer flex items-center gap-1 transition-colors ${
+                          isLogged
+                            ? 'bg-teal-950/80 text-teal-200 border-teal-400/60 hover:bg-teal-900'
+                            : 'bg-amber-950/60 text-amber-200 border-amber-400/50 hover:bg-amber-900/70'
+                        }`}
+                      >
+                        {isLogged ? <Check className="w-3 h-3 text-teal-400" /> : <KeyRound className="w-3 h-3 text-amber-400" />}
+                        <span>{p.name}: {isLogged ? 'Prijavljen (Uklonjen s liste)' : 'Neprijavljen (Otvoren)'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
                   <span className="text-[11px] font-bold text-slate-300 mr-1">Brzo nuliranje sudionika:</span>
                   {CALAMARI_PARTICIPANTS.map(p => (
                     <button
