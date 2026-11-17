@@ -239,19 +239,88 @@ export default function App() {
     }
   }, []);
 
-  // Automatsko početno učitavanje podataka + kontinuirano osvježavanje u stvarnom vremenu
+  // Automatsko početno učitavanje podataka + kontinuirano osvježavanje isključivo dok je zaslon aktivan (0% potrošnje baterije u pozadini)
   useEffect(() => {
     handleRefreshAll();
 
-    // Automatsko osvježavanje svih live podataka svake 3 minute dok je aplikacija vidljiva
+    // Automatsko osvježavanje svih live podataka svakih 5 minuta isključivo dok je aplikacija vidljiva na zaslonu
     const liveRefreshInterval = setInterval(() => {
-      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+      if (typeof document === 'undefined' || !document.hidden) {
         handleRefreshAll();
       }
-    }, 3 * 60 * 1000);
+    }, 5 * 60 * 1000);
+
+    // Real-time Firestore pretplata na mjerne postaje Aljmaš i Bogojevo (aktivna SAMO dok je aplikacija na zaslonu!)
+    let unsubAljmas: (() => void) | undefined;
+    let unsubBogojevo: (() => void) | undefined;
+
+    const attachStationListeners = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      try {
+        if (!unsubAljmas) {
+          unsubAljmas = onSnapshot(doc(db, 'water_stations', 'aljmas'), (snap) => {
+            if (snap.exists()) {
+              const d = snap.data();
+              if (d && typeof d.waterLevelCm === 'number') {
+                setAljmasData(prev => ({
+                  ...prev,
+                  waterLevelCm: d.waterLevelCm,
+                  waterLevelTrend: d.waterLevelTrend || prev.waterLevelTrend,
+                  waterLevelChangeCm: typeof d.waterLevelChangeCm === 'number' ? d.waterLevelChangeCm : prev.waterLevelChangeCm,
+                  airTempC: typeof d.airTempC === 'number' ? d.airTempC : prev.airTempC,
+                  waterTempC: typeof d.waterTempC === 'number' ? d.waterTempC : prev.waterTempC,
+                  airPressureHpa: typeof d.airPressureHpa === 'number' ? d.airPressureHpa : prev.airPressureHpa,
+                  timeOfMeasurement: d.timeOfMeasurement || prev.timeOfMeasurement,
+                  dateOfMeasurement: d.dateOfMeasurement || prev.dateOfMeasurement,
+                  isLive: true
+                }));
+              }
+            }
+          }, () => {});
+        }
+
+        if (!unsubBogojevo) {
+          unsubBogojevo = onSnapshot(doc(db, 'water_stations', 'bogojevo'), (snap) => {
+            if (snap.exists()) {
+              const d = snap.data();
+              if (d && typeof d.waterLevelCm === 'number') {
+                setBogojevoData(prev => ({
+                  ...prev,
+                  waterLevelCm: d.waterLevelCm,
+                  waterLevelTrend: d.waterLevelTrend || prev.waterLevelTrend,
+                  waterLevelChangeCm: typeof d.waterLevelChangeCm === 'number' ? d.waterLevelChangeCm : prev.waterLevelChangeCm,
+                  airTempC: typeof d.airTempC === 'number' ? d.airTempC : prev.airTempC,
+                  waterTempC: typeof d.waterTempC === 'number' ? d.waterTempC : prev.waterTempC,
+                  airPressureHpa: typeof d.airPressureHpa === 'number' ? d.airPressureHpa : prev.airPressureHpa,
+                  flowM3s: typeof d.flowM3s === 'number' ? d.flowM3s : prev.flowM3s,
+                  isLive: true
+                }));
+              }
+            }
+          }, () => {});
+        }
+      } catch {}
+    };
+
+    const detachStationListeners = () => {
+      if (unsubAljmas) {
+        try { unsubAljmas(); } catch {}
+        unsubAljmas = undefined;
+      }
+      if (unsubBogojevo) {
+        try { unsubBogojevo(); } catch {}
+        unsubBogojevo = undefined;
+      }
+    };
+
+    attachStationListeners();
 
     const handleLiveVisibilityOrOnline = () => {
-      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+      if (typeof document !== 'undefined' && document.hidden) {
+        // Čim korisnik ugasi zaslon ili minimizira aplikaciju, odspoji pozadinske listenere radi štednje baterije
+        detachStationListeners();
+      } else {
+        attachStationListeners();
         handleRefreshAll();
       }
     };
@@ -259,56 +328,11 @@ export default function App() {
     document.addEventListener('visibilitychange', handleLiveVisibilityOrOnline);
     window.addEventListener('online', handleLiveVisibilityOrOnline);
 
-    // Real-time Firestore pretplata na mjerne postaje Aljmaš i Bogojevo
-    let unsubAljmas: (() => void) | undefined;
-    let unsubBogojevo: (() => void) | undefined;
-    try {
-      unsubAljmas = onSnapshot(doc(db, 'water_stations', 'aljmas'), (snap) => {
-        if (snap.exists()) {
-          const d = snap.data();
-          if (d && typeof d.waterLevelCm === 'number') {
-            setAljmasData(prev => ({
-              ...prev,
-              waterLevelCm: d.waterLevelCm,
-              waterLevelTrend: d.waterLevelTrend || prev.waterLevelTrend,
-              waterLevelChangeCm: typeof d.waterLevelChangeCm === 'number' ? d.waterLevelChangeCm : prev.waterLevelChangeCm,
-              airTempC: typeof d.airTempC === 'number' ? d.airTempC : prev.airTempC,
-              waterTempC: typeof d.waterTempC === 'number' ? d.waterTempC : prev.waterTempC,
-              airPressureHpa: typeof d.airPressureHpa === 'number' ? d.airPressureHpa : prev.airPressureHpa,
-              timeOfMeasurement: d.timeOfMeasurement || prev.timeOfMeasurement,
-              dateOfMeasurement: d.dateOfMeasurement || prev.dateOfMeasurement,
-              isLive: true
-            }));
-          }
-        }
-      }, () => {});
-
-      unsubBogojevo = onSnapshot(doc(db, 'water_stations', 'bogojevo'), (snap) => {
-        if (snap.exists()) {
-          const d = snap.data();
-          if (d && typeof d.waterLevelCm === 'number') {
-            setBogojevoData(prev => ({
-              ...prev,
-              waterLevelCm: d.waterLevelCm,
-              waterLevelTrend: d.waterLevelTrend || prev.waterLevelTrend,
-              waterLevelChangeCm: typeof d.waterLevelChangeCm === 'number' ? d.waterLevelChangeCm : prev.waterLevelChangeCm,
-              airTempC: typeof d.airTempC === 'number' ? d.airTempC : prev.airTempC,
-              waterTempC: typeof d.waterTempC === 'number' ? d.waterTempC : prev.waterTempC,
-              airPressureHpa: typeof d.airPressureHpa === 'number' ? d.airPressureHpa : prev.airPressureHpa,
-              flowM3s: typeof d.flowM3s === 'number' ? d.flowM3s : prev.flowM3s,
-              isLive: true
-            }));
-          }
-        }
-      }, () => {});
-    } catch {}
-
     return () => {
       clearInterval(liveRefreshInterval);
       document.removeEventListener('visibilitychange', handleLiveVisibilityOrOnline);
       window.removeEventListener('online', handleLiveVisibilityOrOnline);
-      if (unsubAljmas) unsubAljmas();
-      if (unsubBogojevo) unsubBogojevo();
+      detachStationListeners();
     };
   }, [handleRefreshAll]);
 

@@ -434,9 +434,15 @@ app.get('/api/water/aljmas', async (_req, res) => {
       updatedAt: Date.now()
     };
 
+    const aljmasChanged =
+      lastAljmasSnapshot.waterLevelCm !== aljmasPayload.waterLevelCm ||
+      lastAljmasSnapshot.waterTempC !== aljmasPayload.waterTempC ||
+      lastAljmasSnapshot.airTempC !== aljmasPayload.airTempC ||
+      lastAljmasSnapshot.airPressureHpa !== aljmasPayload.airPressureHpa;
+
     lastAljmasSnapshot = aljmasPayload;
 
-    if (serverDb) {
+    if (serverDb && aljmasChanged) {
       setDoc(doc(serverDb, 'water_stations', 'aljmas'), aljmasPayload, { merge: true }).catch(() => {});
     }
 
@@ -536,9 +542,15 @@ app.get('/api/water/bogojevo', async (_req, res) => {
       updatedAt: Date.now()
     };
 
+    const bogojevoChanged =
+      lastBogojevoSnapshot.waterLevelCm !== bogojevoPayload.waterLevelCm ||
+      lastBogojevoSnapshot.waterTempC !== bogojevoPayload.waterTempC ||
+      lastBogojevoSnapshot.airTempC !== bogojevoPayload.airTempC ||
+      lastBogojevoSnapshot.airPressureHpa !== bogojevoPayload.airPressureHpa;
+
     lastBogojevoSnapshot = bogojevoPayload;
 
-    if (serverDb) {
+    if (serverDb && bogojevoChanged) {
       setDoc(doc(serverDb, 'water_stations', 'bogojevo'), bogojevoPayload, { merge: true }).catch(() => {});
     }
 
@@ -891,11 +903,11 @@ try {
       }
     }).catch(() => {});
 
-    // 2 & 3. Objavi PRVO kompilirani JS i CSS bundle u Firestore ota_bundle (tek nakon provjere da dist/assets/app-bundle.js stvarno sadrži v1.8.7!),
+    // 2 & 3. Objavi PRVO kompilirani JS i CSS bundle u Firestore ota_bundle (tek nakon provjere da dist/assets/app-bundle.js stvarno sadrži v1.8.8!),
     // a TEK ZATIM ažuriraj app_updates/latest (sprječava da poslužitelj ikada pošalje nekompilirani stari kod s novim brojem verzije!)
     const publishOtaBundleAndVersionToFirestore = async () => {
       try {
-        const TARGET_VER = '1.8.7';
+        const TARGET_VER = '1.8.8';
         const jsPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
         const cssPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.css');
         if (!fs.existsSync(jsPath)) {
@@ -939,12 +951,12 @@ try {
         await setDoc(doc(serverDb, 'app_updates', 'latest'), {
           version: TARGET_VER,
           name: 'RiboPrognoza',
-          releaseDate: '2026-11-16',
+          releaseDate: '2026-11-17',
           apkUrl: `https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v${TARGET_VER}.apk`,
           changelog: [
-            'Calamari Kup 2026: nova animacija lignje u zaglavlju koja nakon 2 sekunde poprska crnilom tekst Calamari Kup 2026, slije se dolje u lokvu i povremeno maše krakovima kao pozdrav',
-            'Unaprijeđena sinkronizacija prijava natjecatelja (atomske zastavice i izravni REST API prema oblaku) uz ostavljenu otvorenu prijavu za Silvija i Tunu dok se ne prijave',
-            'Dodana ručna kontrola statusa prijava za Administratora (Daniel) u Admin alatima'
+            'Napredna optimizacija potrošnje baterije na Androidu: automatsko gašenje svih pozadinskih mrežnih veza, Firestore WebChannel kanala i tajmera dok je zaslon ugašen ili aplikacija u pozadini (0% potrošnje u mirovanju)',
+            'Calamari Kup 2026: zadržan trenutačni prikaz svih promjena u stvarnom vremenu dok je sekcija otvorena, uz pametno dedupliciranje osvježavanja bez nepotrebnog buđenja procesora',
+            'Uklonjeni pozadinski servisi i alarmi koji su uzrokovali Android obavijesti o povećanoj potrošnji baterije'
           ],
           isCritical: true,
           updateType: 'live_web',
@@ -1850,14 +1862,14 @@ app.post('/api/calamari/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.8.7',
+    version: '1.8.8',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-16',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.7.apk',
+    releaseDate: '2026-11-17',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.8.apk',
     changelog: [
-      'Calamari Kup 2026: nova animacija lignje u zaglavlju koja nakon 2 sekunde poprska crnilom tekst Calamari Kup 2026, slije se dolje u lokvu i povremeno maše krakovima kao pozdrav',
-      'Unaprijeđena sinkronizacija prijava natjecatelja (atomske zastavice i izravni REST API prema oblaku) uz ostavljenu otvorenu prijavu za Silvija i Tunu dok se ne prijave',
-      'Dodana ručna kontrola statusa prijava za Administratora (Daniel) u Admin alatima'
+      'Napredna optimizacija potrošnje baterije na Androidu: automatsko gašenje svih pozadinskih mrežnih veza, Firestore WebChannel kanala i tajmera dok je zaslon ugašen ili aplikacija u pozadini (0% potrošnje u mirovanju)',
+      'Calamari Kup 2026: zadržan trenutačni prikaz svih promjena u stvarnom vremenu dok je sekcija otvorena, uz pametno dedupliciranje osvježavanja bez nepotrebnog buđenja procesora',
+      'Uklonjeni pozadinski servisi i alarmi koji su uzrokovali Android obavijesti o povećanoj potrošnji baterije'
     ],
     isCritical: true,
     updateType: 'live_web'
@@ -1880,8 +1892,8 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.8.7',
-    appVersion: '1.8.7',
+    version: '1.8.8',
+    appVersion: '1.8.8',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs

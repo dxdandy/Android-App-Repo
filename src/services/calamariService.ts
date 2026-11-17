@@ -1,5 +1,5 @@
 import { doc, setDoc, onSnapshot, Unsubscribe, getDoc, arrayUnion } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, setFirestoreNetworkActive } from './firebase';
 import { getApiUrl } from './licenseService';
 
 export type CalamariParticipantId = 'dida' | 'tuna' | 'silvio' | 'daniel';
@@ -159,11 +159,12 @@ async function syncParticipantLoginRestFallback(participantId: CalamariParticipa
 
 async function fetchCalamariRestFallback(): Promise<Partial<CalamariCompetitionState> | null> {
   try {
-    const url = `${FIRESTORE_REST_BASE}/calamari_competition/${FIRESTORE_CALAMARI_DOC}?updateMask.fieldPaths=_ping`;
+    // Čisti GET upit (bez PATCH pisanja _ping polja) kako se ne bi trošila kvota pisanja i budili ostali uređaji
+    const url = `${FIRESTORE_REST_BASE}/calamari_competition/${FIRESTORE_CALAMARI_DOC}?t=${Date.now()}`;
     const res = await fetch(url, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { _ping: { integerValue: '1' } } }),
+      method: 'GET',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(4500)
     });
     if (!res.ok) return null;
@@ -197,11 +198,13 @@ async function fetchCalamariRestFallback(): Promise<Partial<CalamariCompetitionS
     }
 
     const updatedAt = Number(fields.updatedAt?.integerValue ?? fields.updatedAt?.doubleValue ?? 0) || Date.now();
+    const lastUpdatedBy = fields.lastUpdatedBy?.stringValue || undefined;
     const loggedParticipants = Array.from(loggedSet);
 
     return {
       catches,
       updatedAt,
+      lastUpdatedBy,
       loggedParticipants,
       ...buildLoggedFlags(loggedParticipants)
     };
@@ -565,40 +568,105 @@ export async function adminResetParticipantOrDateServer(
   return current;
 }
 
+function getCalamariStateSignature(s: CalamariCompetitionState): string {
+  const logged = extractLoggedFromState(s).slice().sort().join(',');
+  return JSON.stringify({
+    c: s.catches,
+    l: logged,
+    by: s.lastUpdatedBy || ''
+  });
+}
+
 export function subscribeToCalamariData(callback: (state: CalamariCompetitionState) => void): Unsubscribe {
   const docRef = doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC);
-  const unsubFirestore = onSnapshot(docRef, (snap) => {
-    if (snap.exists()) {
-      const data = snap.data() as CalamariCompetitionState;
-      if (data && data.catches) {
-        const localDeviceOnly = getLocalDeviceLoggedParticipants();
-        const remoteLogged = extractLoggedFromState(data);
-        const mergedLogged = Array.from(new Set([...localDeviceOnly, ...remoteLogged]));
-        const merged: CalamariCompetitionState = {
-          ...data,
-          loggedParticipants: mergedLogged,
-          ...buildLoggedFlags(mergedLogged)
-        };
-        saveStoredCalamariData(merged);
-        callback(merged);
-      }
-    }
-  }, (error) => {
-    console.warn('Calamari live sync warning:', error);
-  });
+  let unsubFirestore: Unsubscribe | null = null;
+  let lastSignature = '';
 
-  // Dodatni live interval svakih 5 sekundi dok je prozor otvoren (koristi i REST fallback za 100% pouzdanost na mobitelu)
+  const emitIfChanged = (state: CalamariCompetitionState) => {
+    const sig = getCalamariStateSignature(state);
+    if (sig !== lastSignature) {
+      lastSignature = sig;
+      callback(state);
+    }
+  };
+
+  const attachRealtimeListener = () => {
+    if (unsubFirestore) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    setFirestoreNetworkActive(true);
+
+    unsubFirestore = onSnapshot(
+      docRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as CalamariCompetitionState;
+          if (data && data.catches) {
+            const localDeviceOnly = getLocalDeviceLoggedParticipants();
+            const remoteLogged = extractLoggedFromState(data);
+            const mergedLogged = Array.from(new Set([...localDeviceOnly, ...remoteLogged]));
+            const merged: CalamariCompetitionState = {
+              ...data,
+              loggedParticipants: mergedLogged,
+              ...buildLoggedFlags(mergedLogged)
+            };
+            saveStoredCalamariData(merged);
+            emitIfChanged(merged);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Calamari live sync warning:', error);
+      }
+    );
+  };
+
+  const detachRealtimeListener = () => {
+    if (unsubFirestore) {
+      try {
+        unsubFirestore();
+      } catch {}
+      unsubFirestore = null;
+    }
+  };
+
+  // Odmah pokreni real-time slušanje dok je Calamari sekcija otvorena i zaslon uključen
+  attachRealtimeListener();
+
+  // Brzi pričuvni interval (svake 4 sekunde isključivo dok je zaslon uključen)
+  // Osigurava da svaki unos ulova ili prijave bude odmah vidljiv kod svih čak i na slabijem mobilnom signalu,
+  // a potpuno miruje (0% baterije) kada je zaslon zaključan ili aplikacija u pozadini!
   const pollTimer = setInterval(async () => {
     if (typeof document !== 'undefined' && document.hidden) return;
     try {
       const fresh = await fetchCalamariDataServer();
-      callback(fresh);
+      emitIfChanged(fresh);
     } catch {}
-  }, 5000);
+  }, 4000);
+
+  const handleVisibilityChange = () => {
+    if (typeof document === 'undefined') return;
+    if (document.hidden) {
+      // Korisnik je zaključao zaslon ili minimizirao aplikaciju -> odspoji listener radi 0% potrošnje baterije
+      detachRealtimeListener();
+    } else {
+      // Korisnik je ponovno uključio zaslon -> odmah spoji real-time listener i povuci najsvježije podatke
+      attachRealtimeListener();
+      fetchCalamariDataServer()
+        .then((fresh) => emitIfChanged(fresh))
+        .catch(() => {});
+    }
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  }
 
   return () => {
-    unsubFirestore();
+    detachRealtimeListener();
     clearInterval(pollTimer);
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
   };
 }
 

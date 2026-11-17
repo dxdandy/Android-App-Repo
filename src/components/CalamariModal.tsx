@@ -246,19 +246,23 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
       setIsWavingGreeting(false);
     }, 6800);
 
-    // Nakon prskanja, lignja povremeno (svakih 5.5 sekundi) mahne krakovima kao pozdrav
+    // Nakon prskanja, lignja povremeno mahne krakovima kao pozdrav (isključivo dok je zaslon uključen)
+    let waveStopTimeout: number | undefined;
     const waveInterval = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       setIsWavingGreeting(true);
-      window.setTimeout(() => {
+      if (waveStopTimeout) window.clearTimeout(waveStopTimeout);
+      waveStopTimeout = window.setTimeout(() => {
         setIsWavingGreeting(false);
       }, 2200);
-    }, 6000);
+    }, 9000);
 
     return () => {
       window.clearTimeout(sprayTimer);
       window.clearTimeout(meltTimer);
       window.clearTimeout(puddleTimer);
       window.clearTimeout(firstWaveStopTimer);
+      if (waveStopTimeout) window.clearTimeout(waveStopTimeout);
       window.clearInterval(waveInterval);
     };
   }, [isOpen, animTriggerCount]);
@@ -285,6 +289,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     };
 
     const loadLiveNoviVinodolskiData = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
         const [meteoRes, weatherRawRes, marineRawRes] = await Promise.allSettled([
           fetchMeteoForCoords(45.1278, 14.7892),

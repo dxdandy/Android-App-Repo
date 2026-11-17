@@ -9,12 +9,12 @@
  */
 
 import { registerPlugin } from '@capacitor/core';
-import { doc, onSnapshot, getDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { doc, onSnapshot, getDoc, Unsubscribe } from 'firebase/firestore';
+import { db, setFirestoreNetworkActive } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 import { getApiUrl } from './licenseService';
 
-export const BUNDLED_APP_VERSION = '1.8.7';
+export const BUNDLED_APP_VERSION = '1.8.8';
 export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
 export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
 
@@ -51,11 +51,13 @@ async function getFirestoreDocQuotaSafe(collectionName: string, docId: string): 
   } catch {}
 
   try {
-    const url = `${FIRESTORE_REST_BASE}/${encodeURIComponent(collectionName)}/${encodeURIComponent(docId)}?updateMask.fieldPaths=_ping`;
+    // Čisti GET upit (bez pisanja _ping polja) kako provjera ažuriranja nikada ne bi budila ostale uređaje
+    const url = `${FIRESTORE_REST_BASE}/${encodeURIComponent(collectionName)}/${encodeURIComponent(docId)}?t=${Date.now()}`;
     const res = await fetch(url, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { _ping: { integerValue: '1' } } })
+      method: 'GET',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(4500)
     });
     if (res.ok) {
       const json = await res.json();
@@ -779,6 +781,9 @@ export function subscribeToLiveUpdates(
   onUpdateAvailable: (info: AppVersionInfo) => void
 ): () => void {
   try {
+    let unsubUpdates: Unsubscribe | null = null;
+    let unsubManifest: Unsubscribe | null = null;
+
     const handleIncomingVersion = (rawVersion: string, data?: any) => {
       if (!rawVersion) return;
       const cleanVer = normalizeDisplayVersion(rawVersion);
@@ -804,27 +809,73 @@ export function subscribeToLiveUpdates(
       }
     };
 
-    const unsubUpdates = onSnapshot(doc(db, 'app_updates', 'latest'), snapshot => {
-      if (!snapshot.exists()) return;
-      const data = snapshot.data();
-      if (data?.version) {
-        handleIncomingVersion(String(data.version), data);
+    const attachListeners = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      setFirestoreNetworkActive(true);
+      if (!unsubUpdates) {
+        unsubUpdates = onSnapshot(
+          doc(db, 'app_updates', 'latest'),
+          (snapshot) => {
+            if (!snapshot.exists()) return;
+            const data = snapshot.data();
+            if (data?.version) {
+              handleIncomingVersion(String(data.version), data);
+            }
+          },
+          () => {}
+        );
       }
-    }, err => {
-      console.warn('Greška pri slušanju app_updates u Firestoreu:', err);
-    });
+      if (!unsubManifest) {
+        unsubManifest = onSnapshot(
+          doc(db, 'ota_bundle', 'manifest'),
+          (snapshot) => {
+            if (!snapshot.exists()) return;
+            const data = snapshot.data();
+            if (data?.version) {
+              handleIncomingVersion(String(data.version), data);
+            }
+          },
+          () => {}
+        );
+      }
+    };
 
-    const unsubManifest = onSnapshot(doc(db, 'ota_bundle', 'manifest'), snapshot => {
-      if (!snapshot.exists()) return;
-      const data = snapshot.data();
-      if (data?.version) {
-        handleIncomingVersion(String(data.version), data);
+    const detachListeners = () => {
+      if (unsubUpdates) {
+        try {
+          unsubUpdates();
+        } catch {}
+        unsubUpdates = null;
       }
-    }, () => {});
+      if (unsubManifest) {
+        try {
+          unsubManifest();
+        } catch {}
+        unsubManifest = null;
+      }
+    };
+
+    attachListeners();
+
+    const handleVisibility = () => {
+      if (typeof document === 'undefined') return;
+      if (document.hidden) {
+        // Čim aplikacija ode u pozadinu ili se zaslon ugasi, odspoji listenere radi 0% potrošnje baterije
+        detachListeners();
+      } else {
+        attachListeners();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
 
     return () => {
-      unsubUpdates();
-      unsubManifest();
+      detachListeners();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
     };
   } catch {
     return () => {};

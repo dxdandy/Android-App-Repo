@@ -88,19 +88,9 @@ public class MainActivity extends BridgeActivity {
 
     private void startChatBackgroundMonitoring() {
         try {
-            // Pokreni trajni servis
-            Intent serviceIntent = new Intent(this, ChatBackgroundService.class);
-            startService(serviceIntent);
-        } catch (Exception e) {
-            Log.w(TAG, "Pokretanje ChatBackgroundService: " + e.getMessage());
-        }
-
-        try {
-            // Zakaži AlarmManager buđenje (radi čak i kada je aplikacija ugašena)
-            ChatAlarmReceiver.scheduleNextAlarm(this);
-        } catch (Exception e) {
-            Log.w(TAG, "Zakazivanje alarma: " + e.getMessage());
-        }
+            stopService(new Intent(this, ChatBackgroundService.class));
+            ChatAlarmReceiver.cancelAlarm(this);
+        } catch (Exception ignored) {}
     }
 
     @Override
@@ -120,7 +110,6 @@ public class MainActivity extends BridgeActivity {
                 .putBoolean(ChatPollHelper.KEY_IN_CHAT, false)
                 .apply();
         } catch (Exception ignored) {}
-        startChatBackgroundMonitoring();
     }
 
     @Override
@@ -132,7 +121,6 @@ public class MainActivity extends BridgeActivity {
                 .putBoolean(ChatPollHelper.KEY_IN_CHAT, false)
                 .apply();
         } catch (Exception ignored) {}
-        startChatBackgroundMonitoring();
     }
 
     private void resetWebViewToLocalAssetsIfNeeded() {
