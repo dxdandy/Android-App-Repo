@@ -77,6 +77,18 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["version"]
+    },
+    "CalamariCompetition": {
+      "title": "CalamariCompetition",
+      "description": "Podaci o Calamari Kup 2026 natjecanju, dnevnim ulovima, ulovima po vrstama (Lignja, Sipa, Hobotnica) i prijavljenim sudionicima",
+      "type": "object",
+      "properties": {
+        "catches": { "type": "object" },
+        "speciesCatches": { "type": "object" },
+        "loggedParticipants": { "type": "array" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["catches", "updatedAt"]
     }
   },
   "firestore": {
@@ -103,6 +115,10 @@
     "/ota_bundle/{chunkId}": {
       "schema": { "$ref": "#/entities/OtaBundle" },
       "description": "Dijelovi (chunks) kompiliranog Live Web OTA paketa"
+    },
+    "/calamari_competition/{docId}": {
+      "schema": { "$ref": "#/entities/CalamariCompetition" },
+      "description": "Calamari Kup 2026 natjecanje u Novom Vinodolskom"
     }
   }
 }

@@ -25,18 +25,25 @@ import {
   CALAMARI_PARTICIPANTS, 
   CALAMARI_PIN_PARTICIPANTS,
   CALAMARI_DATES, 
+  CALAMARI_SPECIES_LIST,
   CalamariCompetitionState, 
   CalamariParticipantId, 
+  CalamariSpeciesId,
+  DailySpeciesCatches,
+  SpeciesCatchCounts,
   adminResetParticipantOrDateServer,
   adminToggleParticipantLoginServer,
   calculateVinodolskiSolunar,
+  createEmptySpeciesCatchesData,
   extractLoggedFromState,
   fetchCalamariDataServer, 
   getStoredCalamariData, 
+  normalizeSpeciesCatches,
   recordCalamariParticipantLogin,
   subscribeToCalamariData, 
   syncLocalCalamariLoginsToServer,
-  updateCalamariCatchesServer 
+  updateCalamariCatchesServer,
+  updateCalamariSpeciesServer
 } from '../services/calamariService';
 import { fetchMeteoForCoords } from '../services/weatherService';
 
@@ -48,12 +55,12 @@ interface CalamariModalProps {
 const STORAGE_LOGGED_USER_KEY = 'ribo_calamari_logged_user_v1';
 const STORAGE_LOGGED_HISTORY_KEY = 'ribo_calamari_logged_users_history_v1';
 
-const SHORT_DAY_LABELS: Record<string, { dayName: string; dateShort: string; isoDate: string }> = {
-  '18.11.2026': { dayName: 'Sri', dateShort: '18.11.', isoDate: '2026-11-18T18:00:00' },
-  '19.11.2026': { dayName: 'Čet', dateShort: '19.11.', isoDate: '2026-11-19T18:00:00' },
-  '20.11.2026': { dayName: 'Pet', dateShort: '20.11.', isoDate: '2026-11-20T18:00:00' },
-  '21.11.2026': { dayName: 'Sub', dateShort: '21.11.', isoDate: '2026-11-21T18:00:00' },
-  '22.11.2026': { dayName: 'Ned', dateShort: '22.11.', isoDate: '2026-11-22T18:00:00' }
+const SHORT_DAY_LABELS: Record<string, { dayName: string; dateShort: string; dateHeaderClean: string; isoDate: string }> = {
+  '18.11.2026': { dayName: 'Sri', dateShort: '18.11.', dateHeaderClean: '18.11', isoDate: '2026-11-18T18:00:00' },
+  '19.11.2026': { dayName: 'Čet', dateShort: '19.11.', dateHeaderClean: '19.11', isoDate: '2026-11-19T18:00:00' },
+  '20.11.2026': { dayName: 'Pet', dateShort: '20.11.', dateHeaderClean: '20.11', isoDate: '2026-11-20T18:00:00' },
+  '21.11.2026': { dayName: 'Sub', dateShort: '21.11.', dateHeaderClean: '21.11', isoDate: '2026-11-21T18:00:00' },
+  '22.11.2026': { dayName: 'Ned', dateShort: '22.11.', dateHeaderClean: '22.11', isoDate: '2026-11-22T18:00:00' }
 };
 
 type SolunarTargetOption = 'now_24h' | 'now_48h' | 'now_72h' | '18.11.2026' | '19.11.2026' | '20.11.2026' | '21.11.2026' | '22.11.2026';
@@ -189,6 +196,12 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
   const [adminEditAllEnabled, setAdminEditAllEnabled] = useState<boolean>(true);
   const [showAdminTools, setShowAdminTools] = useState<boolean>(false);
   const [confirmResetTarget, setConfirmResetTarget] = useState<{ mode: 'participant' | 'date' | 'all'; key: string; label: string } | null>(null);
+
+  // Stanja za unos ulovljenih vrsta (1. Lignja, 2. Sipa, 3. Hobotnica) klikom na ime u trenutnom poretku
+  const [speciesEditorParticipant, setSpeciesEditorParticipant] = useState<CalamariParticipantId | null>(null);
+  const [speciesEditorDate, setSpeciesEditorDate] = useState<string>('18.11.2026');
+  const [speciesDraft, setSpeciesDraft] = useState<DailySpeciesCatches>(() => createEmptySpeciesCatchesData().daniel);
+  const [isSavingSpecies, setIsSavingSpecies] = useState<boolean>(false);
 
   // Odabrani dan u Solunarnom & John Alden Knight kalkulatoru
   const [selectedSolunarTarget, setSelectedSolunarTarget] = useState<SolunarTargetOption>('now_24h');
@@ -519,10 +532,94 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     setTimeout(() => setSuccessToast(null), 2800);
   };
 
-  // Izračun ukupnog ulova po osobi i po danu
+  // Dohvat ulova po vrstama (1. Lignja, 2. Sipa, 3. Hobotnica) za natjecatelja i datum
+  const normalizedAllSpecies = useMemo(() => {
+    return normalizeSpeciesCatches(state.speciesCatches);
+  }, [state.speciesCatches]);
+
+  const getSpeciesCountsForDay = (id: CalamariParticipantId, dateStr: string): SpeciesCatchCounts => {
+    const dayObj = normalizedAllSpecies[id]?.[dateStr];
+    return {
+      lignja: Number(dayObj?.lignja) || 0,
+      sipa: Number(dayObj?.sipa) || 0,
+      hobotnica: Number(dayObj?.hobotnica) || 0
+    };
+  };
+
+  // Otvaranje prozora za upis ulovljenih vrsta (1. Lignja, 2. Sipa, 3. Hobotnica) klikom na svoje ime u trenutnom poretku
+  const handleOpenSpeciesEditor = (targetId: CalamariParticipantId, initialDateStr?: string) => {
+    const pName = CALAMARI_PARTICIPANTS.find(p => p.id === targetId)?.name || targetId;
+    if (!canEditParticipant(targetId)) {
+      if (!loggedUser && localLoggedHistory.length === 0) {
+        setShowManualLoginPanel(true);
+        if (targetId !== 'dida') {
+          setSelectedUserForPin(targetId);
+        }
+        setSuccessToast(`Za upis ulovljenih vrsta (${pName}) prvo se prijavite svojom šifrom.`);
+      } else {
+        setSuccessToast(`Možete upisivati ulovljene vrste samo klikom na svoje prijavljeno ime!`);
+      }
+      setTimeout(() => setSuccessToast(null), 3200);
+      return;
+    }
+
+    const currentForParticipant = normalizedAllSpecies[targetId];
+    const clonedDraft: DailySpeciesCatches = {};
+    for (const d of CALAMARI_DATES) {
+      const c = currentForParticipant?.[d.dateStr] || { lignja: 0, sipa: 0, hobotnica: 0 };
+      clonedDraft[d.dateStr] = {
+        lignja: Number(c.lignja) || 0,
+        sipa: Number(c.sipa) || 0,
+        hobotnica: Number(c.hobotnica) || 0
+      };
+    }
+
+    setSpeciesDraft(clonedDraft);
+    setSpeciesEditorDate(initialDateStr || '18.11.2026');
+    setSpeciesEditorParticipant(targetId);
+  };
+
+  const handleChangeSpeciesDraft = (speciesId: CalamariSpeciesId, newValue: number) => {
+    const safeVal = Math.max(0, Math.min(999, isNaN(newValue) ? 0 : newValue));
+    setSpeciesDraft(prev => ({
+      ...prev,
+      [speciesEditorDate]: {
+        ...(prev[speciesEditorDate] || { lignja: 0, sipa: 0, hobotnica: 0 }),
+        [speciesId]: safeVal
+      }
+    }));
+  };
+
+  const handleAcceptSpeciesEditor = async () => {
+    if (!speciesEditorParticipant) return;
+    setIsSavingSpecies(true);
+    try {
+      const editorName = isAdminUser
+        ? 'Daniel (Admin)'
+        : loggedUser
+        ? (CALAMARI_PARTICIPANTS.find(p => p.id === loggedUser)?.name || 'Natjecatelj')
+        : 'Natjecatelj';
+      const pName = CALAMARI_PARTICIPANTS.find(p => p.id === speciesEditorParticipant)?.name || speciesEditorParticipant;
+      const updated = await updateCalamariSpeciesServer(speciesEditorParticipant, speciesDraft, editorName);
+      setState(updated);
+      setSpeciesEditorParticipant(null);
+      setSuccessToast(`✓ Spremljene ulovljene vrste u trenutni poredak (${pName})`);
+      setTimeout(() => setSuccessToast(null), 3000);
+    } finally {
+      setIsSavingSpecies(false);
+    }
+  };
+
+  // Izračun ukupnog ulova po osobi i po danu (uzima u obzir unesenu količinu u donjoj tablici i zbroj unesenih vrsta)
+  const calculateEffectiveDayCount = (id: CalamariParticipantId, dateStr: string): number => {
+    const tableCount = Number(state.catches[id]?.[dateStr]) || 0;
+    const sp = getSpeciesCountsForDay(id, dateStr);
+    const speciesSum = sp.lignja + sp.sipa + sp.hobotnica;
+    return Math.max(tableCount, speciesSum);
+  };
+
   const calculateTotalForParticipant = (id: CalamariParticipantId) => {
-    const days = state.catches[id] || {};
-    return Object.values(days).reduce((acc, val) => acc + (Number(val) || 0), 0);
+    return CALAMARI_DATES.reduce((acc, d) => acc + calculateEffectiveDayCount(id, d.dateStr), 0);
   };
 
   const calculateTotalForDate = (dateStr: string) => {
@@ -534,7 +631,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
 
   const grandTotal = CALAMARI_PARTICIPANTS.reduce((acc, p) => acc + calculateTotalForParticipant(p.id), 0);
 
-  // Rang lista natjecatelja (sortirano po ukupnom broju liganja silazno)
+  // Rang lista natjecatelja (sortirano po ukupnom ulovu silazno)
   const sortedParticipants = [...CALAMARI_PARTICIPANTS].sort((a, b) => {
     return calculateTotalForParticipant(b.id) - calculateTotalForParticipant(a.id);
   });
@@ -1142,49 +1239,294 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
             </div>
           )}
 
-          {/* 1. TRENUTNI POREDAK (Morski trofejni prikaz) */}
+          {/* 1. TRENUTNI POREDAK (Klik na svoje ime otvara upis ulovljenih vrsta: 1. Lignja, 2. Sipa, 3. Hobotnica + mala tablica u poretku) */}
           <section className="relative overflow-hidden bg-gradient-to-br from-[#04182e]/95 via-[#072644]/90 to-[#020f1f]/95 border border-cyan-500/45 rounded-2xl p-3 sm:p-4 shadow-lg">
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <h2 className="text-xs sm:text-sm font-black text-cyan-200 uppercase tracking-wider flex items-center gap-1.5">
-                <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Trenutni poredak • Calamari Kup</span>
-              </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div>
+                <h2 className="text-xs sm:text-sm font-black text-cyan-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Trenutni poredak • Calamari Kup</span>
+                </h2>
+                <p className="text-[10.5px] sm:text-[11px] text-cyan-300/90 mt-0.5">
+                  Kliknite na svoje ime u poretku za upis količine ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica)
+                </p>
+              </div>
               <span className="text-[11px] font-mono text-cyan-300/90 flex items-center gap-1">
                 <Waves className="w-3.5 h-3.5 text-teal-400" />
                 <span>Novi Vinodolski 2026</span>
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            {/* Prikaz kartica u poretku s ukupnom količinom POKRAJ imena i malom tablicom po datumima (18.11–22.11) i vrstama (1. Lignja, 2. Sipa, 3. Hobotnica) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
               {sortedParticipants.map((p, idx) => {
                 const total = calculateTotalForParticipant(p.id);
                 const isLeader = idx === 0 && total > 0;
+                const canEditThis = canEditParticipant(p.id);
+                const isEditingThis = speciesEditorParticipant === p.id;
+
                 return (
                   <div
                     key={p.id}
-                    className={`rounded-xl p-2.5 sm:p-3 border flex flex-col items-center justify-center text-center transition-all ${
+                    className={`rounded-xl p-2.5 sm:p-3 border flex flex-col justify-between transition-all ${
                       isLeader
-                        ? 'bg-gradient-to-b from-amber-500/25 via-cyan-950/85 to-slate-900 border-amber-400/80 shadow-md shadow-amber-500/15'
-                        : 'bg-[#031122]/85 border-cyan-500/30 hover:border-cyan-400/50'
+                        ? 'bg-gradient-to-b from-amber-500/20 via-cyan-950/90 to-slate-950 border-amber-400/80 shadow-md shadow-amber-500/15'
+                        : isEditingThis
+                        ? 'bg-cyan-950/90 border-cyan-300 shadow-md'
+                        : 'bg-[#031122]/90 border-cyan-500/35 hover:border-cyan-400/60'
                     }`}
                   >
-                    <div className="flex items-center gap-1 text-xs sm:text-sm font-bold text-cyan-200">
-                      <span className="font-mono text-cyan-400">#{idx + 1}</span>
-                      <strong className="text-white tracking-tight">{p.name}</strong>
-                      {isLeader && <Award className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                    {/* Gornji red kartice: Redni broj + Ime natjecatelja (klik za unos vrste) + Ukupna količina POKRAJ imena s malim razmakom */}
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSpeciesEditor(p.id)}
+                        className={`inline-flex items-center text-left rounded-lg px-2 py-1 transition-all cursor-pointer active:scale-95 ${
+                          canEditThis
+                            ? 'bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/50 shadow-xs'
+                            : 'hover:bg-slate-800/70 border border-transparent'
+                        }`}
+                        title={
+                          canEditThis
+                            ? `Klikni na ime (${p.name}) za unos ulovljenih vrsta (1. Lignja, 2. Sipa, 3. Hobotnica)`
+                            : `Prijavite se kao ${p.name} za unos ulovljenih vrsta`
+                        }
+                      >
+                        <span className="font-mono text-xs sm:text-sm font-bold text-cyan-400 mr-1.5">
+                          #{idx + 1}
+                        </span>
+                        <strong className="text-sm sm:text-base font-black text-white tracking-tight underline decoration-cyan-400/60 underline-offset-4">
+                          {p.name}
+                        </strong>
+
+                        {/* Ukupna količina piše POKRAJ imena s malim razmakom (ne ispod imena!) */}
+                        <span className="ml-2.5 inline-flex items-baseline gap-1 px-2 py-0.5 rounded-md bg-slate-950/90 border border-teal-400/45">
+                          <span className="text-sm sm:text-base font-black text-teal-300 font-mono tabular-nums leading-none">
+                            {total}
+                          </span>
+                        </span>
+
+                        {isLeader && <Award className="w-4 h-4 text-amber-400 shrink-0 ml-1.5" />}
+                      </button>
+
+                      {canEditThis && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenSpeciesEditor(p.id)}
+                          className="px-2 py-1 rounded-lg bg-teal-500/20 hover:bg-teal-500/35 border border-teal-400/50 text-teal-200 text-[10px] sm:text-[11px] font-black cursor-pointer active:scale-95 shrink-0"
+                        >
+                          + Upis vrste
+                        </button>
+                      )}
                     </div>
-                    <div className="mt-1">
-                      <span className="text-xl sm:text-2xl font-black text-teal-300 font-mono tabular-nums leading-none">
-                        {total}
-                      </span>
-                      <span className="text-[10px] text-cyan-300/75 block mt-0.5">
-                        liganja
-                      </span>
+
+                    {/* MALA TABLICA U TRENUTNOM PORETKU: Vodoravno datumi 18.11, 19.11, 20.11, 21.11 i 22.11, a okomito 1. Lignja, 2. Sipa i 3. Hobotnica */}
+                    <div className="w-full overflow-hidden rounded-lg border border-cyan-500/30 bg-[#020a16]/90">
+                      <table className="w-full table-fixed border-collapse text-center font-mono text-[10px] sm:text-[11px]">
+                        <thead>
+                          <tr className="bg-cyan-950/75 border-b border-cyan-500/30 text-cyan-200">
+                            <th className="w-[33%] py-1 px-1.5 text-left font-sans font-black text-[10px] sm:text-[11px] text-cyan-300 truncate">
+                              Vrsta
+                            </th>
+                            {CALAMARI_DATES.map((d) => {
+                              const cleanDate = SHORT_DAY_LABELS[d.dateStr]?.dateHeaderClean || d.dateStr.slice(0, 5);
+                              return (
+                                <th
+                                  key={d.dateStr}
+                                  onClick={() => {
+                                    if (canEditThis) handleOpenSpeciesEditor(p.id, d.dateStr);
+                                  }}
+                                  className={`py-1 px-0.5 font-black text-cyan-100 ${
+                                    canEditThis ? 'cursor-pointer hover:text-amber-300' : ''
+                                  }`}
+                                >
+                                  {cleanDate}
+                                </th>
+                              );
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-cyan-500/15">
+                          {CALAMARI_SPECIES_LIST.map((sp) => (
+                            <tr
+                              key={sp.id}
+                              onClick={() => {
+                                if (canEditThis) handleOpenSpeciesEditor(p.id);
+                              }}
+                              className={canEditThis ? 'hover:bg-cyan-900/30 cursor-pointer transition-colors' : ''}
+                            >
+                              <td className="py-1 px-1.5 text-left font-sans font-bold text-white truncate bg-[#031022]/80">
+                                {sp.fullLabel}
+                              </td>
+                              {CALAMARI_DATES.map((d) => {
+                                const dayCounts = getSpeciesCountsForDay(p.id, d.dateStr);
+                                const val = dayCounts[sp.id] || 0;
+                                return (
+                                  <td
+                                    key={d.dateStr}
+                                    onClick={(e) => {
+                                      if (canEditThis) {
+                                        e.stopPropagation();
+                                        handleOpenSpeciesEditor(p.id, d.dateStr);
+                                      }
+                                    }}
+                                    className={`py-1 px-0.5 tabular-nums font-black ${
+                                      val > 0 ? 'text-amber-300 bg-cyan-950/40' : 'text-slate-500'
+                                    }`}
+                                  >
+                                    {val}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 );
               })}
             </div>
+
+            {/* PROZOR ZA UPIS ULOVLJENE VRSTE (1. Lignja, 2. Sipa, 3. Hobotnica) KADA PRIJAVLJENI NATJECATELJ KLIKNE NA SVOJE IME */}
+            {speciesEditorParticipant && (
+              <div className="mt-3.5 bg-slate-950/95 border-2 border-cyan-400/70 rounded-2xl p-3.5 sm:p-4 shadow-[0_0_30px_rgba(6,182,212,0.28)] animate-fade-in">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-cyan-500/30">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="text-xs sm:text-sm font-black text-white">
+                      Upis ulovljene vrste:{' '}
+                      <strong className="text-cyan-300 uppercase">
+                        {CALAMARI_PARTICIPANTS.find(p => p.id === speciesEditorParticipant)?.name}
+                      </strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSpeciesEditorParticipant(null)}
+                    className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold cursor-pointer"
+                  >
+                    ✕ Zatvori
+                  </button>
+                </div>
+
+                {/* Odabir datuma (18.11, 19.11, 20.11, 21.11, 22.11) za koji se upisuje ulovljena vrsta */}
+                <div className="mt-3">
+                  <span className="text-[11px] font-bold text-cyan-200 block mb-1.5">
+                    Odaberite datum ulova:
+                  </span>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {CALAMARI_DATES.map((d) => {
+                      const cleanDate = SHORT_DAY_LABELS[d.dateStr]?.dateHeaderClean || d.dateStr.slice(0, 5);
+                      const dayName = SHORT_DAY_LABELS[d.dateStr]?.dayName || '';
+                      const isSelectedDate = speciesEditorDate === d.dateStr;
+                      const draftForDay = speciesDraft[d.dateStr] || { lignja: 0, sipa: 0, hobotnica: 0 };
+                      const daySum = (draftForDay.lignja || 0) + (draftForDay.sipa || 0) + (draftForDay.hobotnica || 0);
+
+                      return (
+                        <button
+                          key={d.dateStr}
+                          type="button"
+                          onClick={() => setSpeciesEditorDate(d.dateStr)}
+                          className={`py-1.5 px-1 rounded-xl border font-mono text-xs transition-all cursor-pointer flex flex-col items-center justify-center ${
+                            isSelectedDate
+                              ? 'bg-cyan-500 text-slate-950 border-white font-black shadow-md'
+                              : 'bg-slate-900/90 text-cyan-200 border-cyan-500/35 hover:bg-slate-800 font-bold'
+                          }`}
+                        >
+                          <span className="text-[10px] opacity-85">{dayName}</span>
+                          <span className="text-xs sm:text-sm font-black">{cleanDate}</span>
+                          {daySum > 0 && (
+                            <span
+                              className={`mt-0.5 px-1.5 rounded text-[9.5px] font-black ${
+                                isSelectedDate ? 'bg-slate-950 text-amber-300' : 'bg-cyan-950 text-teal-300'
+                              }`}
+                            >
+                              {daySum} kom
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Tri ponuđene mogućnosti za upis količine: 1. Lignja, 2. Sipa i 3. Hobotnica */}
+                <div className="mt-3.5 space-y-2">
+                  <span className="text-[11px] font-bold text-cyan-200 block">
+                    Upišite količinu ulovljene vrste za{' '}
+                    <strong className="text-amber-300">
+                      {SHORT_DAY_LABELS[speciesEditorDate]?.dateHeaderClean || speciesEditorDate}
+                    </strong>
+                    :
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {CALAMARI_SPECIES_LIST.map((sp) => {
+                      const currentVal = speciesDraft[speciesEditorDate]?.[sp.id] ?? 0;
+                      return (
+                        <div
+                          key={sp.id}
+                          className="bg-[#041529] border border-cyan-500/45 rounded-xl p-2.5 flex items-center justify-between gap-2"
+                        >
+                          <span className="font-black text-white text-xs sm:text-sm">
+                            {sp.fullLabel}
+                          </span>
+
+                          <div className="inline-flex items-center bg-slate-950 border border-cyan-500/50 rounded-xl p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleChangeSpeciesDraft(sp.id, currentVal - 1)}
+                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-black text-sm flex items-center justify-center cursor-pointer active:scale-95"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min={0}
+                              max={999}
+                              value={currentVal}
+                              onChange={(e) => {
+                                const parsed = parseInt(e.target.value, 10);
+                                handleChangeSpeciesDraft(sp.id, isNaN(parsed) ? 0 : parsed);
+                              }}
+                              className="w-10 sm:w-12 text-center bg-transparent text-amber-300 font-mono font-black text-sm sm:text-base focus:outline-none tabular-nums appearance-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleChangeSpeciesDraft(sp.id, currentVal + 1)}
+                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-black text-sm flex items-center justify-center cursor-pointer active:scale-95"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Gumbi Prihvati i Odustani */}
+                <div className="mt-4 pt-2.5 border-t border-cyan-500/25 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setSpeciesEditorParticipant(null)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold cursor-pointer"
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSavingSpecies}
+                    onClick={handleAcceptSpeciesEditor}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-slate-950 font-black text-xs sm:text-sm cursor-pointer shadow-lg active:scale-95 flex items-center gap-1.5"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>{isSavingSpecies ? 'Spremanje...' : 'Prihvati'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* 2. VERTIKALNA TABLICA ULOVA PO DANIMA I SUDIONICIMA + ADMIN KONTROLE ZA UREĐIVANJE SVIH */}

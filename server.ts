@@ -907,7 +907,7 @@ try {
     // a TEK ZATIM ažuriraj app_updates/latest (sprječava da poslužitelj ikada pošalje nekompilirani stari kod s novim brojem verzije!)
     const publishOtaBundleAndVersionToFirestore = async () => {
       try {
-        const TARGET_VER = '1.8.8';
+        const TARGET_VER = '1.8.9';
         const jsPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
         const cssPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.css');
         if (!fs.existsSync(jsPath)) {
@@ -951,12 +951,12 @@ try {
         await setDoc(doc(serverDb, 'app_updates', 'latest'), {
           version: TARGET_VER,
           name: 'RiboPrognoza',
-          releaseDate: '2026-11-17',
+          releaseDate: '2026-11-18',
           apkUrl: `https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v${TARGET_VER}.apk`,
           changelog: [
-            'Napredna optimizacija potrošnje baterije na Androidu: automatsko gašenje svih pozadinskih mrežnih veza, Firestore WebChannel kanala i tajmera dok je zaslon ugašen ili aplikacija u pozadini (0% potrošnje u mirovanju)',
-            'Calamari Kup 2026: zadržan trenutačni prikaz svih promjena u stvarnom vremenu dok je sekcija otvorena, uz pametno dedupliciranje osvježavanja bez nepotrebnog buđenja procesora',
-            'Uklonjeni pozadinski servisi i alarmi koji su uzrokovali Android obavijesti o povećanoj potrošnji baterije'
+            'Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima',
+            'Calamari Kup 2026: nova mala tablica u Trenutnom poretku s datumima 18.11, 19.11, 20.11, 21.11 i 22.11 te vrstama 1. Lignja, 2. Sipa i 3. Hobotnica, uz prikaz ukupne količine pokraj imena s malim razmakom',
+            'Sinkronizacija unosa vrsta i ukupnog poretka u stvarnom vremenu za sve sudionike'
           ],
           isCritical: true,
           updateType: 'live_web',
@@ -1841,9 +1841,14 @@ app.post('/api/calamari/update', (req, res) => {
     ...(existing?.logged_tuna === true || incoming.logged_tuna === true ? ['tuna'] : []),
     ...(existing?.logged_daniel === true || incoming.logged_daniel === true ? ['daniel'] : [])
   ]));
+  const mergedSpeciesCatches = {
+    ...(existing?.speciesCatches || {}),
+    ...(incoming.speciesCatches || {})
+  };
   const mergedData = {
     ...(existing || {}),
     ...incoming,
+    speciesCatches: mergedSpeciesCatches,
     loggedParticipants: mergedLogged,
     logged_silvio: mergedLogged.includes('silvio'),
     logged_tuna: mergedLogged.includes('tuna'),
@@ -1862,14 +1867,14 @@ app.post('/api/calamari/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.8.8',
+    version: '1.8.9',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-17',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.8.apk',
+    releaseDate: '2026-11-18',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.9.apk',
     changelog: [
-      'Napredna optimizacija potrošnje baterije na Androidu: automatsko gašenje svih pozadinskih mrežnih veza, Firestore WebChannel kanala i tajmera dok je zaslon ugašen ili aplikacija u pozadini (0% potrošnje u mirovanju)',
-      'Calamari Kup 2026: zadržan trenutačni prikaz svih promjena u stvarnom vremenu dok je sekcija otvorena, uz pametno dedupliciranje osvježavanja bez nepotrebnog buđenja procesora',
-      'Uklonjeni pozadinski servisi i alarmi koji su uzrokovali Android obavijesti o povećanoj potrošnji baterije'
+      'Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima',
+      'Calamari Kup 2026: nova mala tablica u Trenutnom poretku s datumima 18.11, 19.11, 20.11, 21.11 i 22.11 te vrstama 1. Lignja, 2. Sipa i 3. Hobotnica, uz prikaz ukupne količine pokraj imena s malim razmakom',
+      'Sinkronizacija unosa vrsta i ukupnog poretka u stvarnom vremenu za sve sudionike'
     ],
     isCritical: true,
     updateType: 'live_web'
@@ -1892,8 +1897,8 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.8.8',
-    appVersion: '1.8.8',
+    version: '1.8.9',
+    appVersion: '1.8.9',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs

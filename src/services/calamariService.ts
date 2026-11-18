@@ -29,11 +29,36 @@ export const CALAMARI_DATES = [
   { dateStr: '22.11.2026', label: 'Nedjelja 22.11.' }
 ];
 
+export type CalamariSpeciesId = 'lignja' | 'sipa' | 'hobotnica';
+
+export interface CalamariSpeciesDef {
+  id: CalamariSpeciesId;
+  numLabel: string;
+  name: string;
+  fullLabel: string;
+}
+
+export const CALAMARI_SPECIES_LIST: CalamariSpeciesDef[] = [
+  { id: 'lignja', numLabel: '1.', name: 'Lignja', fullLabel: '1. Lignja' },
+  { id: 'sipa', numLabel: '2.', name: 'Sipa', fullLabel: '2. Sipa' },
+  { id: 'hobotnica', numLabel: '3.', name: 'Hobotnica', fullLabel: '3. Hobotnica' }
+];
+
+export interface SpeciesCatchCounts {
+  lignja: number;
+  sipa: number;
+  hobotnica: number;
+}
+
 export type DailyCatches = Record<string, number>; // dateStr -> count
 export type AllCalamariData = Record<CalamariParticipantId, DailyCatches>;
 
+export type DailySpeciesCatches = Record<string, SpeciesCatchCounts>; // dateStr -> { lignja, sipa, hobotnica }
+export type AllCalamariSpeciesData = Record<CalamariParticipantId, DailySpeciesCatches>;
+
 export interface CalamariCompetitionState {
   catches: AllCalamariData;
+  speciesCatches?: AllCalamariSpeciesData;
   updatedAt: number;
   lastUpdatedBy?: string;
   loggedParticipants?: CalamariParticipantId[];
@@ -65,6 +90,45 @@ export function createEmptyCalamariData(): AllCalamariData {
     silvio: emptyDays(),
     daniel: emptyDays()
   };
+}
+
+export function createEmptySpeciesCatchesData(): AllCalamariSpeciesData {
+  const emptySpeciesDays = (): DailySpeciesCatches => ({
+    '18.11.2026': { lignja: 0, sipa: 0, hobotnica: 0 },
+    '19.11.2026': { lignja: 0, sipa: 0, hobotnica: 0 },
+    '20.11.2026': { lignja: 0, sipa: 0, hobotnica: 0 },
+    '21.11.2026': { lignja: 0, sipa: 0, hobotnica: 0 },
+    '22.11.2026': { lignja: 0, sipa: 0, hobotnica: 0 }
+  });
+
+  return {
+    dida: emptySpeciesDays(),
+    tuna: emptySpeciesDays(),
+    silvio: emptySpeciesDays(),
+    daniel: emptySpeciesDays()
+  };
+}
+
+export function normalizeSpeciesCatches(raw?: any): AllCalamariSpeciesData {
+  const base = createEmptySpeciesCatchesData();
+  if (!raw || typeof raw !== 'object') return base;
+
+  for (const pid of ['dida', 'tuna', 'silvio', 'daniel'] as CalamariParticipantId[]) {
+    const pData = raw[pid];
+    if (pData && typeof pData === 'object') {
+      for (const d of CALAMARI_DATES) {
+        const dayObj = pData[d.dateStr];
+        if (dayObj && typeof dayObj === 'object') {
+          base[pid][d.dateStr] = {
+            lignja: Math.max(0, Number(dayObj.lignja) || 0),
+            sipa: Math.max(0, Number(dayObj.sipa) || 0),
+            hobotnica: Math.max(0, Number(dayObj.hobotnica) || 0)
+          };
+        }
+      }
+    }
+  }
+  return base;
 }
 
 /**
@@ -197,12 +261,33 @@ async function fetchCalamariRestFallback(): Promise<Partial<CalamariCompetitionS
       }
     }
 
+    const speciesCatches = createEmptySpeciesCatchesData();
+    const speciesMap = fields.speciesCatches?.mapValue?.fields;
+    if (speciesMap) {
+      for (const pid of ['dida', 'tuna', 'silvio', 'daniel'] as CalamariParticipantId[]) {
+        const pDays = speciesMap[pid]?.mapValue?.fields;
+        if (pDays) {
+          for (const [dKey, dVal] of Object.entries(pDays)) {
+            const spFields = (dVal as any)?.mapValue?.fields;
+            if (spFields && speciesCatches[pid][dKey]) {
+              speciesCatches[pid][dKey] = {
+                lignja: Number(spFields.lignja?.integerValue ?? spFields.lignja?.doubleValue ?? 0) || 0,
+                sipa: Number(spFields.sipa?.integerValue ?? spFields.sipa?.doubleValue ?? 0) || 0,
+                hobotnica: Number(spFields.hobotnica?.integerValue ?? spFields.hobotnica?.doubleValue ?? 0) || 0
+              };
+            }
+          }
+        }
+      }
+    }
+
     const updatedAt = Number(fields.updatedAt?.integerValue ?? fields.updatedAt?.doubleValue ?? 0) || Date.now();
     const lastUpdatedBy = fields.lastUpdatedBy?.stringValue || undefined;
     const loggedParticipants = Array.from(loggedSet);
 
     return {
       catches,
+      speciesCatches,
       updatedAt,
       lastUpdatedBy,
       loggedParticipants,
@@ -215,7 +300,12 @@ async function fetchCalamariRestFallback(): Promise<Partial<CalamariCompetitionS
 
 export function getStoredCalamariData(): CalamariCompetitionState {
   if (typeof window === 'undefined') {
-    return { catches: createEmptyCalamariData(), updatedAt: Date.now(), loggedParticipants: [] };
+    return {
+      catches: createEmptyCalamariData(),
+      speciesCatches: createEmptySpeciesCatchesData(),
+      updatedAt: Date.now(),
+      loggedParticipants: []
+    };
   }
   try {
     const raw = localStorage.getItem(LOCAL_CALAMARI_KEY);
@@ -225,6 +315,7 @@ export function getStoredCalamariData(): CalamariCompetitionState {
         const mergedLogged = mergeLoggedParticipants(extractLoggedFromState(parsed));
         return {
           ...parsed,
+          speciesCatches: normalizeSpeciesCatches(parsed.speciesCatches),
           loggedParticipants: mergedLogged,
           ...buildLoggedFlags(mergedLogged)
         };
@@ -234,6 +325,7 @@ export function getStoredCalamariData(): CalamariCompetitionState {
   const localLogged = getLocalDeviceLoggedParticipants();
   return {
     catches: createEmptyCalamariData(),
+    speciesCatches: createEmptySpeciesCatchesData(),
     updatedAt: Date.now(),
     loggedParticipants: localLogged,
     ...buildLoggedFlags(localLogged)
@@ -246,6 +338,7 @@ export function saveStoredCalamariData(state: CalamariCompetitionState): void {
     const mergedLogged = mergeLoggedParticipants(extractLoggedFromState(state));
     const merged: CalamariCompetitionState = {
       ...state,
+      speciesCatches: normalizeSpeciesCatches(state.speciesCatches),
       loggedParticipants: mergedLogged,
       ...buildLoggedFlags(mergedLogged)
     };
@@ -355,6 +448,7 @@ export async function fetchCalamariDataServer(): Promise<CalamariCompetitionStat
 
   const finalState: CalamariCompetitionState = {
     ...bestState,
+    speciesCatches: normalizeSpeciesCatches(bestState.speciesCatches),
     loggedParticipants: mergedLogged,
     ...buildLoggedFlags(mergedLogged)
   };
@@ -400,6 +494,7 @@ export async function recordCalamariParticipantLogin(
 
   const updated: CalamariCompetitionState = {
     ...current,
+    speciesCatches: normalizeSpeciesCatches(current.speciesCatches),
     loggedParticipants: mergedLogged,
     ...buildLoggedFlags(mergedLogged),
     updatedAt: Date.now()
@@ -443,6 +538,7 @@ export async function adminToggleParticipantLoginServer(
   const flagField = `logged_${participantId}`;
   const updated: any = {
     ...current,
+    speciesCatches: normalizeSpeciesCatches(current.speciesCatches),
     loggedParticipants: nextLogged,
     logged_silvio: nextLogged.includes('silvio'),
     logged_tuna: nextLogged.includes('tuna'),
@@ -494,6 +590,7 @@ export async function updateCalamariCatchesServer(
     current.catches[participantId] = {};
   }
   current.catches[participantId][dateStr] = Math.max(0, count);
+  current.speciesCatches = normalizeSpeciesCatches(current.speciesCatches);
   current.updatedAt = Date.now();
   current.lastUpdatedBy = editorName;
   const mergedLogged = mergeLoggedParticipants(extractLoggedFromState(current));
@@ -509,6 +606,7 @@ export async function updateCalamariCatchesServer(
         doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC),
         {
           catches: current.catches,
+          speciesCatches: current.speciesCatches,
           updatedAt: current.updatedAt,
           lastUpdatedBy: current.lastUpdatedBy,
           ...(mergedLogged.length > 0 ? { loggedParticipants: arrayUnion(...mergedLogged) } : {}),
@@ -525,26 +623,91 @@ export async function updateCalamariCatchesServer(
   return current;
 }
 
+/**
+ * Sprema količine ulova po vrstama (1. Lignja, 2. Sipa, 3. Hobotnica) za odabranog natjecatelja
+ * i odmah sinkronizira promjene sa svim ostalim korisnicima u stvarnom vremenu
+ */
+export async function updateCalamariSpeciesServer(
+  participantId: CalamariParticipantId,
+  updatedParticipantSpecies: DailySpeciesCatches,
+  editorName: string
+): Promise<CalamariCompetitionState> {
+  const current = getStoredCalamariData();
+  const allSpecies = normalizeSpeciesCatches(current.speciesCatches);
+
+  for (const d of CALAMARI_DATES) {
+    const dayCounts = updatedParticipantSpecies[d.dateStr];
+    if (dayCounts) {
+      const l = Math.max(0, Math.min(999, Number(dayCounts.lignja) || 0));
+      const s = Math.max(0, Math.min(999, Number(dayCounts.sipa) || 0));
+      const h = Math.max(0, Math.min(999, Number(dayCounts.hobotnica) || 0));
+      allSpecies[participantId][d.dateStr] = {
+        lignja: l,
+        sipa: s,
+        hobotnica: h
+      };
+    }
+  }
+
+  current.speciesCatches = allSpecies;
+  current.updatedAt = Date.now();
+  current.lastUpdatedBy = editorName;
+  const mergedLogged = mergeLoggedParticipants(extractLoggedFromState(current));
+  current.loggedParticipants = mergedLogged;
+  Object.assign(current, buildLoggedFlags(mergedLogged));
+
+  saveStoredCalamariData(current);
+  pushCalamariToBackend(current);
+
+  try {
+    await Promise.race([
+      setDoc(
+        doc(db, 'calamari_competition', FIRESTORE_CALAMARI_DOC),
+        {
+          catches: current.catches,
+          speciesCatches: current.speciesCatches,
+          updatedAt: current.updatedAt,
+          lastUpdatedBy: current.lastUpdatedBy,
+          ...(mergedLogged.length > 0 ? { loggedParticipants: arrayUnion(...mergedLogged) } : {}),
+          ...buildLoggedFlags(mergedLogged)
+        },
+        { merge: true }
+      ),
+      new Promise(r => setTimeout(r, 3500))
+    ]);
+  } catch (err) {
+    console.warn('Greška pri spremanju Calamari vrsta u Firestore:', err);
+  }
+
+  return current;
+}
+
 export async function adminResetParticipantOrDateServer(
   mode: 'participant' | 'date' | 'all',
   targetKey: string,
   editorName: string = 'Daniel (Admin)'
 ): Promise<CalamariCompetitionState> {
   const current = getStoredCalamariData();
+  current.speciesCatches = normalizeSpeciesCatches(current.speciesCatches);
 
   if (mode === 'all') {
     current.catches = createEmptyCalamariData();
+    current.speciesCatches = createEmptySpeciesCatchesData();
   } else if (mode === 'participant') {
     const pid = targetKey as CalamariParticipantId;
     if (current.catches[pid]) {
       CALAMARI_DATES.forEach(d => {
         current.catches[pid][d.dateStr] = 0;
+        current.speciesCatches![pid][d.dateStr] = { lignja: 0, sipa: 0, hobotnica: 0 };
       });
     }
   } else if (mode === 'date') {
     CALAMARI_PARTICIPANTS.forEach(p => {
       if (!current.catches[p.id]) current.catches[p.id] = {};
       current.catches[p.id][targetKey] = 0;
+      if (current.speciesCatches?.[p.id]) {
+        current.speciesCatches[p.id][targetKey] = { lignja: 0, sipa: 0, hobotnica: 0 };
+      }
     });
   }
 
@@ -572,6 +735,7 @@ function getCalamariStateSignature(s: CalamariCompetitionState): string {
   const logged = extractLoggedFromState(s).slice().sort().join(',');
   return JSON.stringify({
     c: s.catches,
+    sc: normalizeSpeciesCatches(s.speciesCatches),
     l: logged,
     by: s.lastUpdatedBy || ''
   });
@@ -606,6 +770,7 @@ export function subscribeToCalamariData(callback: (state: CalamariCompetitionSta
             const mergedLogged = Array.from(new Set([...localDeviceOnly, ...remoteLogged]));
             const merged: CalamariCompetitionState = {
               ...data,
+              speciesCatches: normalizeSpeciesCatches(data.speciesCatches),
               loggedParticipants: mergedLogged,
               ...buildLoggedFlags(mergedLogged)
             };
