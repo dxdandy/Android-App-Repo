@@ -1,12 +1,12 @@
 {
-  "version": "1.8.9",
+  "version": "1.9.0",
   "name": "RiboPrognoza",
-  "releaseDate": "2026-11-18",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.9.apk",
+  "releaseDate": "2026-11-19",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.9.0.apk",
   "changelog": [
-    "Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima",
-    "Calamari Kup 2026: nova mala tablica u Trenutnom poretku s datumima 18.11, 19.11, 20.11, 21.11 i 22.11 te vrstama 1. Lignja, 2. Sipa i 3. Hobotnica, uz prikaz ukupne količine pokraj imena s malim razmakom",
-    "Sinkronizacija unosa vrsta i ukupnog poretka u stvarnom vremenu za sve sudionike"
+    "Trajni popravak Live Web OTA sustava ažuriranja za uređaje koji su se vraćali na verziju 1.8.4: poslužitelj sada trajno poslužuje kompilirani OTA paket iz public/live-ota čak i nakon ponovnog pokretanja kontejnera",
+    "Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima 18.11 – 22.11",
+    "Dodatna provjera integriteta preuzetog OTA paketa u IndexedDB bazi prije ponovnog učitavanja aplikacije"
   ],
   "isCritical": true,
   "updateType": "live_web"

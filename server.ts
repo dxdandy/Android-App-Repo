@@ -903,22 +903,48 @@ try {
       }
     }).catch(() => {});
 
-    // 2 & 3. Objavi PRVO kompilirani JS i CSS bundle u Firestore ota_bundle (tek nakon provjere da dist/assets/app-bundle.js stvarno sadrži v1.8.8!),
+    // Pomoćna funkcija koja pronalazi kompilirani OTA bundle u dist/assets ili u trajnom public/live-ota direktoriju
+    // (sprječava 404 grešku i vraćanje starih 1.8.4 klijenata na GitHub fallback kada se kontejner ponovno pokrene)
+    const resolveServerOtaBundleFiles = () => {
+      const distJs = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
+      const distCss = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.css');
+      const publicJs = path.resolve(__dirname, 'public', 'live-ota', 'app-bundle.js');
+      const publicCss = path.resolve(__dirname, 'public', 'live-ota', 'app-bundle.css');
+
+      if (fs.existsSync(distJs)) {
+        return { jsPath: distJs, cssPath: distCss };
+      }
+      if (fs.existsSync(publicJs)) {
+        try {
+          const distAssetsDir = path.resolve(__dirname, 'dist', 'assets');
+          if (!fs.existsSync(distAssetsDir)) {
+            fs.mkdirSync(distAssetsDir, { recursive: true });
+          }
+          fs.copyFileSync(publicJs, distJs);
+          if (fs.existsSync(publicCss)) {
+            fs.copyFileSync(publicCss, distCss);
+          }
+        } catch {}
+        return { jsPath: publicJs, cssPath: publicCss };
+      }
+      return { jsPath: distJs, cssPath: distCss };
+    };
+
+    // 2 & 3. Objavi PRVO kompilirani JS i CSS bundle u Firestore ota_bundle (tek nakon provjere da app-bundle.js stvarno sadrži v1.9.0!),
     // a TEK ZATIM ažuriraj app_updates/latest (sprječava da poslužitelj ikada pošalje nekompilirani stari kod s novim brojem verzije!)
     const publishOtaBundleAndVersionToFirestore = async () => {
       try {
-        const TARGET_VER = '1.8.9';
-        const jsPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
-        const cssPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.css');
+        const TARGET_VER = '1.9.0';
+        const { jsPath, cssPath } = resolveServerOtaBundleFiles();
         if (!fs.existsSync(jsPath)) {
-          console.warn('[OTA] dist/assets/app-bundle.js još ne postoji — čekam završetak builda.');
+          console.warn('[OTA] app-bundle.js još ne postoji — čekam završetak builda.');
           return;
         }
 
         const jsContent = fs.readFileSync(jsPath, 'utf-8');
         // STROGA PROVJERA: Objavi u Firestore samo ako kompilirani JS bundle stvarno sadrži verziju TARGET_VER!
         if (!jsContent.includes(TARGET_VER)) {
-          console.warn(`[OTA] dist/assets/app-bundle.js još nije kompiliran za v${TARGET_VER} — preskačem objavu dok build ne završi.`);
+          console.warn(`[OTA] app-bundle.js još nije kompiliran za v${TARGET_VER} — preskačem objavu dok build ne završi.`);
           return;
         }
 
@@ -951,12 +977,12 @@ try {
         await setDoc(doc(serverDb, 'app_updates', 'latest'), {
           version: TARGET_VER,
           name: 'RiboPrognoza',
-          releaseDate: '2026-11-18',
+          releaseDate: '2026-11-19',
           apkUrl: `https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v${TARGET_VER}.apk`,
           changelog: [
-            'Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima',
-            'Calamari Kup 2026: nova mala tablica u Trenutnom poretku s datumima 18.11, 19.11, 20.11, 21.11 i 22.11 te vrstama 1. Lignja, 2. Sipa i 3. Hobotnica, uz prikaz ukupne količine pokraj imena s malim razmakom',
-            'Sinkronizacija unosa vrsta i ukupnog poretka u stvarnom vremenu za sve sudionike'
+            'Trajni popravak Live Web OTA sustava ažuriranja za uređaje koji su se vraćali na verziju 1.8.4: poslužitelj sada trajno poslužuje kompilirani OTA paket iz public/live-ota čak i nakon ponovnog pokretanja kontejnera',
+            'Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima 18.11 – 22.11',
+            'Dodatna provjera integriteta preuzetog OTA paketa u IndexedDB bazi prije ponovnog učitavanja aplikacije'
           ],
           isCritical: true,
           updateType: 'live_web',
@@ -1867,14 +1893,14 @@ app.post('/api/calamari/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.8.9',
+    version: '1.9.0',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-18',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.9.apk',
+    releaseDate: '2026-11-19',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.9.0.apk',
     changelog: [
-      'Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima',
-      'Calamari Kup 2026: nova mala tablica u Trenutnom poretku s datumima 18.11, 19.11, 20.11, 21.11 i 22.11 te vrstama 1. Lignja, 2. Sipa i 3. Hobotnica, uz prikaz ukupne količine pokraj imena s malim razmakom',
-      'Sinkronizacija unosa vrsta i ukupnog poretka u stvarnom vremenu za sve sudionike'
+      'Trajni popravak Live Web OTA sustava ažuriranja za uređaje koji su se vraćali na verziju 1.8.4: poslužitelj sada trajno poslužuje kompilirani OTA paket iz public/live-ota čak i nakon ponovnog pokretanja kontejnera',
+      'Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima 18.11 – 22.11',
+      'Dodatna provjera integriteta preuzetog OTA paketa u IndexedDB bazi prije ponovnog učitavanja aplikacije'
     ],
     isCritical: true,
     updateType: 'live_web'
@@ -1882,13 +1908,30 @@ app.get('/api/version', (_req, res) => {
 });
 
 /**
+ * Pronalazi aktivnu putanju OTA JS i CSS paketa (koristi dist/assets ili trajni public/live-ota fallback)
+ */
+function getActiveOtaBundlePaths() {
+  const distJs = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
+  const distCss = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.css');
+  const publicJs = path.resolve(__dirname, 'public', 'live-ota', 'app-bundle.js');
+  const publicCss = path.resolve(__dirname, 'public', 'live-ota', 'app-bundle.css');
+
+  if (fs.existsSync(distJs)) {
+    return { jsPath: distJs, cssPath: fs.existsSync(distCss) ? distCss : publicCss };
+  }
+  if (fs.existsSync(publicJs)) {
+    return { jsPath: publicJs, cssPath: publicCss };
+  }
+  return { jsPath: distJs, cssPath: distCss };
+}
+
+/**
  * API: Dohvat manifesta i kompiliranog bundlea za direktno OTA ažuriranje
- * (osigurava 100% pouzdano ažuriranje na mobitelu čak i ako Firestore free tier kvota dosegne limit!)
+ * (osigurava 100% pouzdano ažuriranje na mobitelu čak i nakon mirovanja kontejnera ili ako Firestore free tier kvota dosegne limit!)
  */
 app.get('/api/ota/manifest', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  const jsPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
-  const cssPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.css');
+  const { jsPath, cssPath } = getActiveOtaBundlePaths();
   if (!fs.existsSync(jsPath)) {
     return res.status(404).json({ error: 'OTA bundle nije izgrađen.' });
   }
@@ -1897,8 +1940,8 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.8.9',
-    appVersion: '1.8.9',
+    version: '1.9.0',
+    appVersion: '1.9.0',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs
@@ -1908,7 +1951,7 @@ app.get('/api/ota/manifest', (_req, res) => {
 app.get('/api/ota/bundle', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
-  const jsPath = path.resolve(__dirname, 'dist', 'assets', 'app-bundle.js');
+  const { jsPath } = getActiveOtaBundlePaths();
   if (!fs.existsSync(jsPath)) {
     return res.status(404).send('// OTA bundle nije pronađen');
   }

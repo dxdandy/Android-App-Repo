@@ -1,13 +1,12 @@
 {
-  "version": "1.8.4",
+  "version": "1.9.0",
   "name": "RiboPrognoza",
-  "releaseDate": "2026-11-15",
-  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.8.4.apk",
+  "releaseDate": "2026-11-19",
+  "apkUrl": "https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.9.0.apk",
   "changelog": [
-    "Popravak Live Web OTA ažuriranja koda: trenutačno preuzimanje i aktivacija sekcije Calamari Kup 2026 na svim uređajima",
-    "Calamari Kup 2026 (Novi Vinodolski): dodan gumb na svim navigacijskim trakama, temperatura mora i puni hrvatski naziv vjetra uživo",
-    "Automatsko osvježavanje svih live dijelova u stvarnom vremenu (vodostaji Aljmaš/Bogojevo, barometar, Solunar, ulovi i Novi Vinodolski)",
-    "Solunarna teorija (John Alden Knight) za Vinodolski kanal, mjesečeva mijena, Solunarni indeks griza i Google AI analiza"
+    "Trajni popravak Live Web OTA sustava ažuriranja za uređaje koji su se vraćali na verziju 1.8.4: poslužitelj sada trajno poslužuje kompilirani OTA paket iz public/live-ota čak i nakon ponovnog pokretanja kontejnera",
+    "Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima 18.11 – 22.11",
+    "Dodatna provjera integriteta preuzetog OTA paketa u IndexedDB bazi prije ponovnog učitavanja aplikacije"
   ],
   "isCritical": true,
   "updateType": "live_web"

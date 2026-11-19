@@ -33,7 +33,7 @@ function prepareOtaVitePlugin(): Plugin {
         const distIndex = path.join(distDir, 'index.html');
         const pkgPath = path.join(rootDir, 'package.json');
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-        const bundledVersion = String(pkg.version || '1.8.9').trim();
+        const bundledVersion = String(pkg.version || '1.9.0').trim();
 
         if (fs.existsSync(distIndex)) {
           let html = fs.readFileSync(distIndex, 'utf-8');

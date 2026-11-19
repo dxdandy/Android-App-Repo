@@ -14,9 +14,10 @@ import { db, setFirestoreNetworkActive } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 import { getApiUrl } from './licenseService';
 
-export const BUNDLED_APP_VERSION = '1.8.9';
+export const BUNDLED_APP_VERSION = '1.9.0';
 export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
 export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
+const SHARED_CLOUD_BACKEND_URL = 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
 
 const FIRESTORE_REST_BASE =
   'https://firestore.googleapis.com/v1/projects/titanium-domain-wv4kj/databases/ai-studio-hrvatskiradnipro-badf4099-cdd8-4a4a-b90c-6a3aea6c7b94/documents';
@@ -483,7 +484,24 @@ function saveOtaBundleToIndexedDB(bundle: { version: string; jsCode: string; css
           const tx = idb.transaction('bundles', 'readwrite');
           const store = tx.objectStore('bundles');
           store.put(bundle, 'active');
-          tx.oncomplete = () => resolve(true);
+          tx.oncomplete = () => {
+            try {
+              const verifyTx = idb.transaction('bundles', 'readonly');
+              const verifyStore = verifyTx.objectStore('bundles');
+              const getReq = verifyStore.get('active');
+              getReq.onsuccess = () => {
+                const savedObj = getReq.result;
+                if (savedObj && savedObj.version === bundle.version && savedObj.jsCode && savedObj.jsCode.length > 1000) {
+                  resolve(true);
+                } else {
+                  resolve(false);
+                }
+              };
+              getReq.onerror = () => resolve(true);
+            } catch {
+              resolve(true);
+            }
+          };
           tx.onerror = () => resolve(false);
         } catch {
           resolve(false);
@@ -503,12 +521,16 @@ function saveOtaBundleToIndexedDB(bundle: { version: string; jsCode: string; css
 function isAcceptableBundleVersion(remoteVer: string, runningCodeVer: string, targetVer?: string): boolean {
   const cleanRemote = normalizeDisplayVersion(remoteVer);
   const cleanRunning = normalizeDisplayVersion(runningCodeVer);
+  // Nikada ne dopusti povratak na staru verziju 1.8.4 ili 1.8.4.x
+  if (cleanRemote === '1.8.4' || String(remoteVer).startsWith('1.8.4')) {
+    return false;
+  }
   if (!isNewerVersion(cleanRemote, cleanRunning) && !isNewerVersion(remoteVer, runningCodeVer)) {
     return false;
   }
   if (targetVer) {
     const cleanTarget = normalizeDisplayVersion(targetVer);
-    // Ako je remote paket stariji od ciljane verzije (npr. stari 1.8.2 na GitHubu dok tražimo 1.8.5), odbaci ga!
+    // Ako je remote paket stariji od ciljane verzije (npr. stari 1.8.4.2 na GitHubu dok tražimo 1.9.0), odbaci ga!
     if (isNewerVersion(cleanTarget, cleanRemote)) {
       return false;
     }
@@ -523,48 +545,56 @@ function isAcceptableBundleVersion(remoteVer: string, runningCodeVer: string, ta
 async function downloadAndCacheOtaCodeBundle(targetVersion?: string): Promise<{ downloadedNewCode: boolean; bundleVersion?: string }> {
   const runningCodeVer = (typeof window !== 'undefined' && (window as any).__RUNNING_OTA_VERSION__) || BUNDLED_APP_VERSION;
 
-  // 1. Primarni izvor: Izravni dohvat s poslužitelja aplikacije (provjerava da odgovor nije HTML login stranica)
-  try {
-    const manifestUrl = getApiUrl(`/api/ota/manifest?t=${Date.now()}`);
-    const manifestRes = await fetch(manifestUrl, {
-      cache: 'no-store',
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(5000)
-    });
+  // 1. Primarni izvor: Izravni dohvat s poslužitelja aplikacije (provjerava i dev i shared URL te da odgovor nije HTML login stranica)
+  const serverBaseCandidates = [
+    getApiUrl(''),
+    SHARED_CLOUD_BACKEND_URL
+  ];
+  const uniqueBases = Array.from(new Set(serverBaseCandidates.map(b => b.replace(/\/$/, ''))));
 
-    const contentType = manifestRes.headers.get('content-type') || '';
-    if (manifestRes.ok && contentType.includes('application/json')) {
-      const manifest = await manifestRes.json();
-      if (manifest && manifest.version) {
-        const remoteBundleVer = normalizeDisplayVersion(String(manifest.version));
-        if (isAcceptableBundleVersion(remoteBundleVer, runningCodeVer, targetVersion)) {
-          console.log(`[OTA] Preuzimam novi kod v${remoteBundleVer} izravno s poslužitelja...`);
-          const bundleUrl = getApiUrl(`/api/ota/bundle?t=${Date.now()}`);
-          const bundleRes = await fetch(bundleUrl, {
-            cache: 'no-store',
-            signal: AbortSignal.timeout(15000)
-          });
-          const bundleType = bundleRes.headers.get('content-type') || '';
-          if (bundleRes.ok && !bundleType.includes('text/html')) {
-            const fullJsCode = await bundleRes.text();
-            if (fullJsCode && fullJsCode.length > 1000 && !fullJsCode.trimStart().startsWith('<!')) {
-              const saved = await saveOtaBundleToIndexedDB({
-                version: remoteBundleVer,
-                jsCode: fullJsCode,
-                cssCode: manifest.css || '',
-                updatedAt: Date.now()
-              });
-              if (saved) {
-                console.log(`[OTA] Uspješno spremljen novi kod v${remoteBundleVer} u IndexedDB s poslužitelja!`);
-                return { downloadedNewCode: true, bundleVersion: remoteBundleVer };
+  for (const base of uniqueBases) {
+    try {
+      const manifestUrl = `${base}/api/ota/manifest?t=${Date.now()}`;
+      const manifestRes = await fetch(manifestUrl, {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(5000)
+      });
+
+      const contentType = manifestRes.headers.get('content-type') || '';
+      if (manifestRes.ok && contentType.includes('application/json')) {
+        const manifest = await manifestRes.json();
+        if (manifest && manifest.version) {
+          const remoteBundleVer = normalizeDisplayVersion(String(manifest.version));
+          if (isAcceptableBundleVersion(remoteBundleVer, runningCodeVer, targetVersion)) {
+            console.log(`[OTA] Preuzimam novi kod v${remoteBundleVer} izravno s poslužitelja (${base || 'local'})...`);
+            const bundleUrl = `${base}/api/ota/bundle?t=${Date.now()}`;
+            const bundleRes = await fetch(bundleUrl, {
+              cache: 'no-store',
+              signal: AbortSignal.timeout(15000)
+            });
+            const bundleType = bundleRes.headers.get('content-type') || '';
+            if (bundleRes.ok && !bundleType.includes('text/html')) {
+              const fullJsCode = await bundleRes.text();
+              if (fullJsCode && fullJsCode.length > 1000 && !fullJsCode.trimStart().startsWith('<!') && fullJsCode.includes(remoteBundleVer)) {
+                const saved = await saveOtaBundleToIndexedDB({
+                  version: remoteBundleVer,
+                  jsCode: fullJsCode,
+                  cssCode: manifest.css || '',
+                  updatedAt: Date.now()
+                });
+                if (saved) {
+                  console.log(`[OTA] Uspješno spremljen novi kod v${remoteBundleVer} u IndexedDB s poslužitelja!`);
+                  return { downloadedNewCode: true, bundleVersion: remoteBundleVer };
+                }
               }
             }
           }
         }
       }
+    } catch (backendErr) {
+      console.warn('[OTA] Direktni dohvat s poslužitelja nije uspio, prelazim na idući izvor:', backendErr);
     }
-  } catch (backendErr) {
-    console.warn('[OTA] Direktni dohvat s poslužitelja nije uspio, prelazim na Firestore ota_bundle:', backendErr);
   }
 
   // 2. Glavni oblačni izvor za mobitel (APK): Firestore ota_bundle kolekcija (uz automatski retry ako se dijelovi upravo šalju)
@@ -738,11 +768,11 @@ export async function applyLiveWebUpdate(
         );
       } catch {}
 
-      // 6. Odmah osvježi WebView kako bi index.html učitao novi JS kod iz IndexedDB-a
+      // 6. Odmah osvježi WebView nakon kratke potvrde disk transakcije kako bi index.html učitao novi JS kod iz IndexedDB-a
       if (otaCodeResult.downloadedNewCode) {
         setTimeout(() => {
           window.location.reload();
-        }, 300);
+        }, 550);
       }
 
       return {
