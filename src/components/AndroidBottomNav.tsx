@@ -42,7 +42,7 @@ export const AndroidBottomNav: React.FC<AndroidBottomNavProps> = ({
 }) => {
   const showPro = APP_FEATURES.ENABLE_PRO_MODE;
   const showChat = APP_FEATURES.ENABLE_LIVE_CHAT;
-  const isRestrictedUser = getDeviceId() === 'RP-HGT8-UC5D';
+  const isRestrictedUser = false;
   
   let countItems = 5; // Osnovni, Solunar, Lovostaj, Ulovi, Calamari
   if (showPro) countItems++;

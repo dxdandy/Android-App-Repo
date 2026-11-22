@@ -130,7 +130,7 @@ export const BasicOverviewView: React.FC<BasicOverviewViewProps> = ({
   onOpenCalamari
 }) => {
   const isLandscape = useDeviceIsLandscape();
-  const isCalamariRestricted = getDeviceId().toUpperCase() === 'RP-HGT8-UC5D';
+  const isCalamariRestricted = false;
 
   // Stanja za osobne alarme vodostaja i temperature vode
   const [alerts, setAlerts] = useState<WaterAlertRule[]>(() => loadWaterAlerts());

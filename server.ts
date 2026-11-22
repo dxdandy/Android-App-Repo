@@ -934,7 +934,7 @@ try {
     // a TEK ZATIM ažuriraj app_updates/latest (sprječava da poslužitelj ikada pošalje nekompilirani stari kod s novim brojem verzije!)
     const publishOtaBundleAndVersionToFirestore = async () => {
       try {
-        const TARGET_VER = '1.9.0';
+        const TARGET_VER = '1.9.1';
         const { jsPath, cssPath } = resolveServerOtaBundleFiles();
         if (!fs.existsSync(jsPath)) {
           console.warn('[OTA] app-bundle.js još ne postoji — čekam završetak builda.');
@@ -1893,14 +1893,14 @@ app.post('/api/calamari/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.9.0',
+    version: '1.9.1',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-19',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.9.0.apk',
+    releaseDate: '2026-11-22',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.9.1.apk',
     changelog: [
-      'Trajni popravak Live Web OTA sustava ažuriranja za uređaje koji su se vraćali na verziju 1.8.4: poslužitelj sada trajno poslužuje kompilirani OTA paket iz public/live-ota čak i nakon ponovnog pokretanja kontejnera',
-      'Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima 18.11 – 22.11',
-      'Dodatna provjera integriteta preuzetog OTA paketa u IndexedDB bazi prije ponovnog učitavanja aplikacije'
+      'Calamari Kup 2026 otvoren je za pregled svim korisnicima koji imaju instaliranu aplikaciju',
+      'Zabrana uređivanja Calamari sekcije za sve osim administratora (Daniela) — svi ostali imaju puni pregled u stvarnom vremenu',
+      'Svečana predstava i Zlatna povelja u čast Tune — Počasnog pobjednika 1. Calamari kupa (vidljivo isključivo unutar Calamari sekcije)'
     ],
     isCritical: true,
     updateType: 'live_web'
@@ -1940,8 +1940,8 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.9.0',
-    appVersion: '1.9.0',
+    version: '1.9.1',
+    appVersion: '1.9.1',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs

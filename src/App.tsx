@@ -931,27 +931,14 @@ export default function App() {
                 <span>🏆 Evidencija ulova</span>
               </button>
 
-              {(() => {
-                const isRestricted = getDeviceId().toUpperCase() === 'RP-HGT8-UC5D';
-                return (
-                  <button
-                    type="button"
-                    disabled={isRestricted}
-                    onClick={() => {
-                      if (isRestricted) return;
-                      setShowCalamariModal(true);
-                    }}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap ${
-                      isRestricted
-                        ? 'bg-slate-900/50 text-slate-600 border border-slate-800/60 opacity-45 cursor-not-allowed select-none'
-                        : 'bg-gradient-to-r from-cyan-950/90 to-blue-950/90 hover:from-cyan-900 hover:to-blue-900 text-cyan-200 border border-cyan-500/40 shadow-md active:scale-95 cursor-pointer'
-                    }`}
-                    title={isRestricted ? 'Pristup ograničen' : 'Calamari Kup 2026 • Novi Vinodolski (18.11. - 22.11.2026.)'}
-                  >
-                    <span>🦑 Calamari</span>
-                  </button>
-                );
-              })()}
+              <button
+                type="button"
+                onClick={() => setShowCalamariModal(true)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap bg-gradient-to-r from-cyan-950/90 to-blue-950/90 hover:from-cyan-900 hover:to-blue-900 text-cyan-200 border border-cyan-500/40 shadow-md active:scale-95 cursor-pointer"
+                title="Calamari Kup 2026 • Novi Vinodolski (18.11. - 22.11.2026.)"
+              >
+                <span>🦑 Calamari</span>
+              </button>
 
               <span className="text-[11px] text-slate-400 hidden lg:inline-block truncate">
                 {APP_FEATURES.ENABLE_PRO_MODE 

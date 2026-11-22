@@ -45,7 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   highContrast = false,
   onToggleHighContrast
 }) => {
-  const isRestrictedUser = getDeviceId() === 'RP-HGT8-UC5D';
+  const isRestrictedUser = false;
 
   const formatTime = (date: Date | null) => {
     if (!date) return '--:--';

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import confetti from 'canvas-confetti';
 import { 
   X, 
   KeyRound, 
@@ -19,7 +20,10 @@ import {
   Flame,
   Clock,
   Anchor,
-  RefreshCw
+  RefreshCw,
+  Lock,
+  Crown,
+  PartyPopper
 } from 'lucide-react';
 import { 
   CALAMARI_PARTICIPANTS, 
@@ -46,6 +50,8 @@ import {
   updateCalamariSpeciesServer
 } from '../services/calamariService';
 import { fetchMeteoForCoords } from '../services/weatherService';
+import { isDanielOrAdminDevice } from '../services/licenseService';
+import { TUNA_PORTRAIT_LOCAL_PATH, TUNA_PORTRAIT_DATA_URI } from '../assets/tunaPortraitData';
 
 interface CalamariModalProps {
   isOpen: boolean;
@@ -147,6 +153,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
       const saved = localStorage.getItem(STORAGE_LOGGED_USER_KEY) as CalamariParticipantId | null;
       if (saved) return saved;
       const isMainAdmin =
+        isDanielOrAdminDevice() ||
         localStorage.getItem('ribo_device_id') === 'RP-ADMIN' ||
         localStorage.getItem('ribo_admin_authenticated') === 'true';
       if (isMainAdmin) {
@@ -169,6 +176,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
         parsed.push(single);
       }
       const isMainAdmin =
+        isDanielOrAdminDevice() ||
         localStorage.getItem('ribo_device_id') === 'RP-ADMIN' ||
         localStorage.getItem('ribo_admin_authenticated') === 'true';
       if (isMainAdmin && !parsed.includes('daniel')) {
@@ -182,10 +190,15 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
 
   const [pinInput, setPinInput] = useState<string>('');
   const [pinError, setPinError] = useState<string | null>(null);
-  const [selectedUserForPin, setSelectedUserForPin] = useState<CalamariParticipantId | null>(null);
+  const [selectedUserForPin, setSelectedUserForPin] = useState<CalamariParticipantId | null>('daniel');
   const [showManualLoginPanel, setShowManualLoginPanel] = useState<boolean>(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [isRefreshingLogins, setIsRefreshingLogins] = useState<boolean>(false);
+
+  // Svečana predstava i proglašenje u čast Tune — Počasnog pobjednika 1. Calamari kupa (isključivo unutar Calamari sekcije)
+  const [tunaPortraitSrc, setTunaPortraitSrc] = useState<string>(TUNA_PORTRAIT_LOCAL_PATH);
+  const [showTunaCeremonyStage, setShowTunaCeremonyStage] = useState<boolean>(false);
+  const [isTunaFireworksActive, setIsTunaFireworksActive] = useState<boolean>(false);
 
   // Faza animacije lignje i prskanja crnila po tekstu "Calamari Kup 2026"
   const [inkStage, setInkStage] = useState<SquidInkAnimStage>('idle');
@@ -227,6 +240,60 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     waveHeightM: 0.08,
     wavePeriodS: 2.7
   });
+
+  // Svečani vatromet i zlatni konfeti u čast Tune (Počasni pobjednik 1. Calamari kupa)
+  const triggerTunaFireworks = useCallback((showMessage = false) => {
+    if (typeof document !== 'undefined' && document.hidden) return;
+    setIsTunaFireworksActive(true);
+    try {
+      const colors = ['#fbbf24', '#f59e0b', '#38bdf8', '#2dd4bf', '#ffffff'];
+      confetti({
+        particleCount: 55,
+        angle: 60,
+        spread: 65,
+        origin: { x: 0.08, y: 0.55 },
+        colors,
+        zIndex: 120
+      });
+      confetti({
+        particleCount: 55,
+        angle: 120,
+        spread: 65,
+        origin: { x: 0.92, y: 0.55 },
+        colors,
+        zIndex: 120
+      });
+      window.setTimeout(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        try {
+          confetti({
+            particleCount: 70,
+            spread: 100,
+            origin: { x: 0.5, y: 0.35 },
+            colors,
+            zIndex: 120
+          });
+        } catch {}
+      }, 380);
+    } catch {}
+    if (showMessage) {
+      setSuccessToast('🏆🥂 Svečani vatromet u čast Tune — Počasnog pobjednika 1. Calamari kupa!');
+      window.setTimeout(() => setSuccessToast(null), 3500);
+    }
+    window.setTimeout(() => setIsTunaFireworksActive(false), 1800);
+  }, []);
+
+  // Automatski svečani doček za Tunu pri ulasku u Calamari sekciju
+  useEffect(() => {
+    if (!isOpen) {
+      setShowTunaCeremonyStage(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      triggerTunaFireworks(false);
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, triggerTunaFireworks]);
 
   // Pokretanje animacije lignje 2 sekunde nakon ulaska u Calamari sekciju:
   // 1) t=2.0s: Lignja poprska crnilom po tekstu "Calamari Kup 2026"
@@ -387,13 +454,19 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (showTunaCeremonyStage) {
+          setShowTunaCeremonyStage(false);
+        } else {
+          onClose();
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, showTunaCeremonyStage]);
 
-  // Kombinirana lista svih prijavljenih sudionika (lokalno + sinkronizirano iz Firestorea uključujući neovisne zastavice logged_silvio/tuna/daniel)
+  // Kombinirana lista svih prijavljenih sudionika
   const allLoggedParticipants = useMemo(() => {
     const set = new Set<CalamariParticipantId>(localLoggedHistory);
     if (loggedUser) set.add(loggedUser);
@@ -401,24 +474,13 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     return Array.from(set);
   }, [localLoggedHistory, loggedUser, state]);
 
-  // Lista sudionika koji se JOŠ NISU prijavili sa svojom šifrom (prijavljeni se odmah uklanjaju s liste!)
-  const unloggedParticipants = useMemo(() => {
-    return CALAMARI_PIN_PARTICIPANTS.filter(pid => !allLoggedParticipants.includes(pid));
-  }, [allLoggedParticipants]);
-
-  // Lista sudionika koji su se VEĆ prijavili (uklonjeni s liste gumba za prijavu)
-  const alreadyLoggedPinParticipants = useMemo(() => {
-    return CALAMARI_PIN_PARTICIPANTS.filter(pid => allLoggedParticipants.includes(pid));
-  }, [allLoggedParticipants]);
-
-  // Provjera jesu li se sva trojica sa šiframa (Silvio, Tuna, Daniel) prijavila
-  const areAllUsersLogged = useMemo(() => {
-    return unloggedParticipants.length === 0;
-  }, [unloggedParticipants]);
-
-  // Je li na ovom uređaju prijavljen administrator (Daniel)
+  // Je li na ovom uređaju prijavljen administrator (Daniel) — SAMO DANIEL MOŽE UREĐIVATI CALAMARI SEKCIJU!
   const isAdminUser = useMemo(() => {
-    return loggedUser === 'daniel' || localLoggedHistory.includes('daniel');
+    return (
+      loggedUser === 'daniel' ||
+      localLoggedHistory.includes('daniel') ||
+      isDanielOrAdminDevice()
+    );
   }, [loggedUser, localLoggedHistory]);
 
   // Trenutno nautičko stanje mora prema Douglasovoj ljestvici
@@ -439,7 +501,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     try {
       const fresh = await fetchCalamariDataServer();
       setState(fresh);
-      setSuccessToast('✓ Status prijava i tablice osvježen iz oblaka');
+      setSuccessToast('✓ Podaci Calamari sekcije osvježeni iz oblaka');
       setTimeout(() => setSuccessToast(null), 2200);
     } catch {} finally {
       setIsRefreshingLogins(false);
@@ -464,57 +526,54 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     const participant = CALAMARI_PARTICIPANTS.find(p => p.id === participantId);
     if (!participant) return;
 
-    if (participantId === 'dida') {
-      setPinError('Za Dida unose uređuje Daniel.');
+    // Zabrana uređivanja za sve osim Daniela (administratora)
+    if (participantId !== 'daniel') {
+      setPinError('🔒 Uređivanje Calamari sekcije je zaključano — uređivati može isključivo Daniel (Administrator).');
       return;
     }
 
     if (participant.pin && pinInput.trim() === participant.pin) {
-      setLoggedUser(participantId);
-      const updatedLocal = Array.from(new Set([...localLoggedHistory, participantId]));
+      setLoggedUser('daniel');
+      const updatedLocal = Array.from(new Set([...localLoggedHistory, 'daniel' as CalamariParticipantId]));
       setLocalLoggedHistory(updatedLocal);
       try {
-        localStorage.setItem(STORAGE_LOGGED_USER_KEY, participantId);
+        localStorage.setItem(STORAGE_LOGGED_USER_KEY, 'daniel');
         localStorage.setItem(STORAGE_LOGGED_HISTORY_KEY, JSON.stringify(updatedLocal));
+        localStorage.setItem('ribo_admin_authenticated', 'true');
       } catch {}
 
       setPinInput('');
       setPinError(null);
-      setSelectedUserForPin(null);
+      setSelectedUserForPin('daniel');
       setShowManualLoginPanel(false);
-      setSuccessToast(`✓ Prijava spremljena u oblak: ${participant.name}`);
+      setSuccessToast('✓ Administrator (Daniel) otključan za uređivanje Calamari sekcije');
       setTimeout(() => setSuccessToast(null), 3000);
 
-      const updatedState = await recordCalamariParticipantLogin(participantId);
+      const updatedState = await recordCalamariParticipantLogin('daniel');
       setState(updatedState);
     } else {
-      setPinError('Netočna šifra! Pokušajte ponovno.');
+      setPinError('Netočna administratorska šifra! Uređivanje je dozvoljeno samo Danielu.');
     }
   };
 
-  // Provjera može li ovaj uređaj uređivati ulov za odabranog natjecatelja
+  // ZABRANA UREĐIVANJA: Nitko osim Daniela (isAdminUser) više ne može uređivati sekciju Calamari, ali ju svi mogu vidjeti!
   const canEditParticipant = (targetId: CalamariParticipantId): boolean => {
-    if (isAdminUser) {
-      if (adminEditAllEnabled) return true;
-      return targetId === 'daniel' || targetId === 'dida';
+    if (!isAdminUser) {
+      return false;
     }
-    if (loggedUser === targetId || localLoggedHistory.includes(targetId)) {
-      return true;
-    }
-    return false;
+    if (adminEditAllEnabled) return true;
+    return targetId === 'daniel' || targetId === 'dida';
   };
 
   const handleUpdateCatch = async (targetId: CalamariParticipantId, dateStr: string, newCount: number) => {
     if (!canEditParticipant(targetId)) {
+      setSuccessToast('🔒 Sekcija Calamari je zaključana za uređivanje (uređuje samo Daniel).');
+      setTimeout(() => setSuccessToast(null), 2800);
       return;
     }
 
     const safeCount = Math.max(0, Math.min(999, newCount));
-    const editorName = isAdminUser
-      ? 'Daniel (Admin)'
-      : loggedUser
-      ? (CALAMARI_PARTICIPANTS.find(p => p.id === loggedUser)?.name || 'Natjecatelj')
-      : 'Natjecatelj';
+    const editorName = 'Daniel (Admin)';
     const updated = await updateCalamariCatchesServer(targetId, dateStr, safeCount, editorName);
     setState(updated);
   };
@@ -546,19 +605,15 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
     };
   };
 
-  // Otvaranje prozora za upis ulovljenih vrsta (1. Lignja, 2. Sipa, 3. Hobotnica) klikom na svoje ime u trenutnom poretku
+  // Otvaranje prozora za upis ulovljenih vrsta (1. Lignja, 2. Sipa, 3. Hobotnica) — DOZVOLJENO SAMO DANIELU
   const handleOpenSpeciesEditor = (targetId: CalamariParticipantId, initialDateStr?: string) => {
-    const pName = CALAMARI_PARTICIPANTS.find(p => p.id === targetId)?.name || targetId;
     if (!canEditParticipant(targetId)) {
-      if (!loggedUser && localLoggedHistory.length === 0) {
-        setShowManualLoginPanel(true);
-        if (targetId !== 'dida') {
-          setSelectedUserForPin(targetId);
-        }
-        setSuccessToast(`Za upis ulovljenih vrsta (${pName}) prvo se prijavite svojom šifrom.`);
-      } else {
-        setSuccessToast(`Možete upisivati ulovljene vrste samo klikom na svoje prijavljeno ime!`);
+      if (targetId === 'tuna') {
+        setShowTunaCeremonyStage(true);
+        triggerTunaFireworks(false);
+        return;
       }
+      setSuccessToast('🔒 Sekcija Calamari je zaključana za uređivanje — uređivati može samo Daniel, a pregled je otvoren svima.');
       setTimeout(() => setSuccessToast(null), 3200);
       return;
     }
@@ -580,6 +635,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
   };
 
   const handleChangeSpeciesDraft = (speciesId: CalamariSpeciesId, newValue: number) => {
+    if (!isAdminUser) return;
     const safeVal = Math.max(0, Math.min(999, isNaN(newValue) ? 0 : newValue));
     setSpeciesDraft(prev => ({
       ...prev,
@@ -591,14 +647,10 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
   };
 
   const handleAcceptSpeciesEditor = async () => {
-    if (!speciesEditorParticipant) return;
+    if (!speciesEditorParticipant || !isAdminUser) return;
     setIsSavingSpecies(true);
     try {
-      const editorName = isAdminUser
-        ? 'Daniel (Admin)'
-        : loggedUser
-        ? (CALAMARI_PARTICIPANTS.find(p => p.id === loggedUser)?.name || 'Natjecatelj')
-        : 'Natjecatelj';
+      const editorName = 'Daniel (Admin)';
       const pName = CALAMARI_PARTICIPANTS.find(p => p.id === speciesEditorParticipant)?.name || speciesEditorParticipant;
       const updated = await updateCalamariSpeciesServer(speciesEditorParticipant, speciesDraft, editorName);
       setState(updated);
@@ -672,8 +724,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
 
   if (!isOpen) return null;
 
-  const shouldShowLoginSection = !areAllUsersLogged || showManualLoginPanel;
-  const visibleLoginButtons = showManualLoginPanel ? CALAMARI_PIN_PARTICIPANTS : unloggedParticipants;
+  const shouldShowLoginSection = showManualLoginPanel;
 
   const isSpraying = inkStage === 'spraying';
   const isMelting = inkStage === 'melting';
@@ -687,6 +738,97 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
         <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[520px] h-[220px] bg-cyan-500/20 blur-3xl rounded-full" />
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-teal-950/40 to-transparent" />
       </div>
+
+      {/* SVEČANA POZORNICA & ZLATNA POVELJA U ČAST TUNE (Otvara se unutar Calamari sekcije na klik) */}
+      {showTunaCeremonyStage && (
+        <div
+          className="fixed inset-0 z-[90] bg-slate-950/92 backdrop-blur-lg flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-fade-in"
+          onClick={() => setShowTunaCeremonyStage(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-2xl rounded-3xl bg-gradient-to-b from-[#1e1303] via-[#061c33] to-[#030e1c] border-2 border-amber-400 shadow-[0_0_60px_rgba(251,191,36,0.45)] overflow-hidden p-4 sm:p-6 text-center space-y-4 my-auto"
+          >
+            {/* Zlatni reflektori u pozadini */}
+            <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-56 bg-amber-400/25 blur-3xl rounded-full" />
+
+            {/* Gumb za zatvaranje svečane pozornice */}
+            <button
+              type="button"
+              onClick={() => setShowTunaCeremonyStage(false)}
+              className="absolute top-3 right-3 h-9 w-9 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-amber-200 hover:text-white border border-amber-400/40 flex items-center justify-center cursor-pointer active:scale-95 z-20"
+              title="Zatvori svečanu pozornicu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-300/60 text-amber-200 text-[11px] sm:text-xs font-black uppercase tracking-widest shadow-md">
+              <Crown className="w-4 h-4 text-amber-300 animate-bounce" />
+              <span>Svečana Povelja • 1. Calamari Kup</span>
+              <Crown className="w-4 h-4 text-amber-300 animate-bounce" />
+            </div>
+
+            <h2 className="text-xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 tracking-tight drop-shadow-[0_2px_10px_rgba(251,191,36,0.4)]">
+              👑 TUNA — POČASNI POBJEDNIK PRVOG CALAMARI KUPA! 🏆
+            </h2>
+
+            {/* Veliki umjetnički portret Tune u zlatnom nautičkom okviru */}
+            <div className="relative mx-auto w-56 h-72 sm:w-64 sm:h-80 rounded-2xl p-1.5 bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-700 shadow-[0_0_35px_rgba(251,191,36,0.5)]">
+              <div className="relative w-full h-full rounded-xl overflow-hidden bg-slate-950 border border-amber-200/70">
+                <img
+                  src={tunaPortraitSrc}
+                  onError={() => {
+                    if (tunaPortraitSrc !== TUNA_PORTRAIT_DATA_URI) {
+                      setTunaPortraitSrc(TUNA_PORTRAIT_DATA_URI);
+                    }
+                  }}
+                  alt="Tuna - Počasni pobjednik prvog Calamari kupa"
+                  className="w-full h-full object-cover object-top"
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent pt-8 pb-2.5 px-3">
+                  <span className="inline-flex items-center gap-1 text-amber-300 font-black text-xs sm:text-sm uppercase tracking-wider">
+                    <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Kapetan Tuna • Kralj Kvarnera</span>
+                  </span>
+                </div>
+              </div>
+              <div className="absolute -top-3.5 -right-3.5 w-11 h-11 rounded-full bg-gradient-to-br from-amber-300 to-amber-600 border-2 border-white shadow-lg flex items-center justify-center text-xl animate-pulse">
+                👑
+              </div>
+            </div>
+
+            {/* Tekst svečane povelje u Tuninu čast */}
+            <div className="bg-slate-950/85 border border-amber-400/45 rounded-2xl p-3.5 sm:p-4 text-left sm:text-center space-y-2 shadow-inner">
+              <p className="text-xs sm:text-sm text-amber-100 font-bold leading-relaxed">
+                Ovom svečanom zlatnom poveljom službeno se proglašava da je naš legendarni{' '}
+                <strong className="text-amber-300 underline decoration-amber-400/70">TUNA</strong>{' '}
+                proglašen za <strong className="text-amber-300">POČASNOG POBJEDNIKA 1. CALAMARI KUPA</strong> u Novom Vinodolskom!
+              </p>
+              <p className="text-[11px] sm:text-xs text-cyan-200/90 leading-relaxed">
+                Za neprocjenjiv doprinos morskoj atmosferi, vrhunskom raspoloženju ekipe (Dida, Tuna, Silvio, Daniel) i nezaboravnoj tradiciji prvog Calamari Kupa u Vinodolskom kanalu — Tunino ime ostaje trajno upisano zlatnim slovima na vrhu časti! 🦑🥂🏆
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => triggerTunaFireworks(true)}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm cursor-pointer shadow-lg shadow-amber-500/25 active:scale-95 flex items-center gap-2"
+              >
+                <PartyPopper className="w-4 h-4 stroke-[2.5]" />
+                <span>🎆 Ispali slavljenički vatromet za Tunu!</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowTunaCeremonyStage(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-200 border border-amber-400/40 font-bold text-xs sm:text-sm cursor-pointer active:scale-95"
+              >
+                Zatvori pozornicu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* STATIČNO ZAGLAVLJE NA VRHU EKRANA - Veća animirana ikona lignje koja nakon 2s poprska crnilom tekst Calamari Kup 2026, crnilo se slije u lokvu ispod teksta, a lignja povremeno maše krakovima */}
       <header className="sticky top-0 z-30 shrink-0 w-full bg-[#020c1d]/95 backdrop-blur-md border-b border-cyan-500/45 shadow-[0_4px_24px_rgba(6,182,212,0.22)] pt-[env(safe-area-inset-top,0px)]">
@@ -981,27 +1123,43 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
               </div>
             </div>
 
-            {/* Desno: Ukupni ulov, gumb za prijavu i gumb za zatvaranje */}
+            {/* Desno: Ukupni ulov, gumb za svečanu pozornicu Tune, admin ključ i gumb za zatvaranje */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTunaCeremonyStage(true);
+                  triggerTunaFireworks(false);
+                }}
+                className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-500/25 via-yellow-500/20 to-amber-500/25 hover:from-amber-500/40 hover:to-yellow-500/35 border border-amber-400/70 flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95"
+                title="Svečano proglašenje: Tuna — Počasni pobjednik 1. Calamari kupa"
+              >
+                <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 shrink-0" />
+                <span className="text-[11px] sm:text-xs font-black text-amber-200 hidden xs:inline">Tuna 👑</span>
+              </button>
+
               <div className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl bg-cyan-950/90 border border-cyan-500/50 flex items-center gap-1.5 shadow-inner">
                 <span className="text-[11px] sm:text-xs font-bold text-cyan-200">Ukupno:</span>
                 <span className="text-sm sm:text-base font-black text-amber-400 font-mono tabular-nums">
                   {grandTotal}
                 </span>
-                <span className="text-[11px] sm:text-xs text-cyan-300 hidden xs:inline">liganja</span>
+                <span className="text-[11px] sm:text-xs text-cyan-300 hidden sm:inline">liganja</span>
               </div>
 
               <button
                 type="button"
-                onClick={() => setShowManualLoginPanel(prev => !prev)}
+                onClick={() => {
+                  setSelectedUserForPin('daniel');
+                  setShowManualLoginPanel(prev => !prev);
+                }}
                 className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl flex items-center justify-center border transition-all cursor-pointer active:scale-95 shrink-0 ${
-                  showManualLoginPanel
+                  showManualLoginPanel || isAdminUser
                     ? 'bg-cyan-600 text-white border-cyan-300 shadow-md'
                     : 'bg-slate-900/90 hover:bg-slate-800 text-cyan-300 border-cyan-500/40'
                 }`}
-                title="Prijava natjecatelja / Pregled prijavljenih"
+                title={isAdminUser ? 'Administrator (Daniel) aktivan' : 'Administratorski pristup za uređivanje (Daniel)'}
               >
-                <KeyRound className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                {isAdminUser ? <ShieldCheck className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> : <Lock className="w-4 h-4 sm:w-4.5 sm:h-4.5" />}
               </button>
 
               <button
@@ -1028,6 +1186,94 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
       {/* GLAVNI SADRŽAJ - Plivajući (skrolajući) sadržaj koji pri povlačenju prema gore odlazi ispod statičnog naslova */}
       <div className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 sm:px-6 lg:px-8 py-3 sm:py-5">
         <div className="max-w-5xl mx-auto space-y-3.5 sm:space-y-5">
+
+          {/* SVEČANA PREDSTAVA DOGAĐAJA U TUNINU ČAST: TUNA — POČASNI POBJEDNIK 1. CALAMARI KUPA (vidljivo isključivo unutar Calamari sekcije) */}
+          <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#231704]/95 via-[#072442]/95 to-[#031326]/95 border-2 border-amber-400/80 p-3.5 sm:p-5 shadow-[0_8px_36px_rgba(251,191,36,0.24)]">
+            {/* Zlatni svjetlosni snop i konfeti dekoracija */}
+            <div className="pointer-events-none absolute -top-20 -left-16 w-72 h-72 bg-amber-400/20 blur-3xl rounded-full" />
+            <div className="pointer-events-none absolute -bottom-20 -right-16 w-72 h-72 bg-cyan-400/15 blur-3xl rounded-full" />
+
+            <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
+              
+              {/* Uokvireni portret Tune s krunom i zlatnim medaljonom (klik otvara punu pozornicu) */}
+              <div
+                onClick={() => {
+                  setShowTunaCeremonyStage(true);
+                  triggerTunaFireworks(false);
+                }}
+                className="relative group cursor-pointer shrink-0"
+                title="Klikni za otvaranje Svečane pozornice i Zlatne povelje u Tuninu čast"
+              >
+                <div className={`w-28 h-36 sm:w-32 sm:h-40 rounded-2xl p-1 bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-700 shadow-[0_0_25px_rgba(251,191,36,0.45)] transition-transform duration-300 group-hover:scale-105 ${isTunaFireworksActive ? 'ring-4 ring-amber-300/80 scale-105' : ''}`}>
+                  <div className="relative w-full h-full rounded-xl overflow-hidden bg-slate-950 border border-amber-200/60">
+                    <img
+                      src={tunaPortraitSrc}
+                      onError={() => {
+                        if (tunaPortraitSrc !== TUNA_PORTRAIT_DATA_URI) {
+                          setTunaPortraitSrc(TUNA_PORTRAIT_DATA_URI);
+                        }
+                      }}
+                      alt="Tuna — Počasni pobjednik prvog Calamari kupa"
+                      className="w-full h-full object-cover object-top"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-transparent py-1 px-1.5 text-center">
+                      <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider">
+                        👑 Kapetan Tuna
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <span className="absolute -top-2.5 -right-2.5 w-8 h-8 rounded-full bg-gradient-to-br from-amber-300 to-amber-600 border-2 border-white shadow-md flex items-center justify-center text-base animate-bounce">
+                  🏆
+                </span>
+              </div>
+
+              {/* Središnji svečani tekst i kontrole proslave */}
+              <div className="flex-1 text-center sm:text-left space-y-2 min-w-0">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/25 border border-amber-300/70 text-amber-200 text-[10px] sm:text-[11px] font-black uppercase tracking-wider">
+                    <Crown className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                    <span>Svečano proglašenje • 1. Calamari Kup</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-cyan-950/90 border border-cyan-400/40 text-cyan-200 text-[10px] sm:text-[11px] font-bold">
+                    <span>🦑 Novi Vinodolski</span>
+                  </span>
+                </div>
+
+                <h2 className="text-base sm:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-100 leading-snug">
+                  👑 TUNA — Počasni pobjednik prvog Calamari kupa!
+                </h2>
+
+                <p className="text-xs sm:text-[13px] text-cyan-100/95 leading-relaxed">
+                  U čast našeg <strong className="text-amber-300 font-black">Tune</strong>, prvog počasnog pobjednika Calamari kupa! Njegov umjetnički portret i zlatna titula krase dvoranu slavnih Vinodolskog kanala kao trajni simbol prijateljstva, morske fešte i ribolovne legende.
+                </p>
+
+                <div className="pt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <button
+                    type="button"
+                    onClick={() => triggerTunaFireworks(true)}
+                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-xs cursor-pointer shadow-md shadow-amber-500/20 active:scale-95 inline-flex items-center gap-1.5"
+                  >
+                    <PartyPopper className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>🎆 Vatromet u Tuninu čast</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTunaCeremonyStage(true);
+                      triggerTunaFireworks(false);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 text-amber-200 hover:text-white border border-amber-400/60 font-bold text-xs cursor-pointer active:scale-95 inline-flex items-center gap-1.5"
+                  >
+                    <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                    <span>🏆 Svečana pozornica & Povelja</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </section>
 
           {/* PLIVAJUĆA POMORSKA METEO & INDEKS GRIZA SEKCIJA */}
           <div className="relative overflow-hidden bg-gradient-to-br from-[#041a33]/95 via-[#062544]/90 to-[#031326]/95 border border-cyan-400/45 rounded-2xl px-3 sm:px-4 py-3 shadow-[0_8px_28px_rgba(6,182,212,0.16)] flex flex-col gap-2.5 text-[11px] sm:text-xs text-cyan-100">
@@ -1120,78 +1366,38 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
             </div>
           </div>
 
-          {/* RUBRIKA ZA PRIJAVU - Svi koji su se prijavili odmah su uklonjeni s liste prijava kako bi se vidjelo tko je još ostao neprijavljen! */}
+          {/* ADMINISTRATORSKA PRIJAVA ZA UREĐIVANJE (Otvara se samo na klik ikone lokota u zaglavlju — uređivati može isključivo Daniel!) */}
           {shouldShowLoginSection && (
             <div className="bg-gradient-to-r from-[#04182e]/95 via-cyan-950/80 to-[#04182e]/95 px-3 sm:px-5 py-3.5 rounded-2xl border border-cyan-400/40 shadow-lg">
               <div className="max-w-4xl mx-auto flex flex-col items-center justify-center gap-2.5">
                 <div className="flex flex-wrap items-center justify-center gap-2 text-center">
-                  <span className="text-xs font-bold text-cyan-100">
-                    {unloggedParticipants.length > 0
-                      ? `Neprijavljeni natjecatelji (${unloggedParticipants.length}): Odaberite svoje ime i unesite šifru`
-                      : 'Svi natjecatelji su prijavljeni! (Ručni odabir aktivnog natjecatelja na uređaju)'}
-                  </span>
-
-                  {alreadyLoggedPinParticipants.length > 0 && (
-                    <span className="px-2.5 py-0.5 rounded-lg bg-teal-950/90 border border-teal-400/40 text-[11px] font-bold text-teal-300 inline-flex items-center gap-1">
-                      <Check className="w-3 h-3 text-teal-400 shrink-0" />
-                      <span>
-                        Već prijavljeni: {alreadyLoggedPinParticipants.map(id => CALAMARI_PARTICIPANTS.find(p => p.id === id)?.name).join(', ')}
-                      </span>
+                  <span className="text-xs font-bold text-cyan-100 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>
+                      {isAdminUser
+                        ? 'Administrator (Daniel) je prijavljen — uređivanje sekcije Calamari je otključano.'
+                        : 'Sekcija Calamari je zaključana za uređivanje. Samo Daniel (Administrator) može uređivati podatke:'}
                     </span>
-                  )}
+                  </span>
 
                   <button
                     type="button"
                     onClick={handleManualRefreshLogins}
                     disabled={isRefreshingLogins}
                     className="px-2 py-0.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/35 text-[10.5px] font-bold text-cyan-300 inline-flex items-center gap-1 cursor-pointer active:scale-95"
-                    title="Osvježi status prijava iz oblaka"
+                    title="Osvježi podatke iz oblaka"
                   >
                     <RefreshCw className={`w-3 h-3 ${isRefreshingLogins ? 'animate-spin' : ''}`} />
                     <span>Osvježi</span>
                   </button>
                 </div>
 
-                {/* Gumbovi samo za one koji su JOŠ OSTALI NEPRIJAVLJENI (u sredini ekrana s velikim razmakom) */}
-                {visibleLoginButtons.length > 0 && (
-                  <div className="flex items-center justify-center gap-8 sm:gap-12 flex-wrap w-full py-1">
-                    {visibleLoginButtons.map((pid) => {
-                      const pDef = CALAMARI_PARTICIPANTS.find(p => p.id === pid)!;
-                      const isAlreadyLogged = allLoggedParticipants.includes(pid);
-                      const isSelected = selectedUserForPin === pid;
-
-                      return (
-                        <button
-                          key={pid}
-                          type="button"
-                          onClick={() => {
-                            setSelectedUserForPin(pid);
-                            setPinInput('');
-                            setPinError(null);
-                          }}
-                          className={`min-w-[96px] sm:min-w-[115px] px-4 py-2 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5 shadow-md border ${
-                            isSelected
-                              ? 'bg-cyan-500 text-slate-950 border-white shadow-cyan-500/30'
-                              : isAlreadyLogged
-                              ? 'bg-teal-950/90 text-teal-200 border-teal-400/60 hover:bg-teal-900'
-                              : 'bg-cyan-950/90 hover:bg-cyan-900 text-cyan-100 border-cyan-400/60'
-                          }`}
-                        >
-                          {isAlreadyLogged && <Check className="w-3.5 h-3.5 text-teal-400 shrink-0" />}
-                          <span>{pDef.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Polje za unos tajne šifre odabranog natjecatelja */}
-                {selectedUserForPin && (
+                {!isAdminUser && (
                   <div className="w-full max-w-md mt-1 bg-slate-900/95 border border-cyan-500/40 rounded-2xl p-3 flex flex-col items-center gap-2 shadow-xl animate-slide-up">
                     <div className="flex items-center gap-2 text-xs font-bold text-cyan-200">
                       <KeyRound className="w-4 h-4 text-cyan-400 shrink-0" />
                       <span>
-                        Unesite osobnu šifru za: <strong className="text-white uppercase">{selectedUserForPin}</strong>
+                        Administratorska šifra (<strong className="text-white uppercase">DANIEL</strong>):
                       </span>
                     </div>
 
@@ -1203,23 +1409,23 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                         value={pinInput}
                         onChange={(e) => setPinInput(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleLoginWithPin(selectedUserForPin);
+                          if (e.key === 'Enter') handleLoginWithPin('daniel');
                         }}
-                        placeholder="Tajna šifra..."
+                        placeholder="Admin šifra..."
                         className="bg-slate-950 border border-cyan-500/50 rounded-xl px-3.5 py-2 text-white text-center text-sm font-mono focus:outline-none focus:border-cyan-300 w-36 sm:w-44"
                         autoFocus
                       />
                       <button
                         type="button"
-                        onClick={() => handleLoginWithPin(selectedUserForPin)}
+                        onClick={() => handleLoginWithPin('daniel')}
                         className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 text-xs sm:text-sm font-black cursor-pointer shadow-md shrink-0 active:scale-95"
                       >
-                        Potvrdi
+                        Otključaj
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedUserForPin(null);
+                          setShowManualLoginPanel(false);
                           setPinError(null);
                         }}
                         className="px-2.5 py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs cursor-pointer"
@@ -1239,7 +1445,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
             </div>
           )}
 
-          {/* 1. TRENUTNI POREDAK (Klik na svoje ime otvara upis ulovljenih vrsta: 1. Lignja, 2. Sipa, 3. Hobotnica + mala tablica u poretku) */}
+          {/* 1. TRENUTNI POREDAK (Svi vide podatke; uređivanje dozvoljeno isključivo Danielu; Tuna ima posebnu krunu Počasnog pobjednika) */}
           <section className="relative overflow-hidden bg-gradient-to-br from-[#04182e]/95 via-[#072644]/90 to-[#020f1f]/95 border border-cyan-500/45 rounded-2xl p-3 sm:p-4 shadow-lg">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div>
@@ -1248,7 +1454,9 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                   <span>Trenutni poredak • Calamari Kup</span>
                 </h2>
                 <p className="text-[10.5px] sm:text-[11px] text-cyan-300/90 mt-0.5">
-                  Kliknite na svoje ime u poretku za upis količine ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica)
+                  {isAdminUser
+                    ? 'Admin mod (Daniel): Kliknite na ime u poretku za upis količine ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica)'
+                    : '🔒 Pregled poretka i ulova po vrstama otvoren je svima (uređivanje zaključano — uređuje samo Daniel)'}
                 </p>
               </div>
               <span className="text-[11px] font-mono text-cyan-300/90 flex items-center gap-1">
@@ -1262,6 +1470,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
               {sortedParticipants.map((p, idx) => {
                 const total = calculateTotalForParticipant(p.id);
                 const isLeader = idx === 0 && total > 0;
+                const isTunaHonorary = p.id === 'tuna';
                 const canEditThis = canEditParticipant(p.id);
                 const isEditingThis = speciesEditorParticipant === p.id;
 
@@ -1269,32 +1478,52 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                   <div
                     key={p.id}
                     className={`rounded-xl p-2.5 sm:p-3 border flex flex-col justify-between transition-all ${
-                      isLeader
+                      isTunaHonorary
+                        ? 'bg-gradient-to-b from-amber-500/20 via-[#07223f]/95 to-slate-950 border-amber-400/85 shadow-[0_0_20px_rgba(251,191,36,0.18)]'
+                        : isLeader
                         ? 'bg-gradient-to-b from-amber-500/20 via-cyan-950/90 to-slate-950 border-amber-400/80 shadow-md shadow-amber-500/15'
                         : isEditingThis
                         ? 'bg-cyan-950/90 border-cyan-300 shadow-md'
                         : 'bg-[#031122]/90 border-cyan-500/35 hover:border-cyan-400/60'
                     }`}
                   >
-                    {/* Gornji red kartice: Redni broj + Ime natjecatelja (klik za unos vrste) + Ukupna količina POKRAJ imena s malim razmakom */}
-                    <div className="flex items-center justify-between gap-2 mb-2">
+                    {/* Gornji red kartice: Redni broj + Ime natjecatelja + Ukupna količina POKRAJ imena s malim razmakom */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                       <button
                         type="button"
                         onClick={() => handleOpenSpeciesEditor(p.id)}
                         className={`inline-flex items-center text-left rounded-lg px-2 py-1 transition-all cursor-pointer active:scale-95 ${
                           canEditThis
                             ? 'bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/50 shadow-xs'
+                            : isTunaHonorary
+                            ? 'bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/50'
                             : 'hover:bg-slate-800/70 border border-transparent'
                         }`}
                         title={
                           canEditThis
                             ? `Klikni na ime (${p.name}) za unos ulovljenih vrsta (1. Lignja, 2. Sipa, 3. Hobotnica)`
-                            : `Prijavite se kao ${p.name} za unos ulovljenih vrsta`
+                            : isTunaHonorary
+                            ? 'Klikni za otvaranje Svečane pozornice u čast Tune — Počasnog pobjednika 1. Calamari kupa!'
+                            : 'Uređivanje je zaključano (samo Daniel može uređivati podatke)'
                         }
                       >
                         <span className="font-mono text-xs sm:text-sm font-bold text-cyan-400 mr-1.5">
                           #{idx + 1}
                         </span>
+
+                        {isTunaHonorary && (
+                          <img
+                            src={tunaPortraitSrc}
+                            onError={() => {
+                              if (tunaPortraitSrc !== TUNA_PORTRAIT_DATA_URI) {
+                                setTunaPortraitSrc(TUNA_PORTRAIT_DATA_URI);
+                              }
+                            }}
+                            alt="Tuna"
+                            className="w-6 h-6 rounded-full object-cover object-top border border-amber-300 mr-1.5 shrink-0"
+                          />
+                        )}
+
                         <strong className="text-sm sm:text-base font-black text-white tracking-tight underline decoration-cyan-400/60 underline-offset-4">
                           {p.name}
                         </strong>
@@ -1309,15 +1538,31 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                         {isLeader && <Award className="w-4 h-4 text-amber-400 shrink-0 ml-1.5" />}
                       </button>
 
-                      {canEditThis && (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenSpeciesEditor(p.id)}
-                          className="px-2 py-1 rounded-lg bg-teal-500/20 hover:bg-teal-500/35 border border-teal-400/50 text-teal-200 text-[10px] sm:text-[11px] font-black cursor-pointer active:scale-95 shrink-0"
-                        >
-                          + Upis vrste
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {isTunaHonorary && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowTunaCeremonyStage(true);
+                              triggerTunaFireworks(false);
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-500/30 to-yellow-500/25 hover:from-amber-500/45 hover:to-yellow-500/40 border border-amber-300/70 text-amber-200 text-[10px] font-black cursor-pointer active:scale-95 inline-flex items-center gap-1 shrink-0"
+                            title="Otvori svečanu pozornicu za Tunu"
+                          >
+                            <span>👑 Počasni pobjednik 1. Kupa</span>
+                          </button>
+                        )}
+
+                        {canEditThis && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSpeciesEditor(p.id)}
+                            className="px-2 py-1 rounded-lg bg-teal-500/20 hover:bg-teal-500/35 border border-teal-400/50 text-teal-200 text-[10px] sm:text-[11px] font-black cursor-pointer active:scale-95 shrink-0"
+                          >
+                            + Upis vrste
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* MALA TABLICA U TRENUTNOM PORETKU: Vodoravno datumi 18.11, 19.11, 20.11, 21.11 i 22.11, a okomito 1. Lignja, 2. Sipa i 3. Hobotnica */}
@@ -1388,8 +1633,8 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
               })}
             </div>
 
-            {/* PROZOR ZA UPIS ULOVLJENE VRSTE (1. Lignja, 2. Sipa, 3. Hobotnica) KADA PRIJAVLJENI NATJECATELJ KLIKNE NA SVOJE IME */}
-            {speciesEditorParticipant && (
+            {/* PROZOR ZA UPIS ULOVLJENE VRSTE (1. Lignja, 2. Sipa, 3. Hobotnica) — DOSTUPAN SAMO DANIELU */}
+            {speciesEditorParticipant && isAdminUser && (
               <div className="mt-3.5 bg-slate-950/95 border-2 border-cyan-400/70 rounded-2xl p-3.5 sm:p-4 shadow-[0_0_30px_rgba(6,182,212,0.28)] animate-fade-in">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-cyan-500/30">
                   <div className="flex items-center gap-2">
@@ -1529,7 +1774,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
             )}
           </section>
 
-          {/* 2. VERTIKALNA TABLICA ULOVA PO DANIMA I SUDIONICIMA + ADMIN KONTROLE ZA UREĐIVANJE SVIH */}
+          {/* 2. VERTIKALNA TABLICA ULOVA PO DANIMA I SUDIONICIMA + ZABRANA UREĐIVANJA ZA SVE OSIM DANIELA */}
           <section className="bg-gradient-to-b from-[#04182e]/95 via-[#061e38]/95 to-[#020d1a]/95 border border-cyan-500/45 rounded-2xl overflow-hidden shadow-xl">
             <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-r from-cyan-950/70 via-[#072a4a]/70 to-cyan-950/70 border-b border-cyan-500/35 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
@@ -1539,7 +1784,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                 </span>
               </div>
 
-              {/* Admin kontrole ako je Daniel prijavljen */}
+              {/* Admin kontrole ako je Daniel prijavljen, inače oznaka da je uređivanje zaključano */}
               {isAdminUser ? (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <button
@@ -1553,7 +1798,7 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                     title="Kao administrator možete uređivati tablicu svim sudionicima (Dida, Tuna, Silvio, Daniel)"
                   >
                     <ShieldCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                    <span>{adminEditAllEnabled ? 'Admin: Uređivanje SVIH uključeno' : 'Admin: Samo Daniel i Dida'}</span>
+                    <span>{adminEditAllEnabled ? 'Admin (Daniel): Uređivanje SVIH uključeno' : 'Admin: Samo Daniel i Dida'}</span>
                   </button>
 
                   <button
@@ -1570,8 +1815,9 @@ export const CalamariModal: React.FC<CalamariModalProps> = ({ isOpen, onClose })
                   </button>
                 </div>
               ) : (
-                <span className="text-[10.5px] sm:text-xs text-cyan-300 font-medium">
-                  Promjene su odmah vidljive svima
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950/80 border border-amber-400/35 text-[10.5px] sm:text-xs text-amber-200 font-bold">
+                  <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+                  <span>Samo za pregled (Uređuje samo Daniel)</span>
                 </span>
               )}
             </div>
