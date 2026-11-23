@@ -29,8 +29,8 @@ function copyDirRecursive(src, dest) {
 
 try {
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-  const bundledVersion = String(pkg.version || '1.9.1').trim();
-  const otaBundleVersion = bundledVersion;
+  const bundledVersion = String(pkg.version || '1.9.2').trim();
+  const otaManifestVersion = `${bundledVersion}.1`;
 
   if (fs.existsSync(distIndex)) {
     let html = fs.readFileSync(distIndex, 'utf-8');
@@ -39,7 +39,7 @@ try {
     html = html.replace(/<script id="vite-plugin-pwa:register-sw"[^>]*><\/script>/gi, '');
 
     const otaLoaderScript = `<script type="module">
-      window.__BUNDLED_APP_VERSION__ = "${otaBundleVersion}";
+      window.__BUNDLED_APP_VERSION__ = "${bundledVersion}";
       try {
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(regs => {
@@ -52,10 +52,15 @@ try {
           }).catch(() => {});
         }
       } catch {}
+      function normalizeVer(ver) {
+        const clean = String(ver || '').replace(/^[vV]/, '').trim();
+        const parts = clean.split('.');
+        return parts.length > 3 ? parts.slice(0, 3).join('.') : clean;
+      }
       function isNewerVer(remoteVer, currentVer) {
         if (!remoteVer || !currentVer) return false;
-        const rParts = String(remoteVer).replace(/^[vV]/, '').trim().split('.').map(n => parseInt(n, 10) || 0);
-        const cParts = String(currentVer).replace(/^[vV]/, '').trim().split('.').map(n => parseInt(n, 10) || 0);
+        const rParts = normalizeVer(remoteVer).split('.').map(n => parseInt(n, 10) || 0);
+        const cParts = normalizeVer(currentVer).split('.').map(n => parseInt(n, 10) || 0);
         for (let i = 0; i < Math.max(rParts.length, cParts.length); i++) {
           const r = rParts[i] || 0;
           const c = cParts[i] || 0;
@@ -107,7 +112,7 @@ try {
               styleEl.textContent = ota.cssCode;
               document.head.appendChild(styleEl);
             }
-            window.__RUNNING_OTA_VERSION__ = ota.version;
+            window.__RUNNING_OTA_VERSION__ = normalizeVer(ota.version);
             try {
               const blob = new Blob([ota.jsCode], { type: 'text/javascript' });
               const blobUrl = URL.createObjectURL(blob);
@@ -121,7 +126,7 @@ try {
               document.body.appendChild(scriptEl);
               loadedOta = true;
             }
-            console.log('[RiboPrognoza OTA] Uspješno aktiviran Live Web paket v' + ota.version);
+            console.log('[RiboPrognoza OTA] Uspješno aktiviran Live Web paket v' + window.__RUNNING_OTA_VERSION__);
           }
         } catch (err) {
           console.warn('[RiboPrognoza OTA] Fallback na ugrađeni paket:', err);
@@ -156,31 +161,36 @@ self.addEventListener('activate', () => {
     fs.writeFileSync(path.join(distDir, 'registerSW.js'), '// Service Worker disabled to prevent stale cache loops\n', 'utf-8');
   }
 
-  // Kopiraj kompilirani paket u public/live-ota kako bi bio trenutačno dostupan preko GitHub Raw i poslužitelja
+  // Kopiraj kompilirani paket u public/live-ota i dist/live-ota kako bi bio trenutačno dostupan preko GitHub Raw i poslužitelja
   const publicOtaDir = path.join(rootDir, 'public', 'live-ota');
-  if (!fs.existsSync(publicOtaDir)) {
-    fs.mkdirSync(publicOtaDir, { recursive: true });
-  }
+  const distOtaDir = path.join(distDir, 'live-ota');
 
   const jsBundle = path.join(rootDir, 'dist', 'assets', 'app-bundle.js');
   const cssBundle = path.join(rootDir, 'dist', 'assets', 'app-bundle.css');
 
   if (fs.existsSync(jsBundle)) {
-    fs.copyFileSync(jsBundle, path.join(publicOtaDir, 'app-bundle.js'));
     const cssContent = fs.existsSync(cssBundle) ? fs.readFileSync(cssBundle, 'utf-8') : '';
-    if (fs.existsSync(cssBundle)) {
-      fs.copyFileSync(cssBundle, path.join(publicOtaDir, 'app-bundle.css'));
-    }
     const jsStats = fs.statSync(jsBundle);
     const manifest = {
-      version: otaBundleVersion,
+      version: otaManifestVersion,
       appVersion: bundledVersion,
       jsSize: jsStats.size,
       css: cssContent,
       updatedAt: Date.now()
     };
-    fs.writeFileSync(path.join(publicOtaDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
-    console.log(`[prepare-ota] Uspješno sinkroniziran public/live-ota paket (v${otaBundleVersion}, ${jsStats.size} B)`);
+    const manifestStr = JSON.stringify(manifest, null, 2);
+
+    for (const targetDir of [publicOtaDir, distOtaDir]) {
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+      fs.copyFileSync(jsBundle, path.join(targetDir, 'app-bundle.js'));
+      if (fs.existsSync(cssBundle)) {
+        fs.copyFileSync(cssBundle, path.join(targetDir, 'app-bundle.css'));
+      }
+      fs.writeFileSync(path.join(targetDir, 'manifest.json'), manifestStr, 'utf-8');
+    }
+    console.log(`[prepare-ota] Uspješno sinkroniziran public/live-ota paket (v${otaManifestVersion} / appVersion v${bundledVersion}, ${jsStats.size} B)`);
   }
 
   // Automatski sinkroniziraj dist/ u android/app/src/main/assets/public/

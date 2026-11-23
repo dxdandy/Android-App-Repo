@@ -341,7 +341,7 @@ export default function App() {
     // Odmah pokreni automatsko čišćenje privremenih APK instalacijskih datoteka s uređaja
     cleanupInstallationFiles().catch(() => {});
 
-    const handleAutoApplyUpdate = async (newUpdate: AppVersionInfo) => {
+    const handleAutoApplyUpdate = async (newUpdate: AppVersionInfo, retryCount: number = 0) => {
       try {
         const res = await applyLiveWebUpdate(newUpdate.version, newUpdate.changelog);
         if (res.success) {
@@ -354,6 +354,12 @@ export default function App() {
           setLiveUpdateBanner(`⚡ Live Web Ažuriranje: Aplikacija je automatski nadograđena na v${res.version}`);
           setTimeout(() => setLiveUpdateBanner(null), 4000);
           handleRefreshAll();
+        } else if (retryCount < 3) {
+          setTimeout(() => {
+            if (typeof document === 'undefined' || !document.hidden) {
+              handleAutoApplyUpdate(newUpdate, retryCount + 1);
+            }
+          }, 3500);
         }
       } catch {}
     };
@@ -654,9 +660,16 @@ export default function App() {
       if (res.status === 'update_available' && res.updateInfo) {
         const applied = await applyLiveWebUpdate(res.updateInfo.version, res.updateInfo.changelog);
         setActiveAppVersion(applied.version);
-        setManualUpdateToast(`⚡ Live Web ažuriranje (v${applied.version}) je automatski instalirano!`);
-        setTimeout(() => setManualUpdateToast(null), 4500);
-        handleRefreshAll();
+        if (applied.success) {
+          setManualUpdateToast(`⚡ Live Web ažuriranje (v${applied.version}) je automatski instalirano!`);
+          setTimeout(() => setManualUpdateToast(null), 4500);
+          handleRefreshAll();
+        } else {
+          setAvailableUpdate(res.updateInfo);
+          setShowUpdateModal(true);
+          setManualUpdateToast(`⚠️ ${applied.message || 'Preuzimanje paketa koda zahtijeva ponovni pokušaj.'}`);
+          setTimeout(() => setManualUpdateToast(null), 4500);
+        }
       } else if (res.status === 'up_to_date') {
         const currentVer = getCurrentAppVersion();
         setActiveAppVersion(currentVer);

@@ -92,7 +92,7 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
     <script type="module">
-      window.__BUNDLED_APP_VERSION__ = "1.9.1";
+      window.__BUNDLED_APP_VERSION__ = "1.9.2";
       try {
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(regs => {
@@ -105,10 +105,15 @@
           }).catch(() => {});
         }
       } catch {}
+      function normalizeVer(ver) {
+        const clean = String(ver || '').replace(/^[vV]/, '').trim();
+        const parts = clean.split('.');
+        return parts.length > 3 ? parts.slice(0, 3).join('.') : clean;
+      }
       function isNewerVer(remoteVer, currentVer) {
         if (!remoteVer || !currentVer) return false;
-        const rParts = String(remoteVer).replace(/^[vV]/, '').trim().split('.').map(n => parseInt(n, 10) || 0);
-        const cParts = String(currentVer).replace(/^[vV]/, '').trim().split('.').map(n => parseInt(n, 10) || 0);
+        const rParts = normalizeVer(remoteVer).split('.').map(n => parseInt(n, 10) || 0);
+        const cParts = normalizeVer(currentVer).split('.').map(n => parseInt(n, 10) || 0);
         for (let i = 0; i < Math.max(rParts.length, cParts.length); i++) {
           const r = rParts[i] || 0;
           const c = cParts[i] || 0;
@@ -160,7 +165,7 @@
               styleEl.textContent = ota.cssCode;
               document.head.appendChild(styleEl);
             }
-            window.__RUNNING_OTA_VERSION__ = ota.version;
+            window.__RUNNING_OTA_VERSION__ = normalizeVer(ota.version);
             try {
               const blob = new Blob([ota.jsCode], { type: 'text/javascript' });
               const blobUrl = URL.createObjectURL(blob);
@@ -174,7 +179,7 @@
               document.body.appendChild(scriptEl);
               loadedOta = true;
             }
-            console.log('[RiboPrognoza OTA] Uspješno aktiviran Live Web paket v' + ota.version);
+            console.log('[RiboPrognoza OTA] Uspješno aktiviran Live Web paket v' + window.__RUNNING_OTA_VERSION__);
           }
         } catch (err) {
           console.warn('[RiboPrognoza OTA] Fallback na ugrađeni paket:', err);

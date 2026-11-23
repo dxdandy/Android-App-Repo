@@ -14,10 +14,11 @@ import { db, setFirestoreNetworkActive } from './firebase';
 import { showAppUpdateAvailableNotification } from './notificationService';
 import { getApiUrl } from './licenseService';
 
-export const BUNDLED_APP_VERSION = '1.9.1';
+export const BUNDLED_APP_VERSION = '1.9.2';
 export const LIVE_VERSION_STORAGE_KEY = 'ribo_current_live_version';
 export const LIVE_UPDATE_INFO_STORAGE_KEY = 'ribo_last_live_update_info';
 const SHARED_CLOUD_BACKEND_URL = 'https://ais-pre-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
+const DEV_CLOUD_BACKEND_URL = 'https://ais-dev-w265pmwlescn6ezxznnwhn-294488753863.europe-west2.run.app';
 
 const FIRESTORE_REST_BASE =
   'https://firestore.googleapis.com/v1/projects/titanium-domain-wv4kj/databases/ai-studio-hrvatskiradnipro-badf4099-cdd8-4a4a-b90c-6a3aea6c7b94/documents';
@@ -44,7 +45,7 @@ async function getFirestoreDocQuotaSafe(collectionName: string, docId: string): 
   try {
     const snap = await Promise.race([
       getDoc(doc(db, collectionName, docId)),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000))
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
     ]);
     if (snap && (snap as any).exists && (snap as any).exists()) {
       return (snap as any).data();
@@ -58,7 +59,7 @@ async function getFirestoreDocQuotaSafe(collectionName: string, docId: string): 
       method: 'GET',
       cache: 'no-store',
       headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(4500)
+      signal: AbortSignal.timeout(6500)
     });
     if (res.ok) {
       const json = await res.json();
@@ -72,7 +73,49 @@ async function getFirestoreDocQuotaSafe(collectionName: string, docId: string): 
 }
 
 /**
- * Normalizira internu 4-dijelnu OTA verziju paketa (npr. '1.8.4.1' -> '1.8.4') za prikaz i usporedbu aplikacije
+ * Brzi i robusni dohvat velikih OTA dijelova (manifest i chunk_0..N) iz Firestorea:
+ * koristi izravni HTTPS REST GET s 15s timeoutom (ne blokira se na WebChannelu) uz fallback na Firebase SDK i 3 pokušaja po dijelu.
+ */
+async function getFirestoreOtaDocWithRetry(docId: string, maxAttempts: number = 3): Promise<Record<string, any> | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      await new Promise(r => setTimeout(r, 800 * attempt));
+    }
+    try {
+      const url = `${FIRESTORE_REST_BASE}/ota_bundle/${encodeURIComponent(docId)}?t=${Date.now()}_${attempt}`;
+      const res = await fetch(url, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.fields) {
+          const parsed = parseFirestoreRestFields(json.fields);
+          if (parsed && Object.keys(parsed).length > 0) {
+            return parsed;
+          }
+        }
+      }
+    } catch {}
+
+    try {
+      setFirestoreNetworkActive(true);
+      const snap = await Promise.race([
+        getDoc(doc(db, 'ota_bundle', docId)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000))
+      ]);
+      if (snap && (snap as any).exists && (snap as any).exists()) {
+        return (snap as any).data();
+      }
+    } catch {}
+  }
+  return null;
+}
+
+/**
+ * Normalizira internu 4-dijelnu OTA verziju paketa (npr. '1.9.2.1' -> '1.9.2') za prikaz i usporedbu aplikacije
  */
 export function normalizeDisplayVersion(ver: string): string {
   const clean = String(ver || '').replace(/^[vV]/, '').trim();
@@ -94,7 +137,7 @@ export function isNewerVersion(remoteVer: string, currentVer: string): boolean {
   const cleanCurrent = currentVer.replace(/^[vV]/, '').trim();
 
   const remoteParts = cleanRemote.split('.').map(n => parseInt(n, 10) || 0);
-  const currentParts = cleanCurrent.split('.').map(n => parseInt(n, 10) || 0);
+  const currentParts = currentPartsFromStr(cleanCurrent);
 
   for (let i = 0; i < Math.max(remoteParts.length, currentParts.length); i++) {
     const r = remoteParts[i] || 0;
@@ -104,6 +147,10 @@ export function isNewerVersion(remoteVer: string, currentVer: string): boolean {
   }
 
   return false;
+}
+
+function currentPartsFromStr(str: string): number[] {
+  return str.split('.').map(n => parseInt(n, 10) || 0);
 }
 
 /**
@@ -121,7 +168,8 @@ export function getCurrentAppVersion(): string {
         }
       }
 
-      // Sinkroniziraj localStorage sa stvarno izvršavanom verzijom koda
+      // Sinkroniziraj localStorage i globalnu oznaku sa stvarno izvršavanom 3-znamenkastom verzijom koda
+      (window as any).__RUNNING_OTA_VERSION__ = bestVer;
       localStorage.setItem(LIVE_VERSION_STORAGE_KEY, bestVer);
     } catch {}
   }
@@ -207,7 +255,7 @@ function parseVersionData(json: any, repo: string): AppVersionInfo | null {
   if (!json) return null;
 
   if (json.version) {
-    const cleanVer = String(json.version).replace(/^[vV]/, '').trim();
+    const cleanVer = normalizeDisplayVersion(String(json.version));
     return {
       version: cleanVer,
       name: json.name || 'RiboPrognoza',
@@ -220,7 +268,7 @@ function parseVersionData(json: any, repo: string): AppVersionInfo | null {
   }
 
   if (json.tag_name && json.tag_name !== 'latest') {
-    const cleanTag = String(json.tag_name).replace(/^[vV]/, '').trim();
+    const cleanTag = normalizeDisplayVersion(String(json.tag_name));
     return {
       version: cleanTag,
       name: json.name || 'RiboPrognoza',
@@ -235,7 +283,7 @@ function parseVersionData(json: any, repo: string): AppVersionInfo | null {
 }
 
 /**
- * Provjerava postoji li novija Live Web verzija aplikacije (provjerava backend poslužitelj, Firestore i GitHub)
+ * Provjerava postoji li novija Live Web verzija aplikacije (provjerava Firestore, backend poslužitelj i GitHub)
  */
 export async function checkForAppUpdate(force: boolean = false): Promise<CheckUpdateResult> {
   const activeVersion = getCurrentAppVersion();
@@ -244,7 +292,7 @@ export async function checkForAppUpdate(force: boolean = false): Promise<CheckUp
   let successfulEndpoint: string | undefined;
   let lastErrorMsg: string = 'Nije pronađen dostupan poslužitelj za provjeru ažuriranja.';
 
-  // 1. Prvo provjeri izravne HTTP endpointe uključujući poslužitelj aplikacije (najbrži i neovisan o Firestore kvotama)
+  // 1. Provjeri izravne HTTP endpointe
   const endpoints = getUpdateEndpoints();
   for (const url of endpoints) {
     try {
@@ -271,27 +319,26 @@ export async function checkForAppUpdate(force: boolean = false): Promise<CheckUp
           latestData = parsed;
           successfulEndpoint = url.split('?')[0];
         }
-        break;
       }
     } catch (err: any) {
       lastErrorMsg = err?.message || 'Greška u mrežnoj vezi.';
     }
   }
 
-  // 2. Ako HTTP nije dao verziju, provjeri Firestore (app_updates/latest)
-  if (!latestData) {
-    try {
-      const docData = await getFirestoreDocQuotaSafe('app_updates', 'latest');
-      if (docData) {
-        const parsed = parseVersionData(docData, repo);
-        if (parsed && parsed.version) {
+  // 2. Provjeri i Firestore (app_updates/latest) te uzmi noviju verziju ako je Firestore svježiji od GitHuba
+  try {
+    const docData = await getFirestoreDocQuotaSafe('app_updates', 'latest');
+    if (docData) {
+      const parsed = parseVersionData(docData, repo);
+      if (parsed && parsed.version) {
+        if (!latestData || isNewerVersion(parsed.version, latestData.version)) {
           latestData = parsed;
           successfulEndpoint = 'Firestore Cloud (app_updates/latest)';
         }
       }
-    } catch (err: any) {
-      lastErrorMsg = err?.message || 'Greška pri provjeri Firestore oblaka.';
     }
+  } catch (err: any) {
+    lastErrorMsg = err?.message || 'Greška pri provjeri Firestore oblaka.';
   }
 
   if (!latestData || !latestData.version) {
@@ -361,7 +408,7 @@ export async function runUpdateDiagnostic(): Promise<{
     if (snap.exists()) {
       const d = snap.data();
       if (d?.version) {
-        details.push(`✓ Firestore Cloud (app_updates/latest) -> Verzija: ${d.version} [Live Web OTA] (${durFs}ms)`);
+        details.push(`✓ Firestore Cloud (app_updates/latest) -> Verzija: ${normalizeDisplayVersion(String(d.version))} [Live Web OTA] (${durFs}ms)`);
       }
     }
   } catch (e: any) {
@@ -530,7 +577,7 @@ function isAcceptableBundleVersion(remoteVer: string, runningCodeVer: string, ta
   }
   if (targetVer) {
     const cleanTarget = normalizeDisplayVersion(targetVer);
-    // Ako je remote paket stariji od ciljane verzije (npr. stari 1.8.4.2 na GitHubu dok tražimo 1.9.0), odbaci ga!
+    // Ako je remote paket stariji od ciljane verzije, odbaci ga!
     if (isNewerVersion(cleanTarget, cleanRemote)) {
       return false;
     }
@@ -543,12 +590,15 @@ function isAcceptableBundleVersion(remoteVer: string, runningCodeVer: string, ta
  * kako bi se promjene u sučelju 100% primijenile na mobitelu bez lažnog ažuriranja samo broja verzije.
  */
 async function downloadAndCacheOtaCodeBundle(targetVersion?: string): Promise<{ downloadedNewCode: boolean; bundleVersion?: string }> {
-  const runningCodeVer = (typeof window !== 'undefined' && (window as any).__RUNNING_OTA_VERSION__) || BUNDLED_APP_VERSION;
+  const runningCodeVer = normalizeDisplayVersion(
+    (typeof window !== 'undefined' && (window as any).__RUNNING_OTA_VERSION__) || BUNDLED_APP_VERSION
+  );
 
-  // 1. Primarni izvor: Izravni dohvat s poslužitelja aplikacije (provjerava i dev i shared URL te da odgovor nije HTML login stranica)
+  // 1. Primarni izvor: Izravni dohvat s poslužitelja aplikacije (provjerava lokalni, dev i shared URL te da odgovor nije HTML login stranica)
   const serverBaseCandidates = [
     getApiUrl(''),
-    SHARED_CLOUD_BACKEND_URL
+    SHARED_CLOUD_BACKEND_URL,
+    DEV_CLOUD_BACKEND_URL
   ];
   const uniqueBases = Array.from(new Set(serverBaseCandidates.map(b => b.replace(/\/$/, ''))));
 
@@ -558,25 +608,25 @@ async function downloadAndCacheOtaCodeBundle(targetVersion?: string): Promise<{ 
       const manifestRes = await fetch(manifestUrl, {
         cache: 'no-store',
         headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(6000)
       });
 
       const contentType = manifestRes.headers.get('content-type') || '';
       if (manifestRes.ok && contentType.includes('application/json')) {
         const manifest = await manifestRes.json();
-        if (manifest && manifest.version) {
-          const remoteBundleVer = normalizeDisplayVersion(String(manifest.version));
+        if (manifest && (manifest.appVersion || manifest.version)) {
+          const remoteBundleVer = normalizeDisplayVersion(String(manifest.appVersion || manifest.version));
           if (isAcceptableBundleVersion(remoteBundleVer, runningCodeVer, targetVersion)) {
             console.log(`[OTA] Preuzimam novi kod v${remoteBundleVer} izravno s poslužitelja (${base || 'local'})...`);
             const bundleUrl = `${base}/api/ota/bundle?t=${Date.now()}`;
             const bundleRes = await fetch(bundleUrl, {
               cache: 'no-store',
-              signal: AbortSignal.timeout(15000)
+              signal: AbortSignal.timeout(35000)
             });
             const bundleType = bundleRes.headers.get('content-type') || '';
             if (bundleRes.ok && !bundleType.includes('text/html')) {
               const fullJsCode = await bundleRes.text();
-              if (fullJsCode && fullJsCode.length > 1000 && !fullJsCode.trimStart().startsWith('<!') && fullJsCode.includes(remoteBundleVer)) {
+              if (fullJsCode && fullJsCode.length > 50000 && !fullJsCode.trimStart().startsWith('<!') && fullJsCode.includes(remoteBundleVer)) {
                 const saved = await saveOtaBundleToIndexedDB({
                   version: remoteBundleVer,
                   jsCode: fullJsCode,
@@ -597,25 +647,25 @@ async function downloadAndCacheOtaCodeBundle(targetVersion?: string): Promise<{ 
     }
   }
 
-  // 2. Glavni oblačni izvor za mobitel (APK): Firestore ota_bundle kolekcija (uz automatski retry ako se dijelovi upravo šalju)
+  // 2. Glavni oblačni izvor za mobitel (APK): Firestore ota_bundle kolekcija (s brzim 15s REST dohvatom i retryjem po svakom dijelu)
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       if (attempt > 0) {
-        await new Promise(r => setTimeout(r, 2200));
+        await new Promise(r => setTimeout(r, 1800));
       }
-      const manifest = await getFirestoreDocQuotaSafe('ota_bundle', 'manifest');
-      if (manifest && manifest.version) {
+      const manifest = await getFirestoreOtaDocWithRetry('manifest', 2);
+      if (manifest && (manifest.appVersion || manifest.version)) {
         const count = typeof manifest?.totalChunks === 'number'
           ? manifest.totalChunks
           : (typeof manifest?.chunkCount === 'number' ? manifest.chunkCount : 0);
-        const remoteBundleVer = normalizeDisplayVersion(String(manifest.version));
+        const remoteBundleVer = normalizeDisplayVersion(String(manifest.appVersion || manifest.version));
 
         if (count > 0 && isAcceptableBundleVersion(remoteBundleVer, runningCodeVer, targetVersion)) {
           console.log(`[OTA] Preuzimam novi kod v${remoteBundleVer} (${count} dijelova) iz Firestorea...`);
           const chunks: string[] = [];
           let allChunksOk = true;
           for (let i = 0; i < count; i++) {
-            const chunkData = await getFirestoreDocQuotaSafe('ota_bundle', `chunk_${i}`);
+            const chunkData = await getFirestoreOtaDocWithRetry(`chunk_${i}`, 3);
             if (!chunkData || !chunkData.data) {
               console.warn(`[OTA] Nedostaje ota_bundle/chunk_${i} u Firestoreu.`);
               allChunksOk = false;
@@ -626,7 +676,7 @@ async function downloadAndCacheOtaCodeBundle(targetVersion?: string): Promise<{ 
 
           if (allChunksOk) {
             const fullJsCode = chunks.join('');
-            if (fullJsCode && fullJsCode.length > 1000) {
+            if (fullJsCode && fullJsCode.length > 50000 && fullJsCode.includes(remoteBundleVer)) {
               const saved = await saveOtaBundleToIndexedDB({
                 version: remoteBundleVer,
                 jsCode: fullJsCode,
@@ -646,47 +696,49 @@ async function downloadAndCacheOtaCodeBundle(targetVersion?: string): Promise<{ 
     }
   }
 
-  // 3. Pričuvni izvor: GitHub Raw CDN (prihvaća se isključivo ako ima traženu novu verziju!)
+  // 3. Pričuvni izvor: GitHub Raw CDN (provjerava main i master granu, prihvaća isključivo ako ima traženu novu verziju!)
   const repo = getSavedGithubRepo();
   if (repo && repo.includes('/')) {
-    try {
-      const ghManifestUrl = `https://raw.githubusercontent.com/${repo}/main/public/live-ota/manifest.json?t=${Date.now()}`;
-      const ghManifestRes = await fetch(ghManifestUrl, {
-        cache: 'no-store',
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(6000)
-      });
-      if (ghManifestRes.ok) {
-        const ghManifest = await ghManifestRes.json();
-        if (ghManifest && ghManifest.version) {
-          const ghVer = normalizeDisplayVersion(String(ghManifest.version));
-          if (isAcceptableBundleVersion(ghVer, runningCodeVer, targetVersion)) {
-            console.log(`[OTA] Preuzimam novi kod v${ghVer} s GitHub Raw CDN-a...`);
-            const ghBundleUrl = `https://raw.githubusercontent.com/${repo}/main/public/live-ota/app-bundle.js?t=${Date.now()}`;
-            const ghBundleRes = await fetch(ghBundleUrl, {
-              cache: 'no-store',
-              signal: AbortSignal.timeout(18000)
-            });
-            if (ghBundleRes.ok) {
-              const fullJsCode = await ghBundleRes.text();
-              if (fullJsCode && fullJsCode.length > 1000 && !fullJsCode.trimStart().startsWith('<!')) {
-                const saved = await saveOtaBundleToIndexedDB({
-                  version: ghVer,
-                  jsCode: fullJsCode,
-                  cssCode: ghManifest.css || '',
-                  updatedAt: Date.now()
-                });
-                if (saved) {
-                  console.log(`[OTA] Uspješno spremljen novi kod v${ghVer} u IndexedDB s GitHub Raw CDN-a!`);
-                  return { downloadedNewCode: true, bundleVersion: ghVer };
+    for (const branch of ['main', 'master']) {
+      try {
+        const ghManifestUrl = `https://raw.githubusercontent.com/${repo}/${branch}/public/live-ota/manifest.json?t=${Date.now()}`;
+        const ghManifestRes = await fetch(ghManifestUrl, {
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(8000)
+        });
+        if (ghManifestRes.ok) {
+          const ghManifest = await ghManifestRes.json();
+          if (ghManifest && (ghManifest.appVersion || ghManifest.version)) {
+            const ghVer = normalizeDisplayVersion(String(ghManifest.appVersion || ghManifest.version));
+            if (isAcceptableBundleVersion(ghVer, runningCodeVer, targetVersion)) {
+              console.log(`[OTA] Preuzimam novi kod v${ghVer} s GitHub Raw CDN-a (${branch})...`);
+              const ghBundleUrl = `https://raw.githubusercontent.com/${repo}/${branch}/public/live-ota/app-bundle.js?t=${Date.now()}`;
+              const ghBundleRes = await fetch(ghBundleUrl, {
+                cache: 'no-store',
+                signal: AbortSignal.timeout(35000)
+              });
+              if (ghBundleRes.ok) {
+                const fullJsCode = await ghBundleRes.text();
+                if (fullJsCode && fullJsCode.length > 50000 && !fullJsCode.trimStart().startsWith('<!') && fullJsCode.includes(ghVer)) {
+                  const saved = await saveOtaBundleToIndexedDB({
+                    version: ghVer,
+                    jsCode: fullJsCode,
+                    cssCode: ghManifest.css || '',
+                    updatedAt: Date.now()
+                  });
+                  if (saved) {
+                    console.log(`[OTA] Uspješno spremljen novi kod v${ghVer} u IndexedDB s GitHub Raw CDN-a!`);
+                    return { downloadedNewCode: true, bundleVersion: ghVer };
+                  }
                 }
               }
             }
           }
         }
+      } catch (ghErr) {
+        console.warn(`[OTA] GitHub Raw (${branch}) dohvat bundlea nije uspio:`, ghErr);
       }
-    } catch (ghErr) {
-      console.warn('[OTA] GitHub Raw dohvat bundlea nije uspio:', ghErr);
     }
   }
 
@@ -769,10 +821,19 @@ export async function applyLiveWebUpdate(
       } catch {}
 
       // 6. Odmah osvježi WebView nakon kratke potvrde disk transakcije kako bi index.html učitao novi JS kod iz IndexedDB-a
+      // (uz automatski fallback na location.replace ako Android WebView ignorira standardni reload)
       if (otaCodeResult.downloadedNewCode) {
         setTimeout(() => {
-          window.location.reload();
-        }, 550);
+          try {
+            window.location.reload();
+          } catch {}
+          setTimeout(() => {
+            try {
+              const baseHref = window.location.origin + window.location.pathname;
+              window.location.replace(`${baseHref}?ota=${encodeURIComponent(finalVer)}&t=${Date.now()}`);
+            } catch {}
+          }, 500);
+        }, 450);
       }
 
       return {

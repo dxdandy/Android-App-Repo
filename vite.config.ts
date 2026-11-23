@@ -33,7 +33,8 @@ function prepareOtaVitePlugin(): Plugin {
         const distIndex = path.join(distDir, 'index.html');
         const pkgPath = path.join(rootDir, 'package.json');
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-        const bundledVersion = String(pkg.version || '1.9.1').trim();
+        const bundledVersion = String(pkg.version || '1.9.2').trim();
+        const otaManifestVersion = `${bundledVersion}.1`;
 
         if (fs.existsSync(distIndex)) {
           let html = fs.readFileSync(distIndex, 'utf-8');
@@ -53,10 +54,15 @@ function prepareOtaVitePlugin(): Plugin {
           }).catch(() => {});
         }
       } catch {}
+      function normalizeVer(ver) {
+        const clean = String(ver || '').replace(/^[vV]/, '').trim();
+        const parts = clean.split('.');
+        return parts.length > 3 ? parts.slice(0, 3).join('.') : clean;
+      }
       function isNewerVer(remoteVer, currentVer) {
         if (!remoteVer || !currentVer) return false;
-        const rParts = String(remoteVer).replace(/^[vV]/, '').trim().split('.').map(n => parseInt(n, 10) || 0);
-        const cParts = String(currentVer).replace(/^[vV]/, '').trim().split('.').map(n => parseInt(n, 10) || 0);
+        const rParts = normalizeVer(remoteVer).split('.').map(n => parseInt(n, 10) || 0);
+        const cParts = normalizeVer(currentVer).split('.').map(n => parseInt(n, 10) || 0);
         for (let i = 0; i < Math.max(rParts.length, cParts.length); i++) {
           const r = rParts[i] || 0;
           const c = cParts[i] || 0;
@@ -108,7 +114,7 @@ function prepareOtaVitePlugin(): Plugin {
               styleEl.textContent = ota.cssCode;
               document.head.appendChild(styleEl);
             }
-            window.__RUNNING_OTA_VERSION__ = ota.version;
+            window.__RUNNING_OTA_VERSION__ = normalizeVer(ota.version);
             try {
               const blob = new Blob([ota.jsCode], { type: 'text/javascript' });
               const blobUrl = URL.createObjectURL(blob);
@@ -122,7 +128,7 @@ function prepareOtaVitePlugin(): Plugin {
               document.body.appendChild(scriptEl);
               loadedOta = true;
             }
-            console.log('[RiboPrognoza OTA] Uspješno aktiviran Live Web paket v' + ota.version);
+            console.log('[RiboPrognoza OTA] Uspješno aktiviran Live Web paket v' + window.__RUNNING_OTA_VERSION__);
           }
         } catch (err) {
           console.warn('[RiboPrognoza OTA] Fallback na ugrađeni paket:', err);
@@ -162,7 +168,8 @@ self.addEventListener('activate', () => {
           const cssContent = fs.existsSync(cssBundle) ? fs.readFileSync(cssBundle, 'utf-8') : '';
           const jsStats = fs.statSync(jsBundle);
           const manifestObj = {
-            version: bundledVersion,
+            version: otaManifestVersion,
+            appVersion: bundledVersion,
             jsSize: jsStats.size,
             css: cssContent,
             updatedAt: Date.now()

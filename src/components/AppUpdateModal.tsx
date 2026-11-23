@@ -28,6 +28,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 }) => {
   const [isApplying, setIsApplying] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
   const [installedVer, setInstalledVer] = useState<string>(() => getCurrentAppVersion());
 
   useEffect(() => {
@@ -35,16 +36,34 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       setInstalledVer(getCurrentAppVersion());
       setIsApplying(true);
       setIsCompleted(false);
+      setApplyError(null);
 
-      // Automatski odmah primijeni Live Web ažuriranje po otvaranju
+      let cancelled = false;
+      // Automatski odmah primijeni Live Web ažuriranje po otvaranju (uz automatski ponovni pokušaj ako mreža zakaže)
       const timer = setTimeout(async () => {
-        await applyLiveWebUpdate(updateInfo.version, updateInfo.changelog);
+        let res = await applyLiveWebUpdate(updateInfo.version, updateInfo.changelog);
+        if (!res.success && !cancelled) {
+          await new Promise(r => setTimeout(r, 2000));
+          if (!cancelled) {
+            res = await applyLiveWebUpdate(updateInfo.version, updateInfo.changelog);
+          }
+        }
+        if (cancelled) return;
         setIsApplying(false);
-        setIsCompleted(true);
-        setInstalledVer(updateInfo.version);
-      }, 900);
+        if (res.success) {
+          setIsCompleted(true);
+          setApplyError(null);
+          setInstalledVer(res.version || updateInfo.version);
+        } else {
+          setIsCompleted(false);
+          setApplyError(res.message || 'Preuzimanje novog paketa koda trenutno nije uspjelo. Dodirnite gumb ispod za ponovni pokušaj.');
+        }
+      }, 600);
 
-      return () => clearTimeout(timer);
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
     }
   }, [isOpen, updateInfo]);
 
@@ -52,17 +71,25 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 
   const handleApplyNow = async () => {
     setIsApplying(true);
-    await applyLiveWebUpdate(updateInfo.version, updateInfo.changelog);
+    setApplyError(null);
+    const res = await applyLiveWebUpdate(updateInfo.version, updateInfo.changelog);
     setIsApplying(false);
-    setIsCompleted(true);
-    setInstalledVer(updateInfo.version);
-    setTimeout(() => {
-      onClose();
-    }, 800);
+    if (res.success) {
+      setIsCompleted(true);
+      setInstalledVer(res.version || updateInfo.version);
+      setTimeout(() => {
+        onClose();
+      }, 800);
+    } else {
+      setIsCompleted(false);
+      setApplyError(res.message || 'Preuzimanje paketa koda nije uspjelo. Provjerite internetsku vezu i pokušajte ponovno.');
+    }
   };
 
   const handleClose = () => {
-    dismissUpdateFor24h(updateInfo.version);
+    if (isCompleted) {
+      dismissUpdateFor24h(updateInfo.version);
+    }
     onClose();
   };
 
@@ -144,17 +171,29 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
         </div>
 
         {/* Objašnjenje Live Web sustava (bez APK datoteka) */}
-        <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-2xl p-3 space-y-1.5 text-xs text-emerald-200">
-          <div className="flex items-center gap-2 font-bold text-emerald-300">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+        <div className={`rounded-2xl p-3 space-y-1.5 text-xs border ${
+          applyError
+            ? 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+            : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+        }`}>
+          <div className="flex items-center gap-2 font-bold">
+            <ShieldCheck className={`w-4 h-4 shrink-0 ${applyError ? 'text-amber-400' : 'text-emerald-400'}`} />
             <span>
               {isCompleted
                 ? '✓ Live Web ažuriranje je uspješno instalirano!'
+                : applyError
+                ? '⚠️ Preuzimanje paketa koda zahtijeva ponovni pokušaj'
                 : 'Ažuriranje bez preuzimanja APK datoteke'}
             </span>
           </div>
           <p className="text-[11px] text-slate-300 leading-snug">
-            Sve promjene i nove pogodnosti primjenjuju se <strong>automatski po pokretanju aplikacije</strong> putem Live Web (OTA) tehnologije, bez preuzimanja APK instalacije i bez sigurnosnih blokada mobitela.
+            {applyError ? (
+              applyError
+            ) : (
+              <>
+                Sve promjene i nove pogodnosti primjenjuju se <strong>automatski po pokretanju aplikacije</strong> putem Live Web (OTA) tehnologije, bez preuzimanja APK instalacije i bez sigurnosnih blokada mobitela.
+              </>
+            )}
           </p>
         </div>
 
@@ -168,12 +207,18 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
             {isApplying ? (
               <>
                 <RefreshCw className="w-4 h-4 text-slate-950 animate-spin" />
-                <span>Primjenjujem Live Web ažuriranje...</span>
+                <span>Preuzimam i primjenjujem novi kod...</span>
               </>
             ) : (
               <>
                 <Zap className="w-4 h-4 text-slate-950" />
-                <span>{isCompleted ? 'Nastavi u aplikaciju (v' + updateInfo.version + ')' : 'Primijeni Live Web ažuriranje odmah'}</span>
+                <span>
+                  {isCompleted
+                    ? 'Nastavi u aplikaciju (v' + installedVer + ')'
+                    : applyError
+                    ? 'Pokušaj ponovno preuzeti v' + updateInfo.version
+                    : 'Primijeni Live Web ažuriranje odmah'}
+                </span>
               </>
             )}
           </button>

@@ -934,7 +934,8 @@ try {
     // a TEK ZATIM ažuriraj app_updates/latest (sprječava da poslužitelj ikada pošalje nekompilirani stari kod s novim brojem verzije!)
     const publishOtaBundleAndVersionToFirestore = async () => {
       try {
-        const TARGET_VER = '1.9.1';
+        const TARGET_VER = '1.9.2';
+        const OTA_MANIFEST_VER = '1.9.2.1';
         const { jsPath, cssPath } = resolveServerOtaBundleFiles();
         if (!fs.existsSync(jsPath)) {
           console.warn('[OTA] app-bundle.js još ne postoji — čekam završetak builda.');
@@ -949,26 +950,28 @@ try {
         }
 
         const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf-8') : '';
-        const CHUNK_SIZE = 400000; // 400 KB po Firestore dokumentu (limit je 1 MB)
+        // 140 KB po dijelu kako bi svaki pojedinačni chunk prošao za <0.8s na mobilnoj mreži (ispod 4s timeouta na starijim uređajima)
+        const CHUNK_SIZE = 140000;
         const totalChunks = Math.ceil(jsContent.length / CHUNK_SIZE);
         for (let i = 0; i < totalChunks; i++) {
           const slice = jsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           await setDoc(doc(serverDb, 'ota_bundle', `chunk_${i}`), {
-            version: TARGET_VER,
+            version: OTA_MANIFEST_VER,
+            appVersion: TARGET_VER,
             index: i,
             data: slice,
             updatedAt: Date.now()
           });
         }
         await setDoc(doc(serverDb, 'ota_bundle', 'manifest'), {
-          version: TARGET_VER,
+          version: OTA_MANIFEST_VER,
           appVersion: TARGET_VER,
           totalChunks,
           chunkCount: totalChunks,
           css: cssContent,
           updatedAt: Date.now()
         });
-        console.log(`[OTA] Verificiran i objavljen kompilirani kod v${TARGET_VER} u Firestore ota_bundle (${totalChunks} dijelova).`);
+        console.log(`[OTA] Verificiran i objavljen kompilirani kod v${TARGET_VER} (manifest v${OTA_MANIFEST_VER}) u Firestore ota_bundle (${totalChunks} dijelova).`);
 
         // Kratka pauza (1.2 s) kako bi svi Firestore čvorovi potvrdili ota_bundle dijelove prije slanja obavijesti klijentima
         await new Promise(r => setTimeout(r, 1200));
@@ -977,12 +980,12 @@ try {
         await setDoc(doc(serverDb, 'app_updates', 'latest'), {
           version: TARGET_VER,
           name: 'RiboPrognoza',
-          releaseDate: '2026-11-19',
+          releaseDate: '2026-11-23',
           apkUrl: `https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v${TARGET_VER}.apk`,
           changelog: [
-            'Trajni popravak Live Web OTA sustava ažuriranja za uređaje koji su se vraćali na verziju 1.8.4: poslužitelj sada trajno poslužuje kompilirani OTA paket iz public/live-ota čak i nakon ponovnog pokretanja kontejnera',
-            'Calamari Kup 2026: klikom na svoje ime u Trenutnom poretku prijavljeni sudionik može upisati količinu ulovljene vrste (1. Lignja, 2. Sipa, 3. Hobotnica) po datumima 18.11 – 22.11',
-            'Dodatna provjera integriteta preuzetog OTA paketa u IndexedDB bazi prije ponovnog učitavanja aplikacije'
+            'Trajni popravak Live Web OTA ažuriranja za sve uređaje kojima se javljalo novo ažuriranje bez primjene promjena (kompatibilnost sa starijim APK instalacijama i brzi dohvat dijelova)',
+            'Calamari Kup 2026 otvoren je za pregled svim korisnicima koji imaju instaliranu aplikaciju (uređivanje zaključano isključivo za administratora Daniela)',
+            'Svečana predstava i Zlatna povelja u čast Tune — Počasnog pobjednika 1. Calamari kupa (vidljivo isključivo unutar Calamari sekcije)'
           ],
           isCritical: true,
           updateType: 'live_web',
@@ -1893,13 +1896,13 @@ app.post('/api/calamari/update', (req, res) => {
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
-    version: '1.9.1',
+    version: '1.9.2',
     name: 'RiboPrognoza',
-    releaseDate: '2026-11-22',
-    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.9.1.apk',
+    releaseDate: '2026-11-23',
+    apkUrl: 'https://github.com/dxdandy/Android-App-Repo/releases/latest/download/RiboPrognoza_v1.9.2.apk',
     changelog: [
-      'Calamari Kup 2026 otvoren je za pregled svim korisnicima koji imaju instaliranu aplikaciju',
-      'Zabrana uređivanja Calamari sekcije za sve osim administratora (Daniela) — svi ostali imaju puni pregled u stvarnom vremenu',
+      'Trajni popravak Live Web OTA ažuriranja za sve uređaje kojima se javljalo novo ažuriranje bez primjene promjena (kompatibilnost sa starijim APK instalacijama i brzi dohvat dijelova)',
+      'Calamari Kup 2026 otvoren je za pregled svim korisnicima koji imaju instaliranu aplikaciju (uređivanje zaključano isključivo za administratora Daniela)',
       'Svečana predstava i Zlatna povelja u čast Tune — Počasnog pobjednika 1. Calamari kupa (vidljivo isključivo unutar Calamari sekcije)'
     ],
     isCritical: true,
@@ -1940,8 +1943,8 @@ app.get('/api/ota/manifest', (_req, res) => {
   const jsStats = fs.statSync(jsPath);
 
   res.json({
-    version: '1.9.1',
-    appVersion: '1.9.1',
+    version: '1.9.2.1',
+    appVersion: '1.9.2',
     jsSize: jsStats.size,
     css: cssContent,
     updatedAt: jsStats.mtimeMs
